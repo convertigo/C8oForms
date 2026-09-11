@@ -51,6 +51,119 @@ function findResultsJsons(dir) {
   return [...new Set(found)].sort();
 }
 
+function findFilesNamed(dir, filename) {
+  const found = [];
+  if (!existsSync(dir)) return found;
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) {
+      found.push(...findFilesNamed(path, filename));
+    } else if (entry === filename) {
+      found.push(path);
+    }
+  }
+  return found.sort();
+}
+
+function networkType(snapshot) {
+  const url = snapshot?.request?.url || '';
+  if (url.includes('/_changes?') && url.includes('feed=longpoll')) return 'longpoll';
+  return snapshot?._resourceType || 'other';
+}
+
+function sanitizedRequestPath(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.hostname}${parsed.pathname}`;
+  } catch {
+    return String(url || '').split('?')[0];
+  }
+}
+
+function responseHeader(snapshot, name) {
+  const expected = name.toLowerCase();
+  return (snapshot?.response?.headers || []).find((header) =>
+    String(header?.name || '').toLowerCase() === expected)?.value || '(none)';
+}
+
+function collectTraceNetworkSamples(rootDir) {
+  const samples = [];
+  const errors = [];
+  const traceZips = findFilesNamed(rootDir, 'trace.zip');
+
+  for (const traceZip of traceZips) {
+    try {
+      const entries = execFileSync('unzip', ['-Z1', traceZip], {
+        encoding: 'utf8',
+        maxBuffer: 16 * 1024 * 1024,
+      }).split(/\r?\n/).filter((entry) => entry.endsWith('.network'));
+      for (const entry of entries) {
+        const contents = execFileSync('unzip', ['-p', traceZip, entry], {
+          encoding: 'utf8',
+          maxBuffer: 128 * 1024 * 1024,
+        });
+        for (const line of contents.split(/\r?\n/)) {
+          if (!line) continue;
+          const snapshot = JSON.parse(line)?.snapshot;
+          const durationMs = Number(snapshot?.time);
+          if (!snapshot || !Number.isFinite(durationMs) || durationMs < 0) continue;
+          samples.push({
+            type: networkType(snapshot),
+            durationMs,
+            status: Number(snapshot?.response?.status || 0),
+            path: sanitizedRequestPath(snapshot?.request?.url),
+            cacheControl: responseHeader(snapshot, 'cache-control'),
+          });
+        }
+      }
+    } catch (error) {
+      errors.push(`${basename(dirname(traceZip))}: ${error.message}`);
+    }
+  }
+  return { samples, errors, traceZips: traceZips.length };
+}
+
+function aggregateCacheControls(samples) {
+  const byType = new Map();
+  for (const sample of samples) {
+    const counts = byType.get(sample.type) ?? new Map();
+    counts.set(sample.cacheControl, (counts.get(sample.cacheControl) ?? 0) + 1);
+    byType.set(sample.type, counts);
+  }
+  return Object.fromEntries([...byType.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([type, counts]) => [
+      type,
+      Object.fromEntries([...counts.entries()].sort(([, a], [, b]) => b - a)),
+    ]));
+}
+
+function percentile(sorted, ratio) {
+  if (!sorted.length) return 0;
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))];
+}
+
+function aggregateNetworkTimings(samples) {
+  const byType = new Map();
+  for (const sample of samples) {
+    const durations = byType.get(sample.type) ?? [];
+    durations.push(sample.durationMs);
+    byType.set(sample.type, durations);
+  }
+  return Object.fromEntries([...byType.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([type, durations]) => {
+      durations.sort((a, b) => a - b);
+      return [type, {
+        requests: durations.length,
+        p50Ms: Math.round(percentile(durations, 0.5)),
+        p95Ms: Math.round(percentile(durations, 0.95)),
+        maxMs: Math.round(durations.at(-1)),
+        overOneSecond: durations.filter((duration) => duration > 1_000).length,
+      }];
+    }));
+}
+
 // Every test (= Playwright "spec") from the report, with its pass/fail.
 function collectTests(report) {
   const out = [];
@@ -161,6 +274,9 @@ function aggregateSpecTimings(items) {
 const resultsPaths = findResultsJsons(join(testsDir, 'test-results'));
 const missingResults = resultsPaths.length === 0;
 const partialResults = expectedResultShards > 0 && resultsPaths.length > 0 && resultsPaths.length < expectedResultShards;
+const traceNetwork = collectTraceNetworkSamples(join(testsDir, 'test-results'));
+const networkTimings = aggregateNetworkTimings(traceNetwork.samples);
+const networkCacheControls = aggregateCacheControls(traceNetwork.samples);
 
 const rawTests = (missingResults
   ? []
@@ -290,9 +406,60 @@ if (slowestSpecs.length) {
   }
 }
 
+const networkTypes = Object.entries(networkTimings);
+if (networkTypes.length) {
+  lines.push('');
+  lines.push(`Network timing from **${traceNetwork.traceZips} retained failure traces** (diagnostic sample, not the whole suite):`);
+  lines.push('');
+  lines.push('| Resource type | Requests | p50 | p95 | Max | > 1s |');
+  lines.push('|---|---:|---:|---:|---:|---:|');
+  for (const [type, timing] of networkTypes) {
+    lines.push(`| ${tableCell(type)} | ${timing.requests} | ${timing.p50Ms}ms | ${timing.p95Ms}ms | ${timing.maxMs}ms | ${timing.overOneSecond} |`);
+  }
+  const scriptCacheControls = Object.entries(networkCacheControls.script || {});
+  if (scriptCacheControls.length) {
+    lines.push('');
+    lines.push(`JavaScript Cache-Control: ${scriptCacheControls
+      .map(([value, count]) => `\`${value}\` (${count})`)
+      .join(', ')}.`);
+  }
+
+  const slowRequests = traceNetwork.samples
+    .filter((sample) => sample.type !== 'longpoll')
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .slice(0, 10);
+  if (slowRequests.length) {
+    lines.push('');
+    lines.push('Slowest non-long-poll requests:');
+    lines.push('');
+    lines.push('| Type | Duration | Status | Path |');
+    lines.push('|---|---:|---:|---|');
+    for (const request of slowRequests) {
+      lines.push(`| ${tableCell(request.type)} | ${Math.round(request.durationMs)}ms | ${request.status || '-'} | ${tableCell(request.path)} |`);
+    }
+  }
+}
+if (traceNetwork.errors.length) {
+  lines.push('');
+  lines.push(`Trace network parsing errors: ${traceNetwork.errors.map(tableCell).join('; ')}`);
+}
+
 const markdown = `${lines.join('\n')}\n`;
 mkdirSync(join(testsDir, 'dist'), { recursive: true });
 writeFileSync(join(testsDir, 'dist', 'e2e_report.md'), markdown);
+writeFileSync(join(testsDir, 'dist', 'e2e-network-timings.json'), `${JSON.stringify({
+  schemaVersion: 1,
+  generatedAt: new Date().toISOString(),
+  traceZips: traceNetwork.traceZips,
+  samples: traceNetwork.samples.length,
+  timings: networkTimings,
+  cacheControls: networkCacheControls,
+  slowestNonLongPollRequests: traceNetwork.samples
+    .filter((sample) => sample.type !== 'longpoll')
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .slice(0, 50),
+  errors: traceNetwork.errors,
+}, null, 2)}\n`);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
 console.log(markdown);
 

@@ -86,6 +86,7 @@ scriptContent:
         		this.global.visibleoptions = [];
         		this.local.searchTags = [];
                 this.local.searchSubTags = [];
+                this.local.activeSearchQuery = "";
         		this.global.platform.name[''0''] = ""
         		this.global.visibleoptions = [];
         		this.global["visibleoptions1"] = [];
@@ -106,6 +107,165 @@ scriptContent:
         /*Begin_c8o_PageFinalization*/
         		/*End_c8o_PageFinalization*/
         /*Begin_c8o_PageFunction*/
+            public normalizeActiveSearchQuery(value:any): string {
+                return value == null
+                    ? ""
+                    : ("" + value).trim();
+            }
+            public getActiveSearchQuery(): string {
+                return this.normalizeActiveSearchQuery(
+                    this.local?.activeSearchQuery
+                );
+            }
+            public setActiveSearchQuery(value:any): void {
+                this.local.activeSearchQuery =
+                    this.normalizeActiveSearchQuery(value);
+            }
+            public clearActiveSearchQuery(): void {
+                this.setActiveSearchQuery("");
+            }
+            public hasActiveSearchQuery(): boolean {
+                return this.getActiveSearchQuery() != "";
+            }
+        
+            /**
+             * Returns canonical selected users from the search field.
+             * The collaboration-only filter is intentionally singular: exactly one
+             * selected user is required, with no first-item fallback for multi-select.
+             */
+            public getSelectedSearchUsers(): any[] {
+                const rawUsers = Array.isArray(this.local?._searchUser)
+                    ? this.local._searchUser
+                    : [];
+                const selectedUsers:any[] = [];
+                const selectedIds:string[] = [];
+                for (const entry of rawUsers) {
+                    const userId = this.getSelectedSearchUserValue(entry);
+                    if (userId != "" && selectedIds.indexOf(userId) == -1) {
+                        selectedIds.push(userId);
+                        selectedUsers.push(entry);
+                    }
+                }
+                return selectedUsers;
+            }
+            public getSelectedSearchUserValue(entry:any): string {
+                const rawValue =
+                    entry != null && entry.value != undefined
+                        ? entry.value
+                        : entry;
+                const text = rawValue != null && ("" + rawValue).trim() != ""
+                    ? ("" + rawValue).trim()
+                    : "";
+                return text;
+            }
+            public normalizeSearchUserIdentifier(value:any): string {
+                const rawValue =
+                    value != null && value.value != undefined
+                        ? value.value
+                        : value;
+                let text = rawValue != null && ("" + rawValue).trim() != ""
+                    ? ("" + rawValue).trim()
+                    : "";
+                if (text.indexOf("C8Oreserved_") === 0) {
+                    text = text.substring(12);
+                }
+                return text;
+            }
+            public getCurrentUserIdentityCandidates(): string[] {
+                const settings:any = this.global?.settings ?? {};
+                const candidates = [
+                    this.global?.user,
+                    settings?._id,
+                    settings?.["~c8oAcl"]
+                ];
+                const normalized:string[] = [];
+                for (const candidate of candidates) {
+                    const userId = this.normalizeSearchUserIdentifier(candidate);
+                    if (userId != "" && normalized.indexOf(userId) == -1) {
+                        normalized.push(userId);
+                    }
+                }
+                return normalized;
+            }
+            public getSelectedSearchUserCount(): number {
+                return this.getSelectedSearchUsers().length;
+            }
+            public getSelectedSearchUserId(): string {
+                const selectedUsers = this.getSelectedSearchUsers();
+                return selectedUsers.length === 1
+                    ? this.getSelectedSearchUserValue(selectedUsers[0])
+                    : "";
+            }
+            public hasSelectedSearchUser(): boolean {
+                return this.getSelectedSearchUserId() != "";
+            }
+            public hasAnySelectedSearchUser(): boolean {
+                return this.getSelectedSearchUserCount() > 0;
+            }
+            public canUseCollaborationFilter(): boolean {
+                if (this.getSelectedSearchUserCount() !== 1) {
+                    return false;
+                }
+                const selectedUserId =
+                    this.normalizeSearchUserIdentifier(
+                        this.getSelectedSearchUserId()
+                    );
+                if (selectedUserId == "") {
+                    return false;
+                }
+                const currentUserIds =
+                    this.getCurrentUserIdentityCandidates();
+                if (currentUserIds.length === 0) {
+                    return false;
+                }
+                return currentUserIds.indexOf(selectedUserId) == -1;
+            }
+            public getSelectedSearchUserDisplayName(): string {
+                const selectedUsers = this.getSelectedSearchUsers();
+                if (selectedUsers.length !== 1) {
+                    return "";
+                }
+                const entry:any = selectedUsers[0];
+                const displayFields = ["display", "displayName", "name", "label", "email", "displayMail"];
+                for (const field of displayFields) {
+                    if (entry != null && entry[field] != null && ("" + entry[field]).trim() != "") {
+                        return "" + entry[field];
+                    }
+                }
+                return this.getSelectedSearchUserValue(entry);
+            }
+            public getCollaborationFilterTranslation(key:string): string {
+                try {
+                    const translate:any = (this as any)["translate"];
+                    if (translate != null && typeof translate.instant === "function") {
+                        const translated = translate.instant(key);
+                        if (translated != null && translated != "" && translated != key) {
+                            return "" + translated;
+                        }
+                    }
+                }
+                catch (e) {}
+                return key;
+            }
+            public getCollaborationFilterText(): string {
+                return this.getCollaborationFilterTranslation(
+                    "quickfilters_btn_collaborations_only_label"
+                );
+            }
+            public getCollaborationFilterAriaLabel(): string {
+                if (this.canUseCollaborationFilter() !== true) {
+                    return this.getCollaborationFilterTranslation(
+                        "quickfilters_btn_collaborations_only_requires_one_user"
+                    );
+                }
+                const label = this.getCollaborationFilterTranslation(
+                    "quickfilters_btn_collaborations_only_label"
+                );
+                const selectedUser = this.getSelectedSearchUserDisplayName();
+                return selectedUser != ""
+                    ? label + ": " + selectedUser
+                    : label;
+            }
         	public getEditionFilters(){
         		const defaults = {hide_apps_i_created: false, hide_folders: false, show_all_apps: false, my_collaborations: false};
         		let settings = this.global?.settings?.edition_filters != undefined && this.global?.settings?.edition_filters != null ? this.global.settings.edition_filters : {};
@@ -121,6 +281,20 @@ scriptContent:
         		filters.hide_folders = filters.hide_folders === true || filters.hide_folders == "true";
         		filters.show_all_apps = filters.show_all_apps === true || filters.show_all_apps == "true";
         		filters.my_collaborations = filters.my_collaborations === true || filters.my_collaborations == "true";
+                if (filters.my_collaborations === true && this.canUseCollaborationFilter() !== true) {
+                    filters.my_collaborations = false;
+                    try {
+                        if (this.local?.data != null) {
+                            this.local.data.my_collaborations = false;
+                        }
+                        let localFilters = JSON.parse(window.localStorage.getItem("c8oforms_edition_filters") || "{}") || {};
+                        if (localFilters.my_collaborations === true || localFilters.my_collaborations == "true") {
+                            localFilters.my_collaborations = false;
+                            window.localStorage.setItem("c8oforms_edition_filters", JSON.stringify(localFilters));
+                        }
+                    }
+                    catch (e) {}
+                }
         		if ((filters.hide_apps_i_created === true && filters.show_all_apps === true) || (filters.my_collaborations === true && filters.show_all_apps === true)) {
         			filters.show_all_apps = false;
         		}
@@ -374,7 +548,8 @@ scriptContent:
         	}
         	
         	formatTime(date: any){
-        	    return new Date(+date).toLocaleString();
+        	    const locale = this.global?.settings?.language ?? this.global?.language ?? this.translate?.currentLang;
+        	    return new Date(+date).toLocaleString(locale || undefined);
         	}
         	
         	getcolorfromEl(id){
@@ -654,7 +829,7 @@ title: Selection de formulaires
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'Convertigo Logo'
+          - MobileSmartSourceType: script:this.translate.instant('convertigo_logo_alt')
     ↓logoText [ngx.components.UIUseVariable-1759164587600]: 
       comment: Main text displayed next to the logo
       varValue: 
@@ -666,7 +841,7 @@ title: Selection de formulaires
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'No Code Studio'
+          - MobileSmartSourceType: script:this.translate.instant('No_Code_Studio')
     ↓searchQuery [ngx.components.UIUseVariable-1759164587606]: 
       comment: Current value of the search input
       varValue: 
@@ -678,7 +853,7 @@ title: Selection de formulaires
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'Rechercher votre application par nom'
+          - MobileSmartSourceType: script:this.translate.instant('searchProject')
     ↓userInitials [ngx.components.UIUseVariable-1759164587612]: 
       comment: Initials displayed inside the user avatar circle
       varValue: 
@@ -5013,7 +5188,6 @@ title: Selection de formulaires
                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                 →: |
                                   		    page.local["_query"] = event;
-                                  		    page.local._searchUser = null;
                                   		    resolve();
                                   
                       ↓Style [ngx.components.UIStyle-1783069065330]: 
@@ -5200,6 +5374,13 @@ title: Selection de formulaires
                                   
                           ↓If [ngx.components.UIDynamicAction-1783093745306]: 
                             beanData: '{"ionBean":"IfAction"}'
+                            ↓SetLocal [ngx.components.UIDynamicAction-1785341586386]: 
+                              beanData: |
+                                '{
+                                 "ionBean": "SetLocalAction",
+                                 "Property": "plain:showSearchInfos",
+                                 "Value": "script:false"
+                                }'
                             ↓ApplyParams [ngx.components.UICustomAction-1783093737230]: 
                               actionValue: 
                                 - xmlizable: 
@@ -5220,6 +5401,9 @@ title: Selection de formulaires
                                       		    if(page.local["_query"] != undefined){
                                       		        page["query"] = page.local["_query"];
                                       		    }
+                                      			
+                                      			page.local.activeSearchQuery = page.local["_query"];
+                                      			page.local.showSearchInfos = true;
                                       		    
                                       		resolve();
                                       		},100)
@@ -5250,14 +5434,197 @@ title: Selection de formulaires
                                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                         - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                           →: |
-                                            		    page.local.showAdvancedSearch = false;
-                                            		resolve();
+                                            		page.local.showAdvancedSearch = false;
+                                            		resolve(page.local?.activeSearchQuery.length === 0);
                                             
+                                    ↓If [ngx.components.UIDynamicAction-1788339483744]: 
+                                      beanData: '{"ionBean":"IfAction"}'
+                                      ↓SetLocal [ngx.components.UIDynamicAction-1785341619298]: 
+                                        beanData: |
+                                          '{
+                                           "ionBean": "SetLocalAction",
+                                           "Property": "plain:showSearchInfos",
+                                           "Value": "script:false"
+                                          }'
                                   ↓call [ngx.components.UIControlVariable-1783093737242]: 
                                     varValue: 
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                         - MobileSmartSourceType: script:parent.out
+                        ↓IfBackspace [ngx.components.UICustomAction-1788338869360]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                  		console.log(page["query"], page.local["_query"], page.local?.activeSearchQuery)
+                                  		resolve(event.key === "Backspace" || event.key === "Delete");
+                                  '
+                          isEnabled: false
+                          ↓If [ngx.components.UIDynamicAction-1788338901204]: 
+                            beanData: '{"ionBean":"IfAction","condition":"script:parent.out && this.local[\"_query\"].length === 0"}'
+                            ↓SetLocal [ngx.components.UIDynamicAction-1788338901207]: 
+                              beanData: |
+                                '{
+                                 "ionBean": "SetLocalAction",
+                                 "Property": "plain:showSearchInfos",
+                                 "Value": "script:false"
+                                }'
+                            ↓ApplyParams [ngx.components.UICustomAction-1788338901210]: 
+                              actionValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      '		page.local.showAdvancedSearch = false;
+                                      		if (page.ref != undefined && page.ref.detectChanges != undefined) {
+                                      		    page.ref.detectChanges();
+                                      		}
+                                      		setTimeout(()=>{
+                                      			if(page.local["_searchSubTags"] != undefined){
+                                      		        page.local.searchSubTags = page.local["_searchSubTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                      		    }
+                                      		    if(page.local["_searchTags"] != undefined){
+                                      		        page.local.searchTags = page.local["_searchTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                                  }
+                                      		    if(page.local["_query"] != undefined){
+                                      		        page["query"] = page.local["_query"];
+                                      		    }
+                                      		    
+                                      		resolve();
+                                      		},100)
+                                      		    
+                                      '
+                              isEnabled: false
+                              ↓setTOT [ngx.components.UICustomAsyncAction-1788338901213]: 
+                                actionValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                      →: |
+                                        		try {
+                                        			page.local.spinner = true;	
+                                        			page["list"] = [];
+                                        			var call = new Date().getTime();
+                                        			page.local.totalCall = call;
+                                        			return call;
+                                        		} catch (e) {
+                                        		
+                                        		} 
+                                        
+                                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1788338901216]: 
+                                  beanData: '{"ionBean":"InvokeAction"}'
+                                  stack: C8Oforms.MobileApplication.Application.searchForm
+                                  ↓setshowAdvancedSearchFalse [ngx.components.UICustomAction-1788338901219]: 
+                                    actionValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                          →: |
+                                            		    page.local.showAdvancedSearch = false;
+                                            		resolve();
+                                            
+                                    ↓SetLocal [ngx.components.UIDynamicAction-1788338901222]: 
+                                      beanData: |
+                                        '{
+                                         "ionBean": "SetLocalAction",
+                                         "Property": "plain:showSearchInfos",
+                                         "Value": "script:true"
+                                        }'
+                                  ↓call [ngx.components.UIControlVariable-1788338901225]: 
+                                    varValue: 
+                                      - xmlizable: 
+                                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                        - MobileSmartSourceType: script:parent.out
+                            ↓CustomAction [ngx.components.UICustomAction-1788339033777]: 
+                              actionValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                                      		
+                                      		resolve();
+                                      '
+                      ↓Event2 [ngx.components.UIControlEvent-1787588724646]: 
+                        attrName: (ionBlur)
+                        eventName: ionBlur
+                        ↓saveTemp [ngx.components.UICustomAction-1787588742055]: 
+                          actionValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                →: |
+                                  	    page.local["_query"] = event.target.value;
+                                  	    resolve();
+                                  
+                          ↓ApplyParams [ngx.components.UICustomAction-1787588820599]: 
+                            actionValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                  →: |
+                                    '		page.local.showAdvancedSearch = false;
+                                    		if (page.ref != undefined && page.ref.detectChanges != undefined) {
+                                    		    page.ref.detectChanges();
+                                    		}
+                                    		setTimeout(()=>{
+                                    			if(page.local["_searchSubTags"] != undefined){
+                                    		        page.local.searchSubTags = page.local["_searchSubTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                    		    }
+                                    		    if(page.local["_searchTags"] != undefined){
+                                    		        page.local.searchTags = page.local["_searchTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                                }
+                                    		    if(page.local["_query"] != undefined){
+                                    		        page["query"] = page.local["_query"];
+                                    		    }
+                                    		    
+                                    		resolve();
+                                    		},100)
+                                    		    
+                                    '
+                            isEnabled: false
+                            ↓setTOT [ngx.components.UICustomAsyncAction-1787588820602]: 
+                              actionValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                    →: |
+                                      		try {
+                                      			page.local.spinner = true;	
+                                      			page["list"] = [];
+                                      			var call = new Date().getTime();
+                                      			page.local.totalCall = call;
+                                      			return call;
+                                      		} catch (e) {
+                                      		
+                                      		} 
+                                      
+                              ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1787588820605]: 
+                                beanData: '{"ionBean":"InvokeAction"}'
+                                stack: C8Oforms.MobileApplication.Application.searchForm
+                                ↓setshowAdvancedSearchFalse [ngx.components.UICustomAction-1787588820608]: 
+                                  actionValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                        →: |
+                                          		    page.local.showAdvancedSearch = false;
+                                          		resolve();
+                                          
+                                ↓call [ngx.components.UIControlVariable-1787588820614]: 
+                                  varValue: 
+                                    - xmlizable: 
+                                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                      - MobileSmartSourceType: script:parent.out
+                          ↓SetLocal [ngx.components.UIDynamicAction-1787588820611]: 
+                            beanData: |
+                              '{
+                               "ionBean": "SetLocalAction",
+                               "Property": "plain:showSearchInfos",
+                               "Value": "script:true"
+                              }'
                     ↓Attr [ngx.components.UIAttribute-1783082928207]: 
                       attrName: '[ngStyle]'
                       attrValue: 
@@ -5329,6 +5696,12 @@ title: Selection de formulaires
                                 →: |
                                   '		page.query = '''';
                                   		page.local["_query"] = '''';
+                                  		if (typeof page["clearActiveSearchQuery"] === "function") {
+                                  			page["clearActiveSearchQuery"].call(page);
+                                  		}
+                                  		else {
+                                  			page.local.activeSearchQuery = "";
+                                  		}
                                   		page.local.showAdvancedSearch = false;
                                   		if (page.ref != undefined && page.ref.detectChanges != undefined) {
                                   		    page.ref.detectChanges();
@@ -6857,33 +7230,19 @@ title: Selection de formulaires
                                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
-                                      '		let return_val = {}
-                                      		try {
-                                      			page.global.grid = true;
-                                      			if(!page.global.grid){
-                                      				page.global.qr = false;
-                                      			}
-                                      			page.global.selectedItem = {};
-                                      			return_val = {''published'': this.local.published, ''folder'': this.local.folder , ''sub'': this.local.sub , ''grid'': this.global.grid, ''shared'': this.local.shared}
-                                      			for(let elem in return_val){
-                                      				if(return_val[elem] === '''' || return_val[elem] === null){
-                                      					delete return_val[elem];
-                                      				}
-                                      			}
-                                      			
-                                      		} catch (e) {
-                                      		
-                                      		} finally {
-                                      			return return_val;
-                                      		}
+                                      'try {
+                                          page.global.grid = true;
+                                          if(!page.global.grid){
+                                              page.global.qr = false;
+                                          }
+                                          if(typeof page.refreshViewportMetrics === "function"){
+                                              page.refreshViewportMetrics(12);
+                                          }
+                                      } catch (e) {
+                                      } finally {
+                                          return;
+                                      }
                                       '
-                              ↓RootPage [ngx.components.UIDynamicAction-1761574287939]: 
-                                beanData: |
-                                  '{
-                                   "ionBean": "RootPageAction",
-                                   "page": "plain:C8Oforms.MobileApplication.Application.selectorPage",
-                                   "data": "source:{\"filter\":\"Action\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1761574287936,\"rootEvent\":false,\"pageLocals\":false},{\"priority\":1761574287918,\"rootEvent\":true,\"pageLocals\":false}],\"path\":\"?.out\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
-                                  }'
                           ↓Attr [ngx.components.UIAttribute-1761574287942]: 
                             attrName: '[matTooltip]'
                             attrValue: 
@@ -6963,34 +7322,19 @@ title: Selection de formulaires
                                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
-                                      '		let return_val;
-                                      		try {
-                                      			page.global.grid = false;
-                                      			if(!page.global.grid){
-                                      				page.global.qr = false;
-                                      			}
-                                      			page.global.selectedItem = {};
-                                      			return_val = {''published'': this.local.published, ''folder'': this.local.folder , ''sub'': this.local.sub , ''grid'': this.global.grid, ''shared'': this.local.shared}
-                                      			for(let elem in return_val){
-                                      				if(return_val[elem] === '''' || return_val[elem] === null){
-                                      					delete return_val[elem];
-                                      				}
-                                      			}
-                                      			
-                                      		} catch (e) {
-                                      		
-                                      		} finally {
-                                      			console.log(return_val);
-                                      			return return_val;
-                                      		}
+                                      'try {
+                                          page.global.grid = false;
+                                          if(!page.global.grid){
+                                              page.global.qr = false;
+                                          }
+                                          if(typeof page.refreshViewportMetrics === "function"){
+                                              page.refreshViewportMetrics(12);
+                                          }
+                                      } catch (e) {
+                                      } finally {
+                                          return;
+                                      }
                                       '
-                              ↓RootPage [ngx.components.UIDynamicAction-1761576075068]: 
-                                beanData: |
-                                  '{
-                                   "ionBean": "RootPageAction",
-                                   "page": "plain:C8Oforms.MobileApplication.Application.selectorPage",
-                                   "data": "source:{\"filter\":\"Action\",\"project\":\"C8Oforms\",\"input\":\"\",\"model\":{\"data\":[{\"priority\":1761576075065,\"rootEvent\":false,\"pageLocals\":false},{\"priority\":1761576075047,\"rootEvent\":true,\"pageLocals\":false}],\"path\":\"?.out\",\"prefix\":\"\",\"suffix\":\"\",\"custom\":\"\",\"useCustom\":false}}"
-                                  }'
                           ↓Attr [ngx.components.UIAttribute-1761576075071]: 
                             attrName: '[matTooltip]'
                             attrValue: 
@@ -7909,7 +8253,7 @@ title: Selection de formulaires
                           textValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:my_collaborations
+                              - MobileSmartSourceType: script:this.getCollaborationFilterText()
                       ↓Event [ngx.components.UIControlEvent-1784723090293]: 
                         ↓setFiltersAsync [ngx.components.UICustomAsyncAction-1784723090296]: 
                           actionValue: 
@@ -8047,64 +8391,54 @@ title: Selection de formulaires
                               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                 →: |
-                                  		try {
-                                  			let data;
-                                  			let local_str_data = window.localStorage.getItem("c8oforms_edition_filters");
-                                  			try {
-                                  				
-                                  				page.local.data.my_collaborations = !page.local.data?.my_collaborations;
-                                  //				page.local.data.show_all_apps = !page.local.data?.show_all_apps;
-                                  				if (page.local.data.my_collaborations === true && (page.local.data.show_all_apps === true || page.local.data.hide_apps_i_created === true)) {
-                                  					page.local.data.show_all_apps = false;
-                                  					page.local.data.hide_apps_i_created = false;
-                                  				}
-                                  				data = JSON.parse(local_str_data);
-                                  			}
-                                  			catch (e) {
-                                  
-                                  			}
-                                  			if (data == null) {
-                                  				data = {};
-                                  			}
-                                  
-                                  			if (page.local.data) {
-                                  				let dataTobeInserted = {};
-                                  //				console.log(page.local.data?.hide_folders, page.global?.settings.edition_filters?.hide_folders)
-                                  				if (page.local.data?.hide_apps_i_created != page.global?.settings.edition_filters?.hide_apps_i_created) {
-                                  					dataTobeInserted["hide_apps_i_created"] = page.local.data?.hide_apps_i_created;
-                                  				}
-                                  				if (page.local.data?.hide_folders != page.global?.settings.edition_filters?.hide_folders) {
-                                  					dataTobeInserted["hide_folders"] = page.local.data?.hide_folders;
-                                  				}
-                                  				if (page.local.data?.show_all_apps != page.global?.settings.edition_filters?.show_all_apps) {
-                                  					dataTobeInserted["show_all_apps"] = page.local.data?.show_all_apps;
-                                  				}
-                                  				if (page.local.data?.my_collaborations != page.global?.settings.edition_filters?.my_collaborations) {
-                                  					dataTobeInserted["my_collaborations"] = page.local.data?.my_collaborations;
-                                  				}
-                                  				window.localStorage.setItem("c8oforms_edition_filters", JSON.stringify(dataTobeInserted));
-                                  				let properties = ['hide_apps_i_created', 'hide_folders', 'show_all_apps', 'my_collaborations'];
-                                  				let hasChanged = properties.some(prop => {
-                                  				    let oldVal = page.local.data[prop];
-                                  				    if (oldVal === null) oldVal = false;
-                                  				    let newVal = dataTobeInserted[prop];
-                                  				    return (oldVal === false && newVal === true) || (oldVal === true && newVal === false);
-                                  				});
-                                  				page.local.filters = page.local.data;
-                                  //				page.global.settings.edition_filters = page.local.data;
-                                  //				console.log(page.local?.filters, page.global?.settings.edition_filters);
-                                  //				page.ref.detectChanges();
-                                  //				return hasChanged;
-                                  				resolve(true);
-                                  			}
-                                  			else{
-                                  				resolve(false);
-                                  			}
-                                  		} catch (e) {
-                                  		
-                                  		} finally {
-                                  			resolve(false);
-                                  		}
+                                              try {
+                                                  if (page.local.data == null) {
+                                                      resolve(false);
+                                                      return;
+                                                  }
+                                                  const canUseCollaborationFilter =
+                                                      typeof page["canUseCollaborationFilter"] === "function" &&
+                                                      page["canUseCollaborationFilter"].call(page) === true;
+                                                  if (canUseCollaborationFilter !== true) {
+                                                      page.local.data.my_collaborations = false;
+                                                      page.local.filters = page.local.data;
+                                                      if (typeof page["persistEditionFilters"] === "function") {
+                                                          page["persistEditionFilters"].call(page, page.local.data);
+                                                      }
+                                                      else {
+                                                          window.localStorage.setItem("c8oforms_edition_filters", JSON.stringify(page.local.data));
+                                                      }
+                                                      if (typeof page["resetCurrentPagination"] === "function") {
+                                                          page["resetCurrentPagination"].call(page);
+                                                      }
+                                                      else {
+                                                          page.local["_searchSignature"] = null;
+                                                      }
+                                                      resolve(false);
+                                                      return;
+                                                  }
+                                                  page.local.data.my_collaborations = !page.local.data?.my_collaborations;
+                                                  if (page.local.data.my_collaborations === true && (page.local.data.show_all_apps === true || page.local.data.hide_apps_i_created === true)) {
+                                                      page.local.data.show_all_apps = false;
+                                                      page.local.data.hide_apps_i_created = false;
+                                                  }
+                                                  page.local.filters = page.local.data;
+                                                  if (typeof page["persistEditionFilters"] === "function") {
+                                                      page["persistEditionFilters"].call(page, page.local.data);
+                                                  }
+                                                  else {
+                                                      window.localStorage.setItem("c8oforms_edition_filters", JSON.stringify(page.local.data));
+                                                  }
+                                                  if (typeof page["resetCurrentPagination"] === "function") {
+                                                      page["resetCurrentPagination"].call(page);
+                                                  }
+                                                  else {
+                                                      page.local["_searchSignature"] = null;
+                                                  }
+                                                  resolve(true);
+                                              } catch (e) {
+                                                  resolve(false);
+                                              }
                                   
                         ↓countFilters1 [ngx.components.UICustomAsyncAction-1784725482896]: 
                           actionValue: 
@@ -8127,19 +8461,53 @@ title: Selection de formulaires
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:null
+                          ↓resetPagination [ngx.components.UIControlVariable-1786111813200]: 
+                            varValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:true
                       ↓Attr [ngx.components.UIAttribute-1784723090311]: 
                         attrName: class
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: 'script:(!this.local?.data?.my_collaborations) ? ''btn btn--not-selected'' :  ''btn btn--allapps'''
+                            - MobileSmartSourceType: 'script:(this.local?.data?.my_collaborations === true && this.canUseCollaborationFilter() === true) ? ''btn btn--allapps'' : ''btn btn--not-selected'''
                       ↓Attr3 [ngx.components.UIAttribute-1784723090314]: 
+                        attrName: '[disabled]'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:this.canUseCollaborationFilter() !== true
+                      ↓AttrVisibleWhenUser [ngx.components.UIAttribute-1785424188188]: 
                         attrName: '*ngIf'
                         attrValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:this.global?.settings?.admin_readonly == true || this.global?.settings?.admin == true
-                        isEnabled: false
+                            - MobileSmartSourceType: plain:this.canUseCollaborationFilter() === true
+                      ↓AttrAriaPressed [ngx.components.UIAttribute-1785424190528]: 
+                        attrName: '[attr.aria-pressed]'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: 'script:this.local?.data?.my_collaborations === true && this.canUseCollaborationFilter() === true ? ''true'' : ''false'''
+                      ↓AttrAriaDisabled [ngx.components.UIAttribute-1785424192868]: 
+                        attrName: '[attr.aria-disabled]'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: 'script:this.canUseCollaborationFilter() === true ? ''false'' : ''true'''
+                      ↓AttrAriaLabel [ngx.components.UIAttribute-1785424195208]: 
+                        attrName: '[attr.aria-label]'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:this.getCollaborationFilterAriaLabel()
+                      ↓AttrTitle [ngx.components.UIAttribute-1785424197548]: 
+                        attrName: '[title]'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: script:this.getCollaborationFilterAriaLabel()
                     ↓Directive [ngx.components.UIControlDirective-1761755556429]: 
                       directiveName: If
                       directiveSource: 
@@ -8566,7 +8934,6 @@ title: Selection de formulaires
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                   →: |
                                     		    page.local["_query"] = event;
-                                    		    page.local._searchUser = null;
                                     		    resolve();
                                     
                         ↓Style [ngx.components.UIStyle-1750781590841]: 
@@ -9780,24 +10147,38 @@ title: Selection de formulaires
                                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
-                                      '		page.local.showAdvancedSearch = false;
-                                      		if (page.ref != undefined && page.ref.detectChanges != undefined) {
-                                      		    page.ref.detectChanges();
-                                      		}
-                                      		setTimeout(()=>{
-                                      			if(page.local["_searchSubTags"] != undefined){
-                                      		        page.local.searchSubTags = page.local["_searchSubTags"].map((x)=>{return x.value != undefined ? x.value: x});
-                                      		    }
-                                      		    if(page.local["_searchTags"] != undefined){
-                                      		        page.local.searchTags = page.local["_searchTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                      '            page.local.showAdvancedSearch = false;
+                                                  if (page.ref != undefined && page.ref.detectChanges != undefined) {
+                                                      page.ref.detectChanges();
                                                   }
-                                      		    if(page.local["_query"] != undefined){
-                                      		        page["query"] = page.local["_query"];
-                                      		    }
-                                      		    
-                                      		resolve();
-                                      		},100)
-                                      		    
+                                                  setTimeout(()=>{
+                                                      if(page.local["_searchSubTags"] != undefined){
+                                                          page.local.searchSubTags = page.local["_searchSubTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                                      }
+                                                      if(page.local["_searchTags"] != undefined){
+                                                          page.local.searchTags = page.local["_searchTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                                      }
+                                                      if(page.local["_query"] != undefined){
+                                                          page["query"] = page.local["_query"];
+                                                      }
+                                                      if (typeof page["resetCurrentPagination"] === "function") {
+                                                          page["resetCurrentPagination"].call(page);
+                                                      }
+                                                      else {
+                                                          page.local["_searchSignature"] = null;
+                                                      }
+                                                      const canUseCollaborationFilter =
+                                                          typeof page["canUseCollaborationFilter"] === "function" &&
+                                                          page["canUseCollaborationFilter"].call(page) === true;
+                                                      if (canUseCollaborationFilter !== true && page.local.data != null && page.local.data.my_collaborations === true) {
+                                                          page.local.data.my_collaborations = false;
+                                                          page.local.filters = page.local.data;
+                                                          if (typeof page["persistEditionFilters"] === "function") {
+                                                              page["persistEditionFilters"].call(page, page.local.data);
+                                                          }
+                                                      }
+                                                      resolve();
+                                                  },100)
                                       '
                               ↓setTOT [ngx.components.UICustomAsyncAction-1783094724344]: 
                                 actionValue: 
@@ -9921,24 +10302,38 @@ title: Selection de formulaires
                                   - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
-                                      '		page.local.showAdvancedSearch = false;
-                                      		if (page.ref != undefined && page.ref.detectChanges != undefined) {
-                                      		    page.ref.detectChanges();
-                                      		}
-                                      		setTimeout(()=>{
-                                      			if(page.local["_searchSubTags"] != undefined){
-                                      		        page.local.searchSubTags = page.local["_searchSubTags"].map((x)=>{return x.value != undefined ? x.value: x});
-                                      		    }
-                                      		    if(page.local["_searchTags"] != undefined){
-                                      		        page.local.searchTags = page.local["_searchTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                      '            page.local.showAdvancedSearch = false;
+                                                  if (page.ref != undefined && page.ref.detectChanges != undefined) {
+                                                      page.ref.detectChanges();
                                                   }
-                                      		    if(page.local["_query"] != undefined){
-                                      		        page["query"] = page.local["_query"];
-                                      		    }
-                                      		    
-                                      		resolve();
-                                      		},100)
-                                      		    
+                                                  setTimeout(()=>{
+                                                      if(page.local["_searchSubTags"] != undefined){
+                                                          page.local.searchSubTags = page.local["_searchSubTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                                      }
+                                                      if(page.local["_searchTags"] != undefined){
+                                                          page.local.searchTags = page.local["_searchTags"].map((x)=>{return x.value != undefined ? x.value: x});
+                                                      }
+                                                      if(page.local["_query"] != undefined){
+                                                          page["query"] = page.local["_query"];
+                                                      }
+                                                      if (typeof page["resetCurrentPagination"] === "function") {
+                                                          page["resetCurrentPagination"].call(page);
+                                                      }
+                                                      else {
+                                                          page.local["_searchSignature"] = null;
+                                                      }
+                                                      const canUseCollaborationFilter =
+                                                          typeof page["canUseCollaborationFilter"] === "function" &&
+                                                          page["canUseCollaborationFilter"].call(page) === true;
+                                                      if (canUseCollaborationFilter !== true && page.local.data != null && page.local.data.my_collaborations === true) {
+                                                          page.local.data.my_collaborations = false;
+                                                          page.local.filters = page.local.data;
+                                                          if (typeof page["persistEditionFilters"] === "function") {
+                                                              page["persistEditionFilters"].call(page, page.local.data);
+                                                          }
+                                                      }
+                                                      resolve();
+                                                  },100)
                                       '
                               ↓setTOT [ngx.components.UICustomAsyncAction-1783094729298]: 
                                 actionValue: 
@@ -10524,7 +10919,7 @@ title: Selection de formulaires
                                     align-items: start;
                                     width: 100%;
                                 	scrollbar-width: none;
-                                	padding-left: 21px;
+                                	padding: 0px 21px;
                                 '
                       ↓DivElement [ngx.components.UIDynamicElement-1645547241644]: 
                         beanData: '{"ionBean":"DivTag"}'
@@ -10614,7 +11009,7 @@ title: Selection de formulaires
                                 textValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: plain:empty
+                                    - MobileSmartSourceType: plain:empty_application
                               ↓Style [ngx.components.UIStyle-1645547241668]: 
                                 styleContent: 
                                   - xmlizable: 
@@ -11327,7 +11722,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query == undefined || this.query == '') && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0)  && (this.local.folder == undefined || this.local.folder == '')
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() !== true) && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0)  && (this.local.folder == undefined || this.local.folder == '')
                   ↓GenericItem [ngx.components.UIDynamicElement-1645887457897]: 
                     beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
                     tagName: ion-item
@@ -11538,7 +11933,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query == undefined || this.query == '') && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0)  && (this.local.folder != undefined && this.local.folder != '')
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() !== true) && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0)  && (this.local.folder != undefined && this.local.folder != '')
                   ↓GenericItem [ngx.components.UIDynamicElement-1645886794342]: 
                     beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
                     tagName: ion-item
@@ -11822,7 +12217,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query != undefined && this.query != '') && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0) && (this.local.folder == undefined || this.local.folder == '')
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() === true) && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0) && (this.local.folder == undefined || this.local.folder == '')
                   ↓GenericItem [ngx.components.UIDynamicElement-1645887476211]: 
                     beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
                     tagName: ion-item
@@ -11863,7 +12258,7 @@ title: Selection de formulaires
                           textValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:this.query
+                              - MobileSmartSourceType: script:this.getActiveSearchQuery()
                         ↓Style [ngx.components.UIStyle-1645887518304]: 
                           styleContent: 
                             - xmlizable: 
@@ -11900,11 +12295,25 @@ title: Selection de formulaires
                                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                     →: |
                                       		page["query"] = "";
+                                      		page.local["_query"] = "";
+                                      		if (typeof page["clearActiveSearchQuery"] === "function") {
+                                      			page["clearActiveSearchQuery"].call(page);
+                                      		}
+                                      		else {
+                                      			page.local.activeSearchQuery = "";
+                                      		}
+                                      
                                       		resolve();
                                       
                               ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1645887518319]: 
                                 beanData: '{"ionBean":"InvokeAction"}'
                                 stack: C8Oforms.MobileApplication.Application.callViewLiveAndFillFormList
+                        ↓Attr [ngx.components.UIAttribute-1785341792937]: 
+                          attrName: '*ngIf'
+                          attrValue: 
+                            - xmlizable: 
+                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                              - MobileSmartSourceType: plain:this.local?.showSearchInfos
                       ↓Directive1 [ngx.components.UIControlDirective-1750777216351]: 
                         directiveName: If
                         directiveSource: 
@@ -12068,7 +12477,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query != undefined && this.query != '') && (this.local.searchTags?.length != undefined && this.local.searchTags?.length > 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0)
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() === true) && (this.local.searchTags?.length != undefined && this.local.searchTags?.length > 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0)
                   ↓Paragraph [ngx.components.UIDynamicElement-1645547180103]: 
                     beanData: '{"ionBean":"Paragraph"}'
                     tagName: p
@@ -12086,7 +12495,7 @@ title: Selection de formulaires
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.query
+                            - MobileSmartSourceType: script:this.getActiveSearchQuery()
                       ↓Style [ngx.components.UIStyle-1645547180115]: 
                         styleContent: 
                           - xmlizable: 
@@ -12122,6 +12531,14 @@ title: Selection de formulaires
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                   →: |
                                     		    page["query"] = "";
+                                    		page.local["_query"] = "";
+                                    		if (typeof page["clearActiveSearchQuery"] === "function") {
+                                    			page["clearActiveSearchQuery"].call(page);
+                                    		}
+                                    		else {
+                                    			page.local.activeSearchQuery = "";
+                                    		}
+                                    
                                     		    //still in research mode
                                     	        if(page.local.searchTags.length > 1 || page.local.searchSubTags.length > 0 || page["query"] != ""){
                                     	            resolve(true);    
@@ -12147,6 +12564,12 @@ title: Selection de formulaires
                                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1645547180139]: 
                                   beanData: '{"ionBean":"InvokeAction"}'
                                   stack: C8Oforms.MobileApplication.Application.callViewLiveAndFillFormList
+                      ↓Attr [ngx.components.UIAttribute-1785341822132]: 
+                        attrName: '*ngIf'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:this.local?.showSearchInfos
                     ↓Text1 [ngx.components.UIText-1645547180142]: 
                       i18n: true
                       textValue: 
@@ -12412,7 +12835,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query == undefined || this.query == '') && (this.local.searchTags?.length != undefined && this.local.searchTags?.length > 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0)
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() !== true) && (this.local.searchTags?.length != undefined && this.local.searchTags?.length > 0) && (this.local.searchSubTags?.length == undefined || this.local.searchSubTags?.length ==0)
                   ↓Paragraph [ngx.components.UIDynamicElement-1645547180184]: 
                     beanData: '{"ionBean":"Paragraph"}'
                     tagName: p
@@ -12675,7 +13098,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query == undefined || this.query == '') && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length != undefined && this.local.searchSubTags?.length > 0)
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() !== true) && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length != undefined && this.local.searchSubTags?.length > 0)
                   ↓Paragraph [ngx.components.UIDynamicElement-1645547180229]: 
                     beanData: '{"ionBean":"Paragraph"}'
                     tagName: p
@@ -12937,7 +13360,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query == undefined || this.query == '') && (this.local.searchTags?.length != undefined && this.local.searchTags?.length > 0) && (this.local.searchSubTags?.length != undefined && this.local.searchSubTags?.length > 0)
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() !== true) && (this.local.searchTags?.length != undefined && this.local.searchTags?.length > 0) && (this.local.searchSubTags?.length != undefined && this.local.searchSubTags?.length > 0)
                   ↓Paragraph1 [ngx.components.UIDynamicElement-1645547180274]: 
                     beanData: '{"ionBean":"Paragraph"}'
                     tagName: p
@@ -13283,7 +13706,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query != undefined && this.query != '') && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length != undefined && this.local.searchSubTags?.length > 0)
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() === true) && (this.local.searchTags?.length == undefined || this.local.searchTags?.length == 0) && (this.local.searchSubTags?.length != undefined && this.local.searchSubTags?.length > 0)
                   ↓Paragraph [ngx.components.UIDynamicElement-1645547180358]: 
                     beanData: '{"ionBean":"Paragraph"}'
                     tagName: p
@@ -13301,7 +13724,7 @@ title: Selection de formulaires
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.query
+                            - MobileSmartSourceType: script:this.getActiveSearchQuery()
                       ↓Style [ngx.components.UIStyle-1645547180370]: 
                         styleContent: 
                           - xmlizable: 
@@ -13337,6 +13760,14 @@ title: Selection de formulaires
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                   →: |
                                     		    page["query"] = "";
+                                    		page.local["_query"] = "";
+                                    		if (typeof page["clearActiveSearchQuery"] === "function") {
+                                    			page["clearActiveSearchQuery"].call(page);
+                                    		}
+                                    		else {
+                                    			page.local.activeSearchQuery = "";
+                                    		}
+                                    
                                     		    //still in research mode
                                     	        if(page.local.searchTags.length > 1 || page.local.searchSubTags.length > 0 || page["query"] != ""){
                                     	            resolve(true);    
@@ -13362,6 +13793,12 @@ title: Selection de formulaires
                                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1645547180394]: 
                                   beanData: '{"ionBean":"InvokeAction"}'
                                   stack: C8Oforms.MobileApplication.Application.callViewLiveAndFillFormList
+                      ↓Attr [ngx.components.UIAttribute-1785341829749]: 
+                        attrName: '*ngIf'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:this.local?.showSearchInfos
                     ↓Text1 [ngx.components.UIText-1645547180397]: 
                       i18n: true
                       textValue: 
@@ -13621,7 +14058,7 @@ title: Selection de formulaires
                   directiveSource: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.local.count != undefined && (this.query != undefined && this.query != '') && (this.local.searchTags?.length != undefined && this.local.searchTags?.length > 0) && (this.local.searchSubTags?.length != undefined && this.local.searchSubTags?.length > 0)
+                      - MobileSmartSourceType: script:this.local.count != undefined && (this.hasActiveSearchQuery() === true) && (this.local.searchTags?.length != undefined && this.local.searchTags?.length > 0) && (this.local.searchSubTags?.length != undefined && this.local.searchSubTags?.length > 0)
                   ↓Paragraph1 [ngx.components.UIDynamicElement-1645547180439]: 
                     beanData: '{"ionBean":"Paragraph"}'
                     tagName: p
@@ -13639,7 +14076,7 @@ title: Selection de formulaires
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.query
+                            - MobileSmartSourceType: script:this.getActiveSearchQuery()
                       ↓Style [ngx.components.UIStyle-1645547180451]: 
                         styleContent: 
                           - xmlizable: 
@@ -13675,6 +14112,14 @@ title: Selection de formulaires
                                 - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                   →: |
                                     		    page["query"] = "";
+                                    		page.local["_query"] = "";
+                                    		if (typeof page["clearActiveSearchQuery"] === "function") {
+                                    			page["clearActiveSearchQuery"].call(page);
+                                    		}
+                                    		else {
+                                    			page.local.activeSearchQuery = "";
+                                    		}
+                                    
                                     		    //still in research mode
                                     	        if(page.local.searchTags.length > 1 || page.local.searchSubTags.length > 0 || page["query"] != ""){
                                     	            resolve(true);    
@@ -13700,6 +14145,12 @@ title: Selection de formulaires
                                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1645547180475]: 
                                   beanData: '{"ionBean":"InvokeAction"}'
                                   stack: C8Oforms.MobileApplication.Application.callViewLiveAndFillFormList
+                      ↓Attr [ngx.components.UIAttribute-1785341835998]: 
+                        attrName: '*ngIf'
+                        attrValue: 
+                          - xmlizable: 
+                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                            - MobileSmartSourceType: plain:this.local?.showSearchInfos
                     ↓Text [ngx.components.UIText-1645547180478]: 
                       i18n: true
                       textValue: 
@@ -14117,13 +14568,26 @@ title: Selection de formulaires
                                     - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                       →: |
-                                        		page.local._searchUser = null;
-                                        		if ((page.local.searchTags != undefined && page.local.searchTags.length > 0) || (page.local.searchSubTags != undefined && page.local.searchSubTags.length > 0) || (page["query"] != undefined && page["query"] != "")) {
-                                        		    resolve(true);
-                                        		}
-                                        		else {
-                                        		    resolve(false);
-                                        		}
+                                                page.local._searchUser = null;
+                                                if (page.local.data != null && page.local.data.my_collaborations === true) {
+                                                    page.local.data.my_collaborations = false;
+                                                    page.local.filters = page.local.data;
+                                                    if (typeof page["persistEditionFilters"] === "function") {
+                                                        page["persistEditionFilters"].call(page, page.local.data);
+                                                    }
+                                                }
+                                                if (typeof page["resetCurrentPagination"] === "function") {
+                                                    page["resetCurrentPagination"].call(page);
+                                                }
+                                                else {
+                                                    page.local["_searchSignature"] = null;
+                                                }
+                                                if ((page.local.searchTags != undefined && page.local.searchTags.length > 0) || (page.local.searchSubTags != undefined && page.local.searchSubTags.length > 0) || (page["query"] != undefined && page["query"] != "")) {
+                                                    resolve(true);
+                                                }
+                                                else {
+                                                    resolve(false);
+                                                }
                                         
                                 ↓IfElse [ngx.components.UIDynamicIf-1780061749042]: 
                                   beanData: '{"ionBean":"IfElseAction"}'
@@ -14847,25 +15311,19 @@ title: Selection de formulaires
                               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                 →: |
-                                  		try {
-                                  			page.global.grid = !page.global.grid;
-                                  			if(!page.global.grid){
-                                  				page.global.qr = false;
-                                  			}
-                                  			page.global.selectedItem = {};
-                                  		} catch (e) {
-                                  		
-                                  		} finally {
-                                  			return;
-                                  		}
-                                  
-                          ↓RootPage [ngx.components.UIDynamicAction-1750149583178]: 
-                            beanData: |
-                              '{
-                               "ionBean": "RootPageAction",
-                               "page": "plain:C8Oforms.MobileApplication.Application.selectorPage",
-                               "data": "script:{''published'': this.navParams.data.published, ''folder'': this.navParams.data.folder, ''sub'': this.navParams.data.sub, ''grid'': this.global.grid, ''shared'': this.local.shared}"
-                              }'
+                                  'try {
+                                      page.global.grid = !page.global.grid;
+                                      if(!page.global.grid){
+                                          page.global.qr = false;
+                                      }
+                                      if(typeof page.refreshViewportMetrics === "function"){
+                                          page.refreshViewportMetrics(12);
+                                      }
+                                  } catch (e) {
+                                  } finally {
+                                      return;
+                                  }
+                                  '
                       ↓Attr [ngx.components.UIAttribute-1645547180622]: 
                         attrName: '[matTooltip]'
                         attrValue: 
@@ -15227,12 +15685,6 @@ title: Selection de formulaires
                       - xmlizable: 
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: script:true
-                  ↓Attr [ngx.components.UIAttribute-1784304444003]: 
-                    attrName: '*ngIf'
-                    attrValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: plain:!this.local.spinner
                   ↓Style [ngx.components.UIStyle-1784649152554]: 
                     styleContent: 
                       - xmlizable: 
@@ -16737,6 +17189,16 @@ title: Selection de formulaires
             		if (page.local.nocodedatabase) {
             			page.local.selectedTab = ''edition'';
             		}
+                    const explicitActiveArea = page.navParams.get(''published'') != undefined && page.navParams.get(''published'') != ":published";
+                    if(explicitActiveArea){
+                        const isDatabaseArea = page.local.nocodedatabase == true;
+                        const isPublicationArea = !isDatabaseArea && (page.local.published == true || page.local.published == "true");
+                        page.global.menuItems = [
+                          { label: ''ACCUEIL'', items: {edition: {badge: 1, active: !isDatabaseArea && !isPublicationArea}, publication:{badge: 0, active: isPublicationArea}, nocode: {badge: 0, active: isDatabaseArea}} },
+                          { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},
+                          { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}
+                        ];
+                    }
             		console
             		page.ref.detectChanges();
                     resolve(page.local.nocodedatabase != true);
@@ -16906,6 +17368,13 @@ title: Selection de formulaires
       '{
        "ionBean": "SetLocalAction",
        "Property": "plain:mainSearchBarOpened",
+       "Value": "script:true"
+      }'
+  ↓SetLocal6 [ngx.components.UIDynamicAction-1785341681180]: 
+    beanData: |
+      '{
+       "ionBean": "SetLocalAction",
+       "Property": "plain:showSearchInfos",
        "Value": "script:true"
       }'
 ↓Footer [ngx.components.UIDynamicElement-1566986230524]: 

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { SEL, c8oCall, login } from './studio';
+import { SEL, c8oCall, gotoWithTransientRetry, login } from './studio';
 import { functionalAdminUserCredentials } from './functional-studio';
 import { ensureFunctionalUserIfPossible } from './functional-users';
 
@@ -58,7 +58,7 @@ export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page
   let expectedMemberCount = 1;
   try {
     await test.step('Open the Admin Groups management page', async () => {
-      await page.goto('./admin/dashboard-groups', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await gotoWithTransientRetry(page, './admin/dashboard-groups');
       await expect(page.locator(ADMIN_SEL.groupsPage).first(), 'Admin Groups page should be visible').toBeVisible({
         timeout: 60_000,
       });
@@ -158,7 +158,7 @@ export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page
     });
 
     await test.step('Verify the Admin Groups UI reflects the member counter', async () => {
-      await page.goto('./admin/dashboard-groups', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await gotoWithTransientRetry(page, './admin/dashboard-groups');
       await expect(page.locator(ADMIN_SEL.groupsPage).first(), 'Admin Groups page should be visible after membership update').toBeVisible({
         timeout: 60_000,
       });
@@ -523,7 +523,7 @@ function stringValue(value: unknown): string {
 
 export async function verifyAdminUsersAndGroupsManagementSurfacesThroughUi(page: Page): Promise<void> {
   await test.step('Open the Admin dashboard home', async () => {
-    await page.goto('./admin/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await gotoWithTransientRetry(page, './admin/dashboard');
     await expect(page.locator(ADMIN_SEL.homePage).first(), 'Admin dashboard home should be visible').toBeVisible({
       timeout: 60_000,
     });
@@ -533,7 +533,7 @@ export async function verifyAdminUsersAndGroupsManagementSurfacesThroughUi(page:
   });
 
   await test.step('Open the Admin Users management page', async () => {
-    await page.goto('./admin/dashboard-user', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await gotoWithTransientRetry(page, './admin/dashboard-user');
     await expect(page.locator(ADMIN_SEL.usersPage).first(), 'Admin Users page should be visible').toBeVisible({
       timeout: 60_000,
     });
@@ -546,7 +546,7 @@ export async function verifyAdminUsersAndGroupsManagementSurfacesThroughUi(page:
   });
 
   await test.step('Open the Admin Groups management page', async () => {
-    await page.goto('./admin/dashboard-groups', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await gotoWithTransientRetry(page, './admin/dashboard-groups');
     await expect(page.locator(ADMIN_SEL.groupsPage).first(), 'Admin Groups page should be visible').toBeVisible({
       timeout: 60_000,
     });

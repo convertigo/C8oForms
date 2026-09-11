@@ -4,12 +4,11 @@ import {
   assertDashboardSectionsThroughBothEntryPoints,
   assertIsolatedEmptyDashboardSections,
 } from './helpers/functional-dashboard';
-import { functionalEmptyUserCredentials, loginWithFunctionalCredentials, loginWithUsernamePassword } from './helpers/functional-studio';
-import { ensureFunctionalUserIfPossible } from './helpers/functional-users';
+import { loginWithUsernamePassword } from './helpers/functional-studio';
+import { ensureFunctionalUserIfPossible, functionalUserProvisioningAvailable } from './helpers/functional-users';
+import { TEST_PASSWORD, TEST_USER } from './helpers/studio';
 
 test.describe('No-Code Studio functional dashboard', () => {
-  test.describe.configure({ retries: process.env.CI ? 2 : 0 });
-
   test.use({
     viewport: { width: 1920, height: 1080 },
   });
@@ -28,13 +27,12 @@ test.describe('No-Code Studio functional dashboard', () => {
 
   test('DASH-002 - isolated empty dashboard sections remain usable', async ({ page }) => {
     test.setTimeout(300_000);
-    const emptyUser = functionalEmptyUserCredentials();
     test.skip(
-      !emptyUser,
-      'Set C8OFORMS_FUNCTIONAL_EMPTY_USER/PASSWORD, or CONVERTIGO_ADMIN_PASSWORD to auto-provision a functional empty user.',
+      !functionalUserProvisioningAvailable(),
+      'CONVERTIGO_ADMIN_PASSWORD is required to reset the current test user before asserting an empty dashboard.',
     );
-    await ensureFunctionalUserIfPossible(emptyUser!, { resetOwnedData: true });
-    await loginWithFunctionalCredentials(page, emptyUser!);
+    await ensureFunctionalUserIfPossible({ user: TEST_USER, password: TEST_PASSWORD }, { resetOwnedData: true });
+    await loginWithUsernamePassword(page);
     await assertIsolatedEmptyDashboardSections(page);
   });
 });

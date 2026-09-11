@@ -8,8 +8,55 @@ comment: |
     '// Imports and helpers functions
     include("js/common.js");
     
-    let loglevel = "warn";
-    let authenticatedUserID = context.getAuthenticatedUser();
+    var loglevel = "warn";
+    var authenticatedUserID = context.getAuthenticatedUser();
+    function normalizeBackendLocaleCandidate(value) {
+        if (typeof value != "string") {
+            return null;
+        }
+        var normalizedValue = value.replace(/_/g, "-").replace(/^\s+|\s+$/g, "");
+        var normalizedLowerValue = normalizedValue.toLowerCase();
+        if (normalizedValue === "" || normalizedLowerValue === "undefined" || normalizedLowerValue === "null") {
+            return null;
+        }
+        var primaryLanguage = normalizedLowerValue.split("-")[0];
+        if (primaryLanguage === "fr") {
+            return "fr";
+        }
+        if (primaryLanguage === "en") {
+            return "en";
+        }
+        if (primaryLanguage === "es") {
+            return "es";
+        }
+        if (primaryLanguage === "it") {
+            return "it";
+        }
+        if (normalizedLowerValue === "zh-cn" || normalizedLowerValue === "zh-sg" || normalizedLowerValue === "zh-hans") {
+            return "zh-CN";
+        }
+        return null;
+    }
+    function normalizeJsModeSwitchWarningAckVersion(value) {
+        var normalizedValue = null;
+        if (typeof value == "number") {
+            normalizedValue = value;
+        }
+        else if (typeof value == "string") {
+            var normalizedString = value.replace(/^\s+|\s+$/g, "");
+            if (!/^\d+$/.test(normalizedString)) {
+                return null;
+            }
+            normalizedValue = parseInt(normalizedString, 10);
+        }
+        else {
+            return null;
+        }
+        if (!isFinite(normalizedValue) || Math.floor(normalizedValue) != normalizedValue || normalizedValue < 0 || normalizedValue > 2147483647) {
+            return null;
+        }
+        return normalizedValue;
+    }
     try{
        meta = JSON.parse(meta);
     }
@@ -20,12 +67,25 @@ comment: |
     if(authenticatedUserID != null && authenticatedUserID != ""){
     	console.log("meta", meta, loglevel);
     	var newVal = {"_id": "C8Oreserved_"+authenticatedUserID};
-    	if(meta["published_First"]){
-    		newVal["published_First"] = meta["published_First"];
-    	}
-    	if(meta["language"]){
-    		newVal["language"] = meta["language"];
-    	}
+        var hasPublishedFirstOverride = meta != null && typeof meta == "object" && Object.prototype.hasOwnProperty.call(meta, "published_First");
+        if(hasPublishedFirstOverride){
+            var publishedFirstOverride = meta["published_First"];
+            newVal["published_First"] = (publishedFirstOverride === true || publishedFirstOverride == "true") ? "true" : "false";
+        }
+        var hasLanguageOverride = meta != null && typeof meta == "object" && Object.prototype.hasOwnProperty.call(meta, "language");
+        if(hasLanguageOverride){
+            var normalizedLanguage = normalizeBackendLocaleCandidate(meta["language"]);
+            if(normalizedLanguage != null){
+                newVal["language"] = normalizedLanguage;
+            }
+        }
+        var hasJsModeSwitchWarningAckVersionOverride = meta != null && typeof meta == "object" && Object.prototype.hasOwnProperty.call(meta, "jsModeSwitchWarningAckVersion");
+        if(hasJsModeSwitchWarningAckVersionOverride){
+            var normalizedJsModeSwitchWarningAckVersion = normalizeJsModeSwitchWarningAckVersion(meta["jsModeSwitchWarningAckVersion"]);
+            if(normalizedJsModeSwitchWarningAckVersion != null){
+                newVal["jsModeSwitchWarningAckVersion"] = normalizedJsModeSwitchWarningAckVersion;
+            }
+        }
     	// post doc 
     	doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(newVal), new HashMap(), enums.CouchPostDocumentPolicy.merge, new HashMap(), false));
     	

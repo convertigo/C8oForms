@@ -152,7 +152,12 @@ class FunctionalUserAdminClient {
       }
 
       const json = text ? (JSON.parse(text) as { docs?: Array<{ _id: string; _rev: string }>; bookmark?: string }) : {};
-      const docs = (json.docs ?? []).filter((doc) => !doc._id.startsWith('C8Oreserved_') && !doc._id.startsWith('_design'));
+      const docs = (json.docs ?? []).filter(
+        (doc) =>
+          !doc._id.startsWith('C8Oreserved_') &&
+          !doc._id.startsWith('_design') &&
+          !doc._id.endsWith('_baserow'),
+      );
       found.push(...docs);
       bookmark = json.bookmark;
       if (!json.docs || json.docs.length < 500) {

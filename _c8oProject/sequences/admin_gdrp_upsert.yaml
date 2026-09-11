@@ -9,38 +9,116 @@ comment: |
   expression: |
     '// Imports and helpers functions
     include("js/common.js");
-    //
-    //log.warn("meta");
-    //log.warn(meta);
     
     let loglevel = "warn";
     let authenticatedUserID = context.getAuthenticatedUser();
     var doc = {};
-    try{
-       meta = JSON.parse(meta);
+    try {
+    	meta = JSON.parse(meta);
     }
-    catch(e){
-       meta = {};
+    catch(e) {
+    	meta = {};
     }
-    // check only supported tags (_id _rev favorites published_First language provider mail editing_rights c8o_view_type_users name surname displayName picture admin ~c8oAcl)
+    
+    var c8oFormsGdprLocales = ["fr", "en", "es", "it", "zh-CN"];
+    function c8oFormsGdprIsArray(value) {
+    	return value != null && typeof value.length == "number" && typeof value.splice == "function";
+    }
+    function c8oFormsGdprIsObject(value) {
+    	return value != null && typeof value == "object" && !c8oFormsGdprIsArray(value);
+    }
+    function c8oFormsGdprHasOwn(source, key) {
+    	return c8oFormsGdprIsObject(source) && Object.prototype.hasOwnProperty.call(source, key);
+    }
+    function c8oFormsGdprText(value) {
+    	if (value == null) {
+    		return "";
+    	}
+    	if (typeof value == "string") {
+    		return value;
+    	}
+    	if (typeof value == "number" || typeof value == "boolean") {
+    		return "" + value;
+    	}
+    	return "";
+    }
+    function c8oFormsGdprLocalizedTextMap(source) {
+    	var input = c8oFormsGdprIsObject(source) ? source : {};
+    	var output = {};
+    	for (var i = 0; i < c8oFormsGdprLocales.length; i++) {
+    		var locale = c8oFormsGdprLocales[i];
+    		output[locale] = c8oFormsGdprText(input[locale]);
+    	}
+    	return output;
+    }
+    function c8oFormsGdprLocalizedDpoMap(source) {
+    	var input = c8oFormsGdprIsObject(source) ? source : {};
+    	var output = {};
+    	for (var i = 0; i < c8oFormsGdprLocales.length; i++) {
+    		var locale = c8oFormsGdprLocales[i];
+    		var value = c8oFormsGdprIsObject(input[locale]) ? input[locale] : {};
+    		output[locale] = {
+    			"title": c8oFormsGdprText(value.title),
+    			"description": c8oFormsGdprText(value.description),
+    			"email": c8oFormsGdprText(value.email)
+    		};
+    	}
+    	return output;
+    }
+    function c8oFormsGdprLocalizedSectionsMap(source) {
+    	var input = c8oFormsGdprIsObject(source) ? source : {};
+    	var output = {};
+    	for (var i = 0; i < c8oFormsGdprLocales.length; i++) {
+    		var locale = c8oFormsGdprLocales[i];
+    		output[locale] = c8oFormsGdprIsArray(input[locale]) ? input[locale] : [];
+    	}
+    	return output;
+    }
+    function c8oFormsGdprSymbols(source) {
+    	var input = c8oFormsGdprIsObject(source) ? source : {};
+    	return {
+    		"menu": c8oFormsGdprLocalizedTextMap(input.menu),
+    		"toast": c8oFormsGdprLocalizedTextMap(input.toast)
+    	};
+    }
+    function c8oFormsGdprOverrideRule(mergeRules, key) {
+    	mergeRules.put(java.util.Arrays.asList(new java.lang.String(key)), new java.lang.String("override"));
+    }
+    
     var args = {};
-    var arrayAuthorized = ["toast_viewers_description","toast_builders_description","sections","dpo_section", "symbols"];
-    for (let i = 0; i < arrayAuthorized.length; i++) {
-    	if (meta[arrayAuthorized[i]] !== undefined) {
-    		args[arrayAuthorized[i]] = meta[arrayAuthorized[i]];
-    	} else {
-    		args["missing_fields"] = true;
+    var mergeRules = new HashMap();
+    var missingFields = false;
+    var arrayAuthorized = ["toast_viewers_description", "toast_builders_description", "sections", "dpo_section", "symbols"];
+    for (var i = 0; i < arrayAuthorized.length; i++) {
+    	var key = arrayAuthorized[i];
+    	if (c8oFormsGdprHasOwn(meta, key)) {
+    		if (key == "toast_viewers_description" || key == "toast_builders_description") {
+    			args[key] = c8oFormsGdprLocalizedTextMap(meta[key]);
+    		}
+    		else if (key == "sections") {
+    			args[key] = c8oFormsGdprLocalizedSectionsMap(meta[key]);
+    		}
+    		else if (key == "dpo_section") {
+    			args[key] = c8oFormsGdprLocalizedDpoMap(meta[key]);
+    		}
+    		else if (key == "symbols") {
+    			args[key] = c8oFormsGdprSymbols(meta[key]);
+    		}
+    		c8oFormsGdprOverrideRule(mergeRules, key);
+    	}
+    	else {
+    		missingFields = true;
     	}
     }
     
-    if (!args["missing_fields"]) {
-    	args["missing_fields"] = false;
+    args["missing_fields"] = missingFields;
+    c8oFormsGdprOverrideRule(mergeRules, "missing_fields");
+    args["_id"] = "c8o_preference_rgpd";
+    if (meta["_rev"] != null) {
+    	args["_rev"] = meta["_rev"];
     }
     
-    args["_id"] = "c8o_preference_rgpd";
-    
-    
-    doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(args), new HashMap(), enums.CouchPostDocumentPolicy.merge, new HashMap(), false));
+    doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(args), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
     '
 ↓object [steps.JsonToXmlStep-1764864103032]: 
   jsonObject: 

@@ -798,65 +798,239 @@ componentScriptContent:
         		}
         	}
         
+        	public getEnabledApplicationLocales(): string[] {
+        		return ["fr", "en", "es", "it", "zh-CN"];
+        	}
+        
+        	public normalizeLocaleCandidate(value: any): string | null {
+        		if (value == null) {
+        			return null;
+        		}
+        
+        		let rawValue: string;
+        		try {
+        			rawValue = typeof value === "string" ? value : String(value);
+        		}
+        		catch (e) {
+        			return null;
+        		}
+        
+        		const normalizedValue = rawValue.trim().replace(/_/g, "-");
+        		if (normalizedValue === "") {
+        			return null;
+        		}
+        
+        		const normalizedLowerValue = normalizedValue.toLowerCase();
+        		const primaryLanguage = normalizedLowerValue.split("-")[0];
+        
+        		if (primaryLanguage === "fr") {
+        			return "fr";
+        		}
+        		if (primaryLanguage === "en") {
+        			return "en";
+        		}
+        		if (primaryLanguage === "es") {
+        			return "es";
+        		}
+        		if (primaryLanguage === "it") {
+        			return "it";
+        		}
+        
+        		if (
+        			normalizedLowerValue === "zh-cn" ||
+        			normalizedLowerValue === "zh-sg" ||
+        			normalizedLowerValue === "zh-hans"
+        		) {
+        			return "zh-CN";
+        		}
+        
+        		return null;
+        	}
+        
+        	public isEnabledApplicationLocale(value: any): boolean {
+        		const canonicalLocale = this.normalizeLocaleCandidate(value);
+        		return canonicalLocale != null && this.getEnabledApplicationLocales().indexOf(canonicalLocale) !== -1;
+        	}
+        
+        	public resolveEnabledLocale(value: any, fallback: string = "en"): string {
+        		const canonicalLocale = this.normalizeLocaleCandidate(value);
+        		if (canonicalLocale != null && this.getEnabledApplicationLocales().indexOf(canonicalLocale) !== -1) {
+        			return canonicalLocale;
+        		}
+        
+        		const fallbackLocale = this.normalizeLocaleCandidate(fallback);
+        		if (fallbackLocale != null && this.getEnabledApplicationLocales().indexOf(fallbackLocale) !== -1) {
+        			return fallbackLocale;
+        		}
+        
+        		return "en";
+        	}
+        
+        	public resolveFirstEnabledLocale(candidates: any[], fallback: any = "en", finalSafeLocale: string = "en"): string {
+        		const sourceCandidates = Array.isArray(candidates) ? candidates : [candidates];
+        		for (const candidate of sourceCandidates) {
+        			const canonicalLocale = this.normalizeLocaleCandidate(candidate);
+        			if (canonicalLocale != null && this.getEnabledApplicationLocales().indexOf(canonicalLocale) !== -1) {
+        				return canonicalLocale;
+        			}
+        		}
+        
+        		const fallbackLocale = this.normalizeLocaleCandidate(fallback);
+        		if (fallbackLocale != null && this.getEnabledApplicationLocales().indexOf(fallbackLocale) !== -1) {
+        			return fallbackLocale;
+        		}
+        
+        		const safeLocale = this.normalizeLocaleCandidate(finalSafeLocale);
+        		if (safeLocale != null && this.getEnabledApplicationLocales().indexOf(safeLocale) !== -1) {
+        			return safeLocale;
+        		}
+        
+        		return "en";
+        	}
+        
+        
+        	public getCanonicalEnabledLocale(value: any): string | null {
+        		const canonicalLocale = this.normalizeLocaleCandidate(value);
+        		if (canonicalLocale != null && this.getEnabledApplicationLocales().indexOf(canonicalLocale) !== -1) {
+        			return canonicalLocale;
+        		}
+        
+        		return null;
+        	}
+        
+        	public getBrowserLocaleCandidates(): any[] {
+        		const candidates: any[] = [];
+        
+        		try {
+        			const languages = typeof navigator !== "undefined" && Array.isArray(navigator.languages)
+        				? navigator.languages
+        				: [];
+        
+        			for (const language of languages) {
+        				if (language != null && candidates.indexOf(language) === -1) {
+        					candidates.push(language);
+        				}
+        			}
+        		}
+        		catch (e) {
+        			// Ignore browser locale lookup failures and keep the configured fallback.
+        		}
+        
+        		try {
+        			const language = typeof navigator !== "undefined" ? navigator.language : null;
+        			if (language != null && candidates.indexOf(language) === -1) {
+        				candidates.push(language);
+        			}
+        		}
+        		catch (e) {
+        			// Ignore browser locale lookup failures and keep the configured fallback.
+        		}
+        
+        		return candidates;
+        	}
+        
+        	public getContentLanguageMetaElement(): HTMLMetaElement {
+        		let metaLanguage = document.querySelector("meta[http-equiv=''Content-Language'']") as HTMLMetaElement;
+        		if (metaLanguage == null) {
+        			metaLanguage = document.createElement("meta");
+        			metaLanguage.setAttribute("http-equiv", "Content-Language");
+        			document.getElementsByTagName("head")[0].appendChild(metaLanguage);
+        		}
+        
+        		return metaLanguage;
+        	}
+        
+        	public updateApplicationLocaleMetadata(locale: any): string | null {
+        		const canonicalLocale = this.getCanonicalEnabledLocale(locale);
+        		if (canonicalLocale == null) {
+        			return null;
+        		}
+        
+        		window.document.getElementsByTagName("html")[0].setAttribute("lang", canonicalLocale);
+        		this.getContentLanguageMetaElement().setAttribute("content", canonicalLocale);
+        
+        		return canonicalLocale;
+        	}
+        
+        	public applyApplicationLocale(locale: any, options: any = null): any {
+        		const canonicalLocale = this.getCanonicalEnabledLocale(locale);
+        		if (canonicalLocale == null) {
+        			return null;
+        		}
+        
+        		const applyOptions = options ?? {};
+        		if (applyOptions.setDefault !== false && typeof this.translate?.setDefaultLang === "function") {
+        			this.translate.setDefaultLang(canonicalLocale);
+        		}
+        
+        		let languageChange$: any = null;
+        		if (applyOptions.useTranslate !== false && typeof this.translate?.use === "function") {
+        			if (this.translate?.currentLang !== canonicalLocale) {
+        				languageChange$ = this.translate.use(canonicalLocale);
+        			}
+        		}
+        
+        		if (applyOptions.persistLocal === true) {
+        			window.localStorage.setItem("lang", canonicalLocale);
+        		}
+        
+        		if (applyOptions.persistGlobal !== false) {
+        			this.global.settings ??= {};
+        			this.global.settings.language = canonicalLocale;
+        			this.global.language = canonicalLocale;
+        		}
+        
+        		if (applyOptions.updateMetadata !== false) {
+        			this.updateApplicationLocaleMetadata(canonicalLocale);
+        		}
+        
+        		return {
+        			locale: canonicalLocale,
+        			languageChange: languageChange$
+        		};
+        	}
+        
         	/** configure language pref and fix chrome''s translate issue */
         	public configureLang() {
-        		// get logs preference from local storage
-        		let localLang = window.localStorage.getItem("lang");
-        		if (localLang != undefined && localLang != "undefined") {
-        			this.translate.setDefaultLang(localLang);
-        			this.translate.use(localLang);
-        		}
-        		else {
-        			try {
-        				let navLang = navigator.language;
-        				if (navLang.indexOf("fr") == 0) {
-        					localLang = "fr";
-        					this.translate.setDefaultLang(''fr'');
-        				}
-        				else if (navLang.indexOf("en") == 0) {
-        					localLang = "en";
-        					this.translate.setDefaultLang(''en'');
-        				}
-        				else if (navLang.indexOf("es") == 0) {
-        					localLang = "es";
-        					this.translate.setDefaultLang(''es'');
-        				}
-        				else {
-        					localLang = "en";
-        					this.translate.setDefaultLang(''en'');
-        				}
+        		const storedLang = window.localStorage.getItem("lang");
+        		const hasStoredLang = storedLang != null && storedLang !== "" && storedLang !== "undefined";
+        		const browserLocaleCandidates = this.getBrowserLocaleCandidates();
+        		const localLang = this.resolveFirstEnabledLocale(
+        			hasStoredLang ? [storedLang, ...browserLocaleCandidates] : browserLocaleCandidates,
+        			"en",
+        			"en"
+        		);
+        		const canonicalStoredLang = hasStoredLang ? this.getCanonicalEnabledLocale(storedLang) : null;
+        		const shouldCanonicalizeStoredLang = canonicalStoredLang != null && storedLang !== canonicalStoredLang;
         
-        			}
-        			catch (e) {
-        				localLang = "en";
-        				this.translate.setDefaultLang(''en'');
-        			}
-        			this.global["__secretL"] = localLang;
-        		}
-        		// Fix Chrome''s translate issue and add meta tags
-        		window.document.getElementsByTagName("html")[0].setAttribute("lang", localLang);
-        
-        		// Add meta tags for language and charset
-        		let metaLanguage = document.createElement(''meta'');
-        		metaLanguage.setAttribute(''http-equiv'', ''Content-Language'');
-        		metaLanguage.setAttribute(''content'', localLang);
-        		document.getElementsByTagName(''head'')[0].appendChild(metaLanguage);
-        
-        		let metaCharset = document.createElement(''meta'');
-        		metaCharset.setAttribute(''charset'', ''UTF-8'');
-        		document.getElementsByTagName(''head'')[0].appendChild(metaCharset);
-        
-        		this.translate.onLangChange.subscribe((e) => {
-        			window.document.getElementsByTagName("html")[0].setAttribute("lang", e.lang);
-        
-        			// Update meta language tag when language changes
-        			metaLanguage.setAttribute(''content'', e.lang);
+        		this.applyApplicationLocale(localLang, {
+        			setDefault: true,
+        			useTranslate: true,
+        			persistLocal: shouldCanonicalizeStoredLang,
+        			persistGlobal: true,
+        			updateMetadata: true,
+        			source: "startup"
         		});
         
-        		if (Object.keys(this.global.settings).length <= 1) {
-        			this.global.settings["language"] = localLang;
+        		if (!hasStoredLang) {
+        			this.global["__secretL"] = localLang;
+        		}
+        
+        		let metaCharset = document.querySelector("meta[charset]") as HTMLMetaElement;
+        		if (metaCharset == null) {
+        			metaCharset = document.createElement("meta");
+        			metaCharset.setAttribute("charset", "UTF-8");
+        			document.getElementsByTagName("head")[0].appendChild(metaCharset);
+        		}
+        
+        		if (this.global.__c8oLocaleMetadataSubscriptionBound !== true) {
+        			this.global.__c8oLocaleMetadataSubscriptionBound = true;
+        			this.translate.onLangChange.subscribe((e) => {
+        				this.updateApplicationLocaleMetadata(e?.lang);
+        			});
         		}
         	}
+        
         
         	/** set gdrp structure */
         	public async defineGdrp(translate) {
@@ -3857,24 +4031,84 @@ useClickForTap: true
             //					window["__c8o__translate"]["use"](userSettings?.res?.language);
             //				}
             				const translate = window["__c8o__translate"];
+            				const localeOwner: any = page;
             				
+            				const normalizeLocaleCandidate =
+            				  typeof localeOwner?.normalizeLocaleCandidate === "function"
+            				    ? localeOwner.normalizeLocaleCandidate.bind(localeOwner)
+            				    : (_value: any) => null;
+            				const isEnabledApplicationLocale =
+            				  typeof localeOwner?.isEnabledApplicationLocale === "function"
+            				    ? localeOwner.isEnabledApplicationLocale.bind(localeOwner)
+            				    : (_value: any) => false;
+            				const resolveFirstEnabledLocale =
+            				  typeof localeOwner?.resolveFirstEnabledLocale === "function"
+            				    ? localeOwner.resolveFirstEnabledLocale.bind(localeOwner)
+            				    : (candidates: any[], fallback: string = "fr", finalSafeLocale: string = "fr") => {
+            				        const sourceCandidates = Array.isArray(candidates) ? candidates : [candidates];
+            				        for (const candidate of sourceCandidates) {
+            				          const canonicalCandidate = normalizeLocaleCandidate(candidate);
+            				          if (canonicalCandidate != null && isEnabledApplicationLocale(canonicalCandidate)) {
+            				            return canonicalCandidate;
+            				          }
+            				        }
+            
+            				        const canonicalFallback = normalizeLocaleCandidate(fallback);
+            				        if (canonicalFallback != null && isEnabledApplicationLocale(canonicalFallback)) {
+            				          return canonicalFallback;
+            				        }
+            
+            				        const canonicalFinalSafeLocale = normalizeLocaleCandidate(finalSafeLocale);
+            				        if (canonicalFinalSafeLocale != null && isEnabledApplicationLocale(canonicalFinalSafeLocale)) {
+            				          return canonicalFinalSafeLocale;
+            				        }
+            
+            				        return "fr";
+            				      };
+            				
+            				const browserLocaleCandidates =
+            				  typeof localeOwner?.getBrowserLocaleCandidates === "function"
+            				    ? localeOwner.getBrowserLocaleCandidates()
+            				    : [];
             				const storedLanguage = localStorage.getItem("lang");
+            				const hasStoredLanguage = storedLanguage != null && storedLanguage !== "" && storedLanguage !== "undefined";
+            				const canonicalStoredLanguage = hasStoredLanguage ? normalizeLocaleCandidate(storedLanguage) : null;
+            				const hasUsableStoredLanguage = canonicalStoredLanguage != null && isEnabledApplicationLocale(canonicalStoredLanguage);
             				const userLanguage = userSettings?.res?.language;
-            				
-            				const languageToUse =
-            				  storedLanguage ??
-            				  userLanguage ??
-            				  "fr";
+            				const languageToUse = resolveFirstEnabledLocale(
+            				  [hasUsableStoredLanguage ? storedLanguage : null, userLanguage, ...browserLocaleCandidates],
+            				  "fr",
+            				  "fr"
+            				);
             				
             				if (languageToUse != null) {
-            				  translate?.use?.(languageToUse);
-            				  page.global.language = languageToUse;
-            				  page.global.settings ??= {};
-            				  page.global.settings.language = languageToUse;
+            				  const applyApplicationLocale =
+            				    typeof localeOwner?.applyApplicationLocale === "function"
+            				      ? localeOwner.applyApplicationLocale.bind(localeOwner)
+            				      : null;
+            				
+            				  if (applyApplicationLocale != null) {
+            				    applyApplicationLocale(languageToUse, {
+            				      setDefault: false,
+            				      useTranslate: true,
+            				      persistLocal: false,
+            				      persistGlobal: true,
+            				      updateMetadata: true,
+            				      source: "appguard"
+            				    });
+            				  } else {
+            				    translate?.use?.(languageToUse);
+            				    page.global.language = languageToUse;
+            				    page.global.settings ??= {};
+            				    page.global.settings.language = languageToUse;
+            				  }
             				}
             				
-            				if (storedLanguage == null && userLanguage != null) {
-            				  localStorage.setItem("lang", userLanguage);
+            				if (!hasUsableStoredLanguage && userLanguage != null) {
+            				  const normalizedUserLanguage = normalizeLocaleCandidate(userLanguage);
+            				  if (normalizedUserLanguage != null && isEnabledApplicationLocale(normalizedUserLanguage)) {
+            				    localStorage.setItem("lang", normalizedUserLanguage);
+            				  }
             				}
             			}
             			catch(e){
@@ -5014,75 +5248,261 @@ useClickForTap: true
           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
-              '		try {
-              			let resp: any = vars.resp;
-              			if(resp.BrevoConversationsID != null && resp.BrevoConversationsID != "" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) == false){
-              				let router = page.getInstance(Router);
-              				let conditional = ()=>{
-              					return location.pathname?.split("/")?.[5] != "pwas" && router.url.startsWith("viewer") == false;
-              				}
-              				let initBrevo = ()=>{
-              					if(!this.global.__brevonintialized){
-              						((d, w, c) => {
-              						  // Définir l''ID BrevoConversations
-              						  w["BrevoConversationsID"] = resp.BrevoConversationsID;
-              						  
-              						  // Initialiser la fonction de BrevoConversations
-              						  w[c] = w[c] || function() { 
-              						    (w[c].q = w[c].q || []).push(arguments); 
-              						  };
-              						  
-              						  // Créer le script dynamiquement
-              						  var s = d.createElement(''script'');
-              						  s.async = true;
-              						  s.src = ''https://conversations-widget.brevo.com/brevo-conversations.js'';
-              						  
-              						  // Ajouter le script au head
-              						  if (d.head) {
-              						    d.head.appendChild(s);
-              						  }
-              						})(document, window, ''BrevoConversations'');
-              						this.global.__brevonintialized = true;
-              					}
-              				}
-              				let showBrevo = ()=>{
-              					try{
-              						document.getElementById("brevo-conversations").style.display = "block";
-              						page.bindAgentDrawerBrevoOffset();
-              						page.updateBrevoOffsetForAgentDrawer();
-              					}
-              					catch (e) {
+              '        try {
+                          if (page.global == null) {
+                              page.global = {};
+                          }
               
-              					}
-              				}
-              				let hideBrevo = ()=>{
-              					try{
-              						document.getElementById("brevo-conversations").style.display = "none";
-              					}
-              					catch (e) {
-              						
-              					}
-              				}
-              				router.events
-              			    .pipe(filter(event => event instanceof NavigationEnd))
-              			    .subscribe((event: NavigationEnd) => {
-              					if (conditional()) {
-              						initBrevo();
-              						showBrevo();
-              					} else {
-              						hideBrevo();
-              					}
-              			    });
-              			    // init
-              				if (conditional()) {
-              					initBrevo();
-              				}
-              				
-              			}
-              				
-              		} catch (e) {
-              		
-              		}
+                          if (page.global.__sidebarNavigationSyncRegistered !== true) {
+                              page.global.__sidebarNavigationSyncRegistered = true;
+                              const routerForSidebar = page.getInstance(Router);
+              
+                              const buildMenuItems = (section, item) => [
+                                  { label: ''ACCUEIL'', items: {
+                                      edition: { badge: 1, active: section === "application" && item === "edition" },
+                                      publication: { badge: 0, active: section === "application" && item === "publication" },
+                                      nocode: { badge: 0, active: section === "application" && item === "nocode" }
+                                  } },
+                                  { label: ''SUPPORT'', items: {
+                                      rgpd: { badge: 0, active: section === "support" && item === "rgpd" },
+                                      support: { badge: 0, active: section === "support" && item === "support" }
+                                  } },
+                                  { label: ''GESTION'', items: {
+                                      home: { badge: 0, active: section === "management" && item === "home" },
+                                      users: { badge: 0, active: section === "management" && item === "users" },
+                                      groups: { badge: 0, active: section === "management" && item === "groups" },
+                                      rgpd: { badge: 0, active: section === "management" && item === "rgpd" },
+                                      settings: { badge: 0, active: section === "management" && item === "settings" }
+                                  } }
+                              ];
+              
+                              const applySidebarSelection = (section, item) => {
+                                  page.global.menuItems = buildMenuItems(section, item);
+                              };
+              
+                              const isTrueValue = value => value === true || value === "true";
+                              const isFalseValue = value => value === false || value === "false";
+                              const isNeutralValue = value =>
+                                  value == null ||
+                                  value === "" ||
+                                  value === ":published" ||
+                                  value === "undefined";
+              
+                              const normalizeRoutePath = value => String(value || "")
+                                  .split("?")[0]
+                                  .split("#")[0]
+                                  .split("/")
+                                  .filter(segment => segment !== "")
+                                  .join("/");
+              
+                              const routePatternMatches = (routePattern, currentPath) => {
+                                  const routeSegments = normalizeRoutePath(routePattern).split("/").filter(segment => segment !== "");
+                                  const currentSegments = normalizeRoutePath(currentPath).split("/").filter(segment => segment !== "");
+              
+                                  if (routeSegments.length === 0 || currentSegments.length < routeSegments.length) {
+                                      return false;
+                                  }
+              
+                                  for (let start = 0; start <= currentSegments.length - routeSegments.length; start++) {
+                                      let matches = true;
+              
+                                      for (let index = 0; index < routeSegments.length; index++) {
+                                          const routeSegment = routeSegments[index];
+              
+                                          if (routeSegment.charAt(0) === ":") {
+                                              continue;
+                                          }
+              
+                                          if (routeSegment !== currentSegments[start + index]) {
+                                              matches = false;
+                                              break;
+                                          }
+                                      }
+              
+                                      if (matches) {
+                                          return true;
+                                      }
+                                  }
+              
+                                  return false;
+                              };
+              
+                              const resolvePageNameFromRoute = url => {
+                                  const appPages = Array.isArray(page.appPages) ? page.appPages : [];
+                                  const currentPath = normalizeRoutePath(url);
+                                  const candidates = appPages
+                                      .filter(appPage => appPage?.name && appPage?.url)
+                                      .sort((left, right) => normalizeRoutePath(right.url).split("/").length - normalizeRoutePath(left.url).split("/").length);
+                                  const match = candidates.find(appPage => routePatternMatches(appPage.url, currentPath));
+              
+                                  return match?.name || null;
+                              };
+              
+                              const readSelectorPublishedFromUrl = url => {
+                                  const path = String(url || "").split("?")[0];
+                                  const match = path.match(/(?:^|\/)selector\/([^\/?#]*)/);
+                                  return match != null ? decodeURIComponent(match[1] || "") : null;
+                              };
+              
+                              const resolveSelectorArea = url => {
+                                  const routePublished = readSelectorPublishedFromUrl(url);
+                                  const publishedValue = isNeutralValue(routePublished) ? page.local?.published : routePublished;
+              
+                                  if (publishedValue === "nocodedatabase" || page.local?.nocodedatabase === true) {
+                                      return "nocode";
+                                  }
+              
+                                  if (isTrueValue(publishedValue)) {
+                                      return "publication";
+                                  }
+              
+                                  if (isFalseValue(publishedValue)) {
+                                      return "edition";
+                                  }
+              
+                                  return isTrueValue(page.global?.settings?.published_First) ? "publication" : "edition";
+                              };
+              
+                              const syncSidebarFromNavigation = navigationEvent => {
+                                  const url = String(navigationEvent?.urlAfterRedirects || navigationEvent?.url || routerForSidebar?.url || window.location.pathname || "");
+                                  const routePageName = resolvePageNameFromRoute(url);
+                                  const pageName = routePageName || page.global?.c8opageName;
+                                  const routeSegments = normalizeRoutePath(url).split("/");
+                                  const isStandalonePwa = page.global?.pwa === true || (routeSegments.indexOf("pwas") != -1 && routeSegments.indexOf("mobile") == -1);
+              
+                                  if (url.indexOf("/settings") != -1 || pageName === "settingsPage") {
+                                      applySidebarSelection("management", "settings");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/admin/gdrp") != -1 || pageName === "adminGdrp") {
+                                      applySidebarSelection("management", "rgpd");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/admin/dashboard-user") != -1 || pageName === "adminDashboardUsers") {
+                                      applySidebarSelection("management", "users");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/admin/dashboard-groups") != -1 || pageName === "adminDashboardUsersWithinGroups") {
+                                      applySidebarSelection("management", "groups");
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/admin/dashboard-detail") != -1 || url.indexOf("/admin/dashboard") != -1 || pageName === "adminDashboardHome" || pageName === "adminDashboardDetail") {
+                                      applySidebarSelection("management", "home");
+                                      return;
+                                  }
+              
+                                  if (pageName === "GDRPpage") {
+                                      applySidebarSelection("support", "rgpd");
+                                      if (isStandalonePwa) {
+                                          page.global.viewerHome = false;
+                                      }
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/selector") != -1 || pageName === "selectorPage") {
+                                      applySidebarSelection("application", resolveSelectorArea(url));
+                                      return;
+                                  }
+              
+                                  if (url.indexOf("/editor/") != -1 || url.indexOf("/datapage/") != -1 || pageName === "editorPage" || pageName === "dataPage") {
+                                      applySidebarSelection("application", "edition");
+                                      return;
+                                  }
+              
+                                  if (isStandalonePwa && (pageName === "viewerPage" || pageName === "sharingPage")) {
+                                      applySidebarSelection(null, null);
+                                      page.global.viewerHome = true;
+                                      return;
+                                  }
+              
+                                  if (isStandalonePwa && pageName != null) {
+                                      applySidebarSelection(null, null);
+                                      page.global.viewerHome = false;
+                                  }
+                              };
+              
+                              routerForSidebar.events
+                                  .pipe(filter(event => event instanceof NavigationEnd))
+                                  .subscribe((navigationEvent: NavigationEnd) => {
+                                      requestAnimationFrame(() => syncSidebarFromNavigation(navigationEvent));
+                                  });
+              
+                              requestAnimationFrame(() => syncSidebarFromNavigation(null));
+                          }
+                      }
+                      catch (e) {
+                          page.c8o.log?.warn?.(`[MenuSelector] Unable to synchronize sidebar selection: ${String(e)}`);
+                      }
+              
+                      try {
+                          let resp: any = vars.resp;
+                          if(resp.BrevoConversationsID != null && resp.BrevoConversationsID != "" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) == false){
+                              let router = page.getInstance(Router);
+                              let conditional = ()=>{
+                                  return location.pathname?.split("/")?.[5] != "pwas" && router.url.startsWith("viewer") == false;
+                              }
+                              let initBrevo = ()=>{
+                                  if(!this.global.__brevonintialized){
+                                      ((d, w, c) => {
+                                        // Définir l''ID BrevoConversations
+                                        w["BrevoConversationsID"] = resp.BrevoConversationsID;
+                                        
+                                        // Initialiser la fonction de BrevoConversations
+                                        w[c] = w[c] || function() { 
+                                          (w[c].q = w[c].q || []).push(arguments); 
+                                        };
+                                        
+                                        // Créer le script dynamiquement
+                                        var s = d.createElement(''script'');
+                                        s.async = true;
+                                        s.src = ''https://conversations-widget.brevo.com/brevo-conversations.js'';
+                                        
+                                        // Ajouter le script au head
+                                        if (d.head) {
+                                          d.head.appendChild(s);
+                                        }
+                                      })(document, window, ''BrevoConversations'');
+                                      this.global.__brevonintialized = true;
+                                  }
+                              }
+                              let showBrevo = ()=>{
+                                  try{
+                                      document.getElementById("brevo-conversations").style.display = "block";
+                                      page.bindAgentDrawerBrevoOffset();
+                                      page.updateBrevoOffsetForAgentDrawer();
+                                  }
+                                  catch (e) {
+              
+                                  }
+                              }
+                              let hideBrevo = ()=>{
+                                  try{
+                                      document.getElementById("brevo-conversations").style.display = "none";
+                                  }
+                                  catch (e) {
+                                  }
+                              }
+                              router.events
+                              .pipe(filter(event => event instanceof NavigationEnd))
+                              .subscribe((event: NavigationEnd) => {
+                                  if (conditional()) {
+                                      initBrevo();
+                                      showBrevo();
+                                  } else {
+                                      hideBrevo();
+                                  }
+                              });
+                              // init
+                              if (conditional()) {
+                                  initBrevo();
+                              }
+                          }
+                      } catch (e) {
+                      }
               '
       app_ts_imports: 
         - xmlizable: 
@@ -5215,26 +5635,8 @@ useClickForTap: true
       '{
        "ionBean": "SetGlobalAction",
        "Property": "plain:menuItems",
-       "Value": "script:[\n  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: true}, publication:{badge: 0, active: false}, nocode: {badge: 0, active: false}} },\n  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},\n  { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}\n]"
+       "Value": "script:[\n  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: false}, publication:{badge: 0, active: false}, nocode: {badge: 0, active: false}} },\n  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},\n  { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}\n]"
       }'
-    ↓setActive [ngx.components.UICustomAction-1765360727798]: 
-      actionValue: 
-        - xmlizable: 
-          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-            →: |
-              '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-              //		console.log(page.global, page.global.settings)
-              		if (page.global.settings.published_First == "true" || page.global.settings.published_First == true) {
-              			page.global.menuItems = [
-              			  { label: ''ACCUEIL'', items: {edition: {badge: 1, active: false}, publication:{badge: 0, active: true}, nocode: {badge: 0, active: false}} },
-              			  { label: ''SUPPORT'', items: {rgpd: {badge: 0, active: false}, support: {badge: 0, active: false}}},
-              			  { label: ''GESTION'', items: {home: {badge: 0, active: false}, users: {badge: 0, active: false}, groups: {badge: 0, active: false},rgpd: {badge: 0, active: false}, settings: {badge: 0, active: false}}}
-              			];
-              //			console.log(''innnn'')
-              		}
-              		resolve();
-              '
   ↓SetGlobal [ngx.components.UIDynamicAction-1779966472864]: 
     beanData: |
       '{
@@ -5481,8 +5883,10 @@ useClickForTap: true
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
           '.btn--linear-gradient {
-          --background: linear-gradient(90deg, #635bff 0%, var(--ion-color-primary) 100%) !important;
-          background: linear-gradient(90deg, #635bff 0%, var(--ion-color-primary) 100%) !important;
+          //--background: linear-gradient(90deg, #635bff 0%, var(--ion-color-primary) 100%) !important;
+          //background: linear-gradient(90deg, #635bff 0%, var(--ion-color-primary) 100%) !important;
+          --background: var(--ion-color-primary) !important;
+          background: var(--ion-color-primary) !important;
           color: #fff !important;
           font-weight: 600 !important;
           height: 44px !important;
@@ -6514,6 +6918,10 @@ useClickForTap: true
           .popover-content {
           box-shadow: none !important;
           --box-shadow: none !important;
+          }
+          
+          ion-popover.selector-navigation-select-popover {
+          	--offset-x: -130px !important;
           }'
 ↓_NewStyleAgGridUsers_ [ngx.components.UIStyle-1758298769866]: 
   styleContent: 
@@ -6623,7 +7031,8 @@ useClickForTap: true
           }
           /* menu/tri : icônes + opa */
           .ag-theme-quartz .ag-icon{
-          opacity:.7 ;
+          //opacity:.7 ;
+          opacity: 1;
           }
           .ag-theme-quartz .ag-header {
           height: 44px ;
@@ -7733,7 +8142,8 @@ useClickForTap: true
           }
           /* menu/tri : icônes + opa */
           .ag-theme-quartz .ag-icon{
-          opacity:.7 !important;
+          //opacity:.7 !important;
+          opacity:1 !important;
           }
           .ag-theme-quartz .ag-header {
           height: 44px !important;
@@ -7997,7 +8407,8 @@ useClickForTap: true
           }
           /* menu/tri : icônes + opa */
           .ag-theme-quartz .ag-icon{
-          opacity:.7 ;
+          //opacity:.7 ;
+          opacity:1 !important;
           }
           .ag-theme-quartz .ag-header {
           height: 44px ;

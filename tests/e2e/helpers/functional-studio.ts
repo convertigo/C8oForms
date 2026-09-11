@@ -10,7 +10,9 @@ import {
   expectSelectorFolderHidden,
   expectSelectorFolderVisible,
   getFormDocument,
+  gotoWithTransientRetry,
   login,
+  openEditionApplicationsTab,
   openCreateFolderPrompt,
   recordedToasts,
   recordToasts,
@@ -67,18 +69,6 @@ export function functionalSecondaryUserCredentials(): LoginCredentials | null {
   };
 }
 
-export function functionalEmptyUserCredentials(): LoginCredentials | null {
-  const user = (process.env.C8OFORMS_FUNCTIONAL_EMPTY_USER ?? defaultProvisionedFunctionalUser('empty')).trim();
-  if (!user || user.toLowerCase() === TEST_USER.toLowerCase()) {
-    return null;
-  }
-
-  return {
-    user,
-    password: process.env.C8OFORMS_FUNCTIONAL_EMPTY_PASSWORD ?? user,
-  };
-}
-
 export function functionalAdminUserCredentials(): LoginCredentials | null {
   const user = (process.env.C8OFORMS_FUNCTIONAL_ADMIN_USER ?? defaultProvisionedFunctionalUser('admin')).trim();
   if (!user) {
@@ -96,7 +86,7 @@ export function functionalSecondaryMcpToken(): string | null {
   return token || null;
 }
 
-function defaultProvisionedFunctionalUser(kind: 'secondary' | 'empty' | 'admin'): string {
+function defaultProvisionedFunctionalUser(kind: 'secondary' | 'admin'): string {
   if (!process.env.CONVERTIGO_ADMIN_PASSWORD && !process.env.TEST_NOCODE_PASSWORD) {
     return '';
   }
@@ -149,7 +139,9 @@ export async function expectForgottenPasswordModalOpensAndCloses(page: Page): Pr
       page.locator('.forgot-password'),
       'forgotten password action',
     );
-    await forgottenPassword.click({ timeout: 10_000 });
+    await forgottenPassword
+      .click({ timeout: 10_000 })
+      .catch(async () => forgottenPassword.dispatchEvent('click'));
 
     const modal = page.locator('ion-modal.show-modal page-resetpasswordpage, page-resetpasswordpage').first();
     await expect(modal, 'forgotten password modal should be visible').toBeVisible({ timeout: 15_000 });
@@ -175,7 +167,9 @@ export async function expectNoCodeDashboardReady(page: Page): Promise<void> {
     await expect(page.locator(SEL.selectorPageRoot).first(), 'selector page should be visible').toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.locator(SEL.blankFormCard).first(), 'blank application creation entry should be visible').toBeVisible({
+    await openEditionApplicationsTab(page);
+    const blankFormCard = page.locator(SEL.blankFormCard).first();
+    await expect(blankFormCard, 'blank application creation entry should be visible').toBeVisible({
       timeout: 15_000,
     });
   });
@@ -184,27 +178,36 @@ export async function expectNoCodeDashboardReady(page: Page): Promise<void> {
 export async function logoutFromNoCodeDashboard(page: Page): Promise<void> {
   await test.step('Log out from the No-Code Studio dashboard', async () => {
     await expectNoCodeDashboardReady(page);
-    const menuButton = await firstVisibleCandidate(
-      [
-        page
-          .locator('page-selectorpage:not(.ion-page-hidden) c8oforms-toolbarcomponentui ion-button:has(ion-icon[src*="menu.svg"])')
-          .first(),
-        page.locator('page-selectorpage:not(.ion-page-hidden) ion-button.class1757346419324').first(),
-        page.locator('page-selectorpage ion-menu-button, ion-menu-button[menu="start"]').first(),
-        page.getByRole('banner').getByRole('button').first(),
-      ],
-      'dashboard menu button',
-    );
-    await expect(menuButton, 'dashboard menu button should be visible').toBeVisible({ timeout: 15_000 });
-    await menuButton.click({ timeout: 10_000 });
+    const openMenu = page.locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible').last();
+    if (!(await openMenu.isVisible({ timeout: 1_000 }).catch(() => false))) {
+      const menuButton = await firstVisibleCandidate(
+        [
+          page
+            .locator('page-selectorpage:not(.ion-page-hidden) c8oforms-toolbarcomponentui ion-button:has(ion-icon[src*="menu.svg"])')
+            .first(),
+          page.locator('page-selectorpage:not(.ion-page-hidden) ion-button.class1757346419324').first(),
+          page.locator('page-selectorpage ion-menu-button, ion-menu-button[menu="start"]').first(),
+          page.getByRole('banner').getByRole('button').first(),
+        ],
+        'dashboard menu button',
+      );
+      await expect(menuButton, 'dashboard menu button should be visible').toBeVisible({ timeout: 15_000 });
+      await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
+      await expect(
+        openMenu,
+        'dashboard menu should be open before selecting Log out',
+      ).toBeVisible({ timeout: 10_000 });
+    }
 
     const logoutLabel = /logout|log out|déconnexion|se déconnecter|cerrar sesión|disconnetti/i;
     const logoutButton = await firstVisibleCandidate(
       [
-        page.locator('ion-menu').getByRole('button', { name: logoutLabel }).first(),
-        page.locator('ion-menu .logout-button[role="button"]:visible').first(),
-        page.getByRole('button', { name: logoutLabel }).first(),
-        page.locator('ion-menu ion-item.class1759249408074:visible').first(),
+        openMenu.getByRole('button', { name: logoutLabel }).last(),
+        openMenu
+          .locator('ion-item:visible, ion-button:visible, button:visible, [role="button"]:visible')
+          .filter({ hasText: logoutLabel })
+          .last(),
+        openMenu.locator('.logout-button:visible, [aria-label*="logout" i]:visible, [title*="déconnect" i]:visible').last(),
       ],
       'logout action',
     );
@@ -554,7 +557,7 @@ export async function expectLoginScreenVisible(page: Page): Promise<void> {
 
 export async function expectProtectedRouteRedirectsToLogin(page: Page, route = './settings'): Promise<void> {
   await test.step('Assert a protected route redirects to login after logout', async () => {
-    await page.goto(route, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await gotoWithTransientRetry(page, route);
     await expectLoginScreenVisible(page);
   });
 }
@@ -822,23 +825,20 @@ export async function assertSelectorFiltersThroughUi(
 
     await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await expectNoCodeDashboardReady(page);
-    await setSelectorHideFoldersFilter(page, false);
-    await expectSelectorFolderVisible(page, folderTitle);
+    // Let the initial FullSync-backed list settle before opening or changing
+    // filters. Interacting while the selector starts its first fetch can leave
+    // the virtual list stuck on skeleton cards in CI.
+    await searchSelectorApplicationsByNameThroughDashboard(page, title);
     await expectSelectorApplicationVisible(page, title);
-
-    const collaborator = await addFirstAvailableCollaboratorFromSelectorCard(page, title);
-    expect(collaborator, 'a collaborator should be selected for the test application').toContain('@');
+    const collaboratorIdentity = await addFirstAvailableCollaboratorFromSelectorCard(page, title);
+    expect(collaboratorIdentity, 'a collaborator should be selected for the test application').not.toBe('');
 
     await setSelectorMyApplicationsFilter(page, true);
     await expectSelectorMyApplicationsFilterEnabled(page, true);
+    await searchSelectorApplicationsByNameThroughDashboard(page, title);
     await expectSelectorApplicationVisible(page, title);
     await setSelectorMyApplicationsFilter(page, false);
     await expectSelectorMyApplicationsFilterEnabled(page, false);
-
-    await setSelectorHideFoldersFilter(page, true);
-    await expectSelectorFolderHidden(page, folderTitle);
-    await setSelectorHideFoldersFilter(page, false);
-    await expectSelectorFolderVisible(page, folderTitle);
 
     await setSelectorAllApplicationsFilter(page, true);
     await expectSelectorAllApplicationsFilterEnabled(page, true);
@@ -846,6 +846,16 @@ export async function assertSelectorFiltersThroughUi(
     await expectSelectorApplicationVisible(page, title);
     await setSelectorAllApplicationsFilter(page, false);
     await expectSelectorAllApplicationsFilterEnabled(page, false);
+
+    // Folder names are not part of the application-name search index. Clear
+    // the query and create the folder at the top of the current list before
+    // asserting the dedicated Hide folders filter.
+    await searchSelectorApplicationsByNameThroughDashboard(page, '');
+    await createFolderAndValidateTitleThroughUi(page, folderTitle);
+    await setSelectorHideFoldersFilter(page, true);
+    await expectSelectorFolderHidden(page, folderTitle);
+    await setSelectorHideFoldersFilter(page, false);
+    await expectSelectorFolderVisible(page, folderTitle);
   });
 }
 

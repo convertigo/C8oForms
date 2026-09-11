@@ -155,7 +155,6 @@ async function addTarget(page: Page, testCase: TargetCase): Promise<void> {
   // A Description has no technical-id element in the viewer, so stamp its content
   // with the id to locate it there.
   if (testCase.type === 'description') await setDescriptionText(page, testCase.id);
-  await page.waitForTimeout(600); // let the config panel settle before tab navigation
   await openConfigTabById(page, 'visibility_tab_selector');
   await addVisibilityCondition(page, testCase.condition);
   await closeComponentConfig(page);

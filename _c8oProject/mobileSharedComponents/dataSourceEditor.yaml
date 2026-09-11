@@ -115,39 +115,120 @@ scriptContent:
         		}
         		return host;
         	}
-        	public getConditionType(type: string): string {
-        		let multipleField: any = { radio_group: true, checkbox_group: true, checkbox: true, location: true };
-        		let simpleField: any = { date: true, select: true, datetime: true, time: true, radio: true, text: true, barcode: true, slider: true, business_logic: true, grid: true, gallery: true };
-        		let fileField: any = { file: true };
-        		let camSignField: any = { img: true, signature: true };
-        		if (multipleField[type] == true) {
-        			return "multiple";
-        		}
-        		if (simpleField[type] == true) {
-        			return "simple";
-        		}
-        		if (fileField[type] == true) {
-        			return "file";
-        		}
-        		if (camSignField[type] == true) {
-        			return "camSign";
-        		}
-        		return "simple";
-        	}
-        	public getFlowConditionCompletionByType(type: string): Array<string> {
-        		let normalized = this.getConditionType(type);
-        		if (normalized == "multiple") {
-        			return ["equals", "different", "among_following", "out_following", "is_empty", "is_filled"];
-        		}
-        		if (normalized == "file") {
-        			return ["does_not_contain_file", "contains_a_file", "contains_multiple_files"];
-        		}
-        		if (normalized == "camSign") {
-        			return ["is_empty", "is_filled"];
-        		}
-        		return ["equals", "different", "minus", "minusequals", "greater", "greaterequals", "among_following", "out_following", "contains", "not_contains", "is_empty", "is_filled"];
-        	}
-        	public getFlowConditionFieldCandidates(): Array<any> {
+            public getConditionTypeFromString(type: string): string {
+                let multipleField: any = { radio_group: true, checkbox_group: true, checkbox: true, location: true };
+                let simpleField: any = { date: true, select: true, datetime: true, time: true, radio: true, text: true, barcode: true, slider: true, business_logic: true, grid: true, gallery: true };
+                let fileField: any = { file: true };
+                let camSignField: any = { img: true, signature: true };
+                if (multipleField[type] == true) {
+                    return "multiple";
+                }
+                if (simpleField[type] == true) {
+                    return "simple";
+                }
+                if (fileField[type] == true) {
+                    return "file";
+                }
+                if (camSignField[type] == true) {
+                    return "camSign";
+                }
+                return "simple";
+            }
+            public getSourceConditionFieldType(fieldOrCondition: any): string {
+                try {
+                    if (fieldOrCondition == null || typeof(fieldOrCondition) != "object") {
+                        return this.getConditionTypeFromString(fieldOrCondition);
+                    }
+                    let field: any = fieldOrCondition.val1 != undefined ? fieldOrCondition : { val1: fieldOrCondition };
+                    let val: any = field != null ? field.val1 : null;
+                    let type: string = val != null && val.type != null ? val.type : "";
+                    let owner: any = this.pageOwner as any;
+                    let guard = 0;
+                    while (owner != null && guard < 20) {
+                        let classifier: any = owner.getConditionFieldType != undefined ? owner.getConditionFieldType : owner.getConditionTypeForField;
+                        if (typeof(classifier) == "function") {
+                            try {
+                                let classified = classifier.call(owner, field, false);
+                                if (classified != null && classified !== "") {
+                                    return classified;
+                                }
+                            }
+                            catch (e) {
+                            }
+                        }
+                        if (typeof(owner.getConditionEditorType) == "function") {
+                            try {
+                                let editorType = owner.getConditionEditorType(field, false);
+                                if (editorType != null && editorType !== "") {
+                                    return editorType;
+                                }
+                            }
+                            catch (e) {
+                            }
+                        }
+                        let nextOwner = owner.pageOwner != null ? owner.pageOwner : owner.owner;
+                        if (nextOwner == owner) {
+                            break;
+                        }
+                        owner = nextOwner;
+                        guard++;
+                    }
+                    owner = this.pageOwner as any;
+                    if (owner != null && typeof(owner.getType) == "function") {
+                        let historical = owner.getType(type);
+                        if (historical != null && historical !== "") {
+                            return historical;
+                        }
+                    }
+                    return this.getConditionTypeFromString(type);
+                }
+                catch (e) {
+                    return "simple";
+                }
+            }
+            public getConditionType(fieldOrType: any): string {
+                if (fieldOrType != null && typeof(fieldOrType) == "object") {
+                    return this.getSourceConditionFieldType(fieldOrType);
+                }
+                return this.getConditionTypeFromString(fieldOrType);
+            }
+            public getFlowConditionCompletionByType(fieldOrType: any): Array<string> {
+                let normalized = this.getConditionType(fieldOrType);
+                if (normalized == "multiple") {
+                    return ["equals", "different", "among_following", "out_following", "is_empty", "is_filled"];
+                }
+                if (normalized == "file") {
+                    return ["does_not_contain_file", "contains_a_file", "contains_multiple_files"];
+                }
+                if (normalized == "camSign") {
+                    return ["is_empty", "is_filled"];
+                }
+                return ["equals", "different", "minus", "minusequals", "greater", "greaterequals", "among_following", "out_following", "contains", "not_contains", "is_empty", "is_filled"];
+            }
+            public buildSourceFilterField(elem: string, sourceMeta: any, sourceType: any): any {
+                let field: any = {
+                    name: elem,
+                    displayName: sourceMeta != null && sourceMeta.displayName != undefined ? sourceMeta.displayName : elem,
+                    cType: sourceType,
+                    type: sourceType
+                };
+                if (sourceMeta != null) {
+                    for (let key of ["id", "fieldId", "c8oid", "str", "config"]) {
+                        if (sourceMeta[key] != null) {
+                            field[key] = sourceMeta[key];
+                        }
+                    }
+                }
+                return field;
+            }
+            public getSourceFilterCompletion(field: any, fallback: any): any {
+                let normalized = this.getConditionType(field);
+                if (normalized == "multiple") {
+                    return this.getFlowConditionCompletionByType(field);
+                }
+                return fallback;
+            }
+            public getFlowConditionFieldCandidates(): Array<any> {
         		let form = this.pageOwner != null ? this.pageOwner.form : null;
         		let searchArray: Array<any> = [];
         		if (form != null && Array.isArray(form.formulaire)) {
@@ -200,7 +281,7 @@ scriptContent:
         		for (let field of fields) {
         			this.local.conditionFieldsById["" + field.str] = field;
         			this.local.conditionFieldsByName["" + field.name] = field;
-        			this.local.complByNameCondition[field.name] = this.getFlowConditionCompletionByType(field.type);
+                    this.local.complByNameCondition[field.name] = this.getFlowConditionCompletionByType(field);
         			this.local.typeByNameCondition[field.name] = field.type;
         		}
         	}
@@ -530,44 +611,61 @@ scriptContent:
         		return line.value === option.value;
         }
         public setDefaultGridValue(line: any, option: any): void {
-        		if (this.getDefaultValueMode() === "js") {
+        	if (this.getDefaultValueMode() === "js") {
+        		return;
+        	}
+        
+        	if (this.isDefaultValueSimpleChoice()) {
+        		if (option == null) {
         			return;
         		}
-        		if (this.isDefaultValueSimpleChoice()) {
-        			if (option == null) {
-        				return;
-        			}
-        			if (this.defaultValueGridKind === "checkbox") {
-        				option.selected = option.selected === true ? false : true;
-        			}
-        			else {
-        				if (this.item.config == null) {
-        					this.item.config = {};
-        				}
-        				this.item.config.defaultValue = this.item.config.defaultValue === option.value ? "" : option.value;
-        			}
-        			return;
-        		}
-        		if (line == null || option == null) {
-        			return;
-        		}
-        		if (this.defaultValueGridKind === "checkbox_group") {
-        			if (!Array.isArray(line.value)) {
-        				line.value = [];
-        			}
-        			var index = line.value.indexOf(option.value);
-        			if (index === -1) {
-        				line.value.push(option.value);
-        			}
-        			else {
-        				line.value.splice(index, 1);
-        			}
+        
+        		if (this.defaultValueGridKind === "checkbox") {
+        			option.selected = option.selected === true ? false : true;
         		}
         		else {
-        			line.value = line.value === option.value ? "" : option.value;
+        			if (this.item.config == null) {
+        				this.item.config = {};
+        			}
+        
+        			this.item.config.defaultValue =
+        				this.item.config.defaultValue === option.value
+        					? ""
+        					: option.value;
         		}
+        
         		this.pageOwner?.updateState?.();
+        
+        		return;
         	}
+        
+        	if (line == null || option == null) {
+        		return;
+        	}
+        
+        	if (this.defaultValueGridKind === "checkbox_group") {
+        		if (!Array.isArray(line.value)) {
+        			line.value = [];
+        		}
+        
+        		var index = line.value.indexOf(option.value);
+        
+        		if (index === -1) {
+        			line.value.push(option.value);
+        		}
+        		else {
+        			line.value.splice(index, 1);
+        		}
+        	}
+        	else {
+        		line.value =
+        			line.value === option.value
+        				? ""
+        				: option.value;
+        	}
+        
+        	this.pageOwner?.updateState?.();
+        }
         	public tinyFuncDropWithCancelTextNoToolbar(editor): void {
         		this.pageOwner.tinyFuncDropWithCancelText(editor);
         		var removeInlineToolbar = function() {
@@ -715,7 +813,7 @@ scriptContent:
         			return sourceStr == null ? "" : "" + sourceStr;
         		}
         	};
-        	/*End_c8o_CompFunction*/
+            /*End_c8o_CompFunction*/
         '
 ↓GridRow [ngx.components.UIDynamicElement-1610637187950]: 
   beanData: '{"ionBean":"GridRow","Width":"plain:100%"}'
@@ -3637,81 +3735,123 @@ scriptContent:
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		try {
-                                			// if it''s not ts
-                                			if(page.currentObject.type != ''ts''){
-                                				let alertController = page.getInstance(AlertController);
-                                				// send an alert to confirm data will be lost
-                                				const alert = await alertController.create({
-                                			      header: page.translate.instant("header_pwamsg"),
-                                			      subHeader: page.translate.instant("compat_js"),
-                                			      buttons: [
-                                					  {
-                                						  text: page.translate.instant("cancel_pwamsg"),
-                                						  role: ''cancel'',
-                                					  },
-                                					  {
-                                  						  text: page.translate.instant("continue_pwamsg"),
-                                  						  role: ''confirm'',
-                                  					  },
-                                					]
-                                			    });
-                                			    await alert.present();
-                                			    let res = await alert.onDidDismiss();
-                                			    let str = "";
-                                			    if(res.role === ''confirm''){
-                                					let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
-                                					let strWithoutSpace = sourceStr.replace(/\s/g, "");
-                                					if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
-                                						let parts = [];
-                                						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
-                                						let lastIndex = 0;
-                                						let match;
-                                						while((match = regex.exec(sourceStr)) != null){
-                                							if(match.index > lastIndex){
-                                								let txt = sourceStr.substring(lastIndex, match.index);
-                                								if(txt !== ""){
-                                									parts.push(JSON.stringify(txt));
-                                								}
-                                							}
-                                							let token = match[0];
-                                							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
-                                							lastIndex = match.index + match[0].length;
-                                						}
-                                						if(lastIndex < sourceStr.length){
-                                							let txt = sourceStr.substring(lastIndex);
-                                							if(txt !== ""){
-                                								parts.push(JSON.stringify(txt));
-                                							}
-                                						}
-                                						let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
-                                						if(parts.length === 0){
-                                							return {
-                                								str: "(async ()=>{\n\treturn '''';\n})();",
-                                								type: ''ts''
-                                							};
-                                						}
-                                						if(tsBody.trim() === ""){
-                                							tsBody = "''";
-                                						}
-                                						return {
-                                							str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
-                                							type: ''ts''
-                                						};
-                                					}
-                                					else{
-                                						return {
-                                							type: ''ts''
-                                						};
-                                					}
-                                				}
-                                				else{
-                                					return null;
-                                				}
-                                			}
-                                		} catch (e) {
-                                		}
+                                '        try {
+                                            // if it''s not ts
+                                            if(page.currentObject.type != ''ts''){
+                                                const compatJsWarningAckVersion = 1;
+                                                let ackValue = page.global != null && page.global.settings != null ? page.global.settings.jsModeSwitchWarningAckVersion : null;
+                                                let ackNumber = NaN;
+                                                if(typeof ackValue == "number"){
+                                                    ackNumber = ackValue;
+                                                }
+                                                else if(typeof ackValue == "string" && ackValue.trim() !== ""){
+                                                    ackNumber = Number(ackValue);
+                                                }
+                                                let isCompatJsWarningAcknowledged = isFinite(ackNumber) && Math.floor(ackNumber) == ackNumber && ackNumber >= compatJsWarningAckVersion;
+                                                let res: any = { role: ''confirm'', data: { values: [] } };
+                                                if(!isCompatJsWarningAcknowledged){
+                                                    let alertController = page.getInstance(AlertController);
+                                                    // send an alert to confirm data will be lost
+                                                    const alert = await alertController.create({
+                                                      header: page.translate.instant("header_pwamsg"),
+                                                      subHeader: page.translate.instant("compat_js"),
+                                                      cssClass: ''alert-custom text-generic'',
+                                                      inputs: [
+                                                          {
+                                                              name: ''dontShowWarningAgain'',
+                                                              type: ''checkbox'',
+                                                              label: page.translate.instant("dont_show_warning_again"),
+                                                              value: ''dontShowWarningAgain'',
+                                                              checked: false
+                                                          }
+                                                        ],
+                                                      buttons: [
+                                                          {
+                                                              text: page.translate.instant("cancel_pwamsg"),
+                                                              role: ''cancel'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info''
+                                                          },
+                                                          {
+                                                                text: page.translate.instant("continue_pwamsg"),
+                                                                role: ''confirm'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--primary''
+                                                            },
+                                                        ]
+                                                    });
+                                                    await alert.present();
+                                                    res = await alert.onDidDismiss();
+                                                }
+                                                let str = "";
+                                                if(res.role === ''confirm''){
+                                                    let dismissedValues = res != null && res.data != null && Array.isArray(res.data.values) ? res.data.values : [];
+                                                    if(dismissedValues.indexOf(''dontShowWarningAgain'') != -1){
+                                                        if(page.global != null){
+                                                            if(page.global.settings == null){
+                                                                page.global.settings = {};
+                                                            }
+                                                            page.global.settings.jsModeSwitchWarningAckVersion = compatJsWarningAckVersion;
+                                                        }
+                                                        try{
+                                                            let persistAck = page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"jsModeSwitchWarningAckVersion": compatJsWarningAckVersion})}).async();
+                                                            if(persistAck != null && typeof persistAck.catch == "function"){
+                                                                persistAck.catch(() => {});
+                                                            }
+                                                        }
+                                                        catch(e){
+                                                        }
+                                                    }
+                                                    let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
+                                                    let strWithoutSpace = sourceStr.replace(/\s/g, "");
+                                                    if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
+                                                        let parts = [];
+                                                        let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
+                                                        let lastIndex = 0;
+                                                        let match;
+                                                        while((match = regex.exec(sourceStr)) != null){
+                                                            if(match.index > lastIndex){
+                                                                let txt = sourceStr.substring(lastIndex, match.index);
+                                                                if(txt !== ""){
+                                                                    parts.push(JSON.stringify(txt));
+                                                                }
+                                                            }
+                                                            let token = match[0];
+                                                            let tsExpr = page.pageOwner.transform$toTsMonaco(token);
+                                                            parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
+                                                            lastIndex = match.index + match[0].length;
+                                                        }
+                                                        if(lastIndex < sourceStr.length){
+                                                            let txt = sourceStr.substring(lastIndex);
+                                                            if(txt !== ""){
+                                                                parts.push(JSON.stringify(txt));
+                                                            }
+                                                        }
+                                                        let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
+                                                        if(parts.length === 0){
+                                                            return {
+                                                                str: "(async ()=>{\n\treturn '''';\n})();",
+                                                                type: ''ts''
+                                                            };
+                                                        }
+                                                        if(tsBody.trim() === ""){
+                                                            tsBody = "''";
+                                                        }
+                                                        return {
+                                                            str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                    else{
+                                                        return {
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                }
+                                                else{
+                                                    return null;
+                                                }
+                                            }
+                                        } catch (e) {
+                                        }
                                 '
                         ↓If [ngx.components.UIDynamicAction-1734434710770]: 
                           beanData: '{"ionBean":"IfAction","condition":"script:parent.out != null"}'
@@ -5063,81 +5203,123 @@ scriptContent:
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		try {
-                                			// if it''s not ts
-                                			if(page.currentObject.type != ''ts''){
-                                				let alertController = page.getInstance(AlertController);
-                                				// send an alert to confirm data will be lost
-                                				const alert = await alertController.create({
-                                			      header: page.translate.instant("header_pwamsg"),
-                                			      subHeader: page.translate.instant("compat_js"),
-                                			      buttons: [
-                                					  {
-                                						  text: page.translate.instant("cancel_pwamsg"),
-                                						  role: ''cancel'',
-                                					  },
-                                					  {
-                                  						  text: page.translate.instant("continue_pwamsg"),
-                                  						  role: ''confirm'',
-                                  					  },
-                                					]
-                                			    });
-                                			    await alert.present();
-                                			    let res = await alert.onDidDismiss();
-                                			    let str = "";
-                                			    if(res.role === ''confirm''){
-                                					let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
-                                					let strWithoutSpace = sourceStr.replace(/\s/g, "");
-                                					if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
-                                						let parts = [];
-                                						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
-                                						let lastIndex = 0;
-                                						let match;
-                                						while((match = regex.exec(sourceStr)) != null){
-                                							if(match.index > lastIndex){
-                                								let txt = sourceStr.substring(lastIndex, match.index);
-                                								if(txt !== ""){
-                                									parts.push(JSON.stringify(txt));
-                                								}
-                                							}
-                                							let token = match[0];
-                                							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
-                                							lastIndex = match.index + match[0].length;
-                                						}
-                                						if(lastIndex < sourceStr.length){
-                                							let txt = sourceStr.substring(lastIndex);
-                                							if(txt !== ""){
-                                								parts.push(JSON.stringify(txt));
-                                							}
-                                						}
-                                						let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
-                                						if(parts.length === 0){
-                                							return {
-                                								str: "(async ()=>{\n\treturn '''';\n})();",
-                                								type: ''ts''
-                                							};
-                                						}
-                                						if(tsBody.trim() === ""){
-                                							tsBody = "''";
-                                						}
-                                						return {
-                                							str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
-                                							type: ''ts''
-                                						};
-                                					}
-                                					else{
-                                						return {
-                                							type: ''ts''
-                                						};
-                                					}
-                                				}
-                                				else{
-                                					return null;
-                                				}
-                                			}
-                                		} catch (e) {
-                                		}
+                                '        try {
+                                            // if it''s not ts
+                                            if(page.currentObject.type != ''ts''){
+                                                const compatJsWarningAckVersion = 1;
+                                                let ackValue = page.global != null && page.global.settings != null ? page.global.settings.jsModeSwitchWarningAckVersion : null;
+                                                let ackNumber = NaN;
+                                                if(typeof ackValue == "number"){
+                                                    ackNumber = ackValue;
+                                                }
+                                                else if(typeof ackValue == "string" && ackValue.trim() !== ""){
+                                                    ackNumber = Number(ackValue);
+                                                }
+                                                let isCompatJsWarningAcknowledged = isFinite(ackNumber) && Math.floor(ackNumber) == ackNumber && ackNumber >= compatJsWarningAckVersion;
+                                                let res: any = { role: ''confirm'', data: { values: [] } };
+                                                if(!isCompatJsWarningAcknowledged){
+                                                    let alertController = page.getInstance(AlertController);
+                                                    // send an alert to confirm data will be lost
+                                                    const alert = await alertController.create({
+                                                      header: page.translate.instant("header_pwamsg"),
+                                                      subHeader: page.translate.instant("compat_js"),
+                                                      cssClass: ''alert-custom text-generic'',
+                                                      inputs: [
+                                                          {
+                                                              name: ''dontShowWarningAgain'',
+                                                              type: ''checkbox'',
+                                                              label: page.translate.instant("dont_show_warning_again"),
+                                                              value: ''dontShowWarningAgain'',
+                                                              checked: false
+                                                          }
+                                                        ],
+                                                      buttons: [
+                                                          {
+                                                              text: page.translate.instant("cancel_pwamsg"),
+                                                              role: ''cancel'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info''
+                                                          },
+                                                          {
+                                                                text: page.translate.instant("continue_pwamsg"),
+                                                                role: ''confirm'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--primary''
+                                                            },
+                                                        ]
+                                                    });
+                                                    await alert.present();
+                                                    res = await alert.onDidDismiss();
+                                                }
+                                                let str = "";
+                                                if(res.role === ''confirm''){
+                                                    let dismissedValues = res != null && res.data != null && Array.isArray(res.data.values) ? res.data.values : [];
+                                                    if(dismissedValues.indexOf(''dontShowWarningAgain'') != -1){
+                                                        if(page.global != null){
+                                                            if(page.global.settings == null){
+                                                                page.global.settings = {};
+                                                            }
+                                                            page.global.settings.jsModeSwitchWarningAckVersion = compatJsWarningAckVersion;
+                                                        }
+                                                        try{
+                                                            let persistAck = page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"jsModeSwitchWarningAckVersion": compatJsWarningAckVersion})}).async();
+                                                            if(persistAck != null && typeof persistAck.catch == "function"){
+                                                                persistAck.catch(() => {});
+                                                            }
+                                                        }
+                                                        catch(e){
+                                                        }
+                                                    }
+                                                    let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
+                                                    let strWithoutSpace = sourceStr.replace(/\s/g, "");
+                                                    if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
+                                                        let parts = [];
+                                                        let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
+                                                        let lastIndex = 0;
+                                                        let match;
+                                                        while((match = regex.exec(sourceStr)) != null){
+                                                            if(match.index > lastIndex){
+                                                                let txt = sourceStr.substring(lastIndex, match.index);
+                                                                if(txt !== ""){
+                                                                    parts.push(JSON.stringify(txt));
+                                                                }
+                                                            }
+                                                            let token = match[0];
+                                                            let tsExpr = page.pageOwner.transform$toTsMonaco(token);
+                                                            parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
+                                                            lastIndex = match.index + match[0].length;
+                                                        }
+                                                        if(lastIndex < sourceStr.length){
+                                                            let txt = sourceStr.substring(lastIndex);
+                                                            if(txt !== ""){
+                                                                parts.push(JSON.stringify(txt));
+                                                            }
+                                                        }
+                                                        let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
+                                                        if(parts.length === 0){
+                                                            return {
+                                                                str: "(async ()=>{\n\treturn '''';\n})();",
+                                                                type: ''ts''
+                                                            };
+                                                        }
+                                                        if(tsBody.trim() === ""){
+                                                            tsBody = "''";
+                                                        }
+                                                        return {
+                                                            str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                    else{
+                                                        return {
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                }
+                                                else{
+                                                    return null;
+                                                }
+                                            }
+                                        } catch (e) {
+                                        }
                                 '
                         ↓If [ngx.components.UIDynamicAction-1743536180881]: 
                           beanData: '{"ionBean":"IfAction","condition":"script:parent.out != null"}'
@@ -6111,85 +6293,124 @@ scriptContent:
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		try {
-                                			// if it''s not ts
-                                			if(page.currentObject.type != ''ts''){
-                                				let alertController = page.getInstance(AlertController);
-                                				// send an alert to confirm data will be lost
-                                				const alert = await alertController.create({
-                                			      header: page.translate.instant("header_pwamsg"),
-                                			      subHeader: page.translate.instant("compat_js"),
-                                				  cssClass: ''alert-custom text-generic'',
-                                			      buttons: [
-                                					  {
-                                						  text: page.translate.instant("cancel_pwamsg"),
-                                						  role: ''cancel'',
-                                						  cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info''
-                                					  },
-                                					  {
-                                  						  text: page.translate.instant("continue_pwamsg"),
-                                  						  role: ''confirm'',
-                                						  cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--primary''
-                                  					  },
-                                					]
-                                			    });
-                                			    await alert.present();
-                                			    let res = await alert.onDidDismiss();
-                                			    let str = "";
-                                			    if(res.role === ''confirm''){
-                                					let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
-                                					let strWithoutSpace = sourceStr.replace(/\s/g, "");
-                                					if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
-                                						let parts = [];
-                                						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
-                                						let lastIndex = 0;
-                                						let match;
-                                						while((match = regex.exec(sourceStr)) != null){
-                                							if(match.index > lastIndex){
-                                								let txt = sourceStr.substring(lastIndex, match.index);
-                                								if(txt !== ""){
-                                									parts.push(JSON.stringify(txt));
-                                								}
-                                							}
-                                							let token = match[0];
-                                							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
-                                							lastIndex = match.index + match[0].length;
-                                						}
-                                						if(lastIndex < sourceStr.length){
-                                							let txt = sourceStr.substring(lastIndex);
-                                							if(txt !== ""){
-                                								parts.push(JSON.stringify(txt));
-                                							}
-                                						}
-                                						let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
-                                						if(parts.length === 0){
-                                							return {
-                                								str: "(async ()=>{\n\treturn '''';\n})();",
-                                								type: ''ts''
-                                							};
-                                						}
-                                						if(tsBody.trim() === ""){
-                                							tsBody = "''";
-                                						}
-                                						tsBody = await page.pageOwner.parseMonacoEditor(tsBody);
-                                						return {
-                                							str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
-                                							type: ''ts''
-                                						};
-                                					}
-                                					else{
-                                						return {
-                                							type: ''ts''
-                                						};
-                                					}
-                                				}
-                                				else{
-                                					return null;
-                                				}
-                                			}
-                                		} catch (e) {
-                                		}
+                                '        try {
+                                            // if it''s not ts
+                                            if(page.currentObject.type != ''ts''){
+                                                const compatJsWarningAckVersion = 1;
+                                                let ackValue = page.global != null && page.global.settings != null ? page.global.settings.jsModeSwitchWarningAckVersion : null;
+                                                let ackNumber = NaN;
+                                                if(typeof ackValue == "number"){
+                                                    ackNumber = ackValue;
+                                                }
+                                                else if(typeof ackValue == "string" && ackValue.trim() !== ""){
+                                                    ackNumber = Number(ackValue);
+                                                }
+                                                let isCompatJsWarningAcknowledged = isFinite(ackNumber) && Math.floor(ackNumber) == ackNumber && ackNumber >= compatJsWarningAckVersion;
+                                                let res: any = { role: ''confirm'', data: { values: [] } };
+                                                if(!isCompatJsWarningAcknowledged){
+                                                    let alertController = page.getInstance(AlertController);
+                                                    // send an alert to confirm data will be lost
+                                                    const alert = await alertController.create({
+                                                      header: page.translate.instant("header_pwamsg"),
+                                                      subHeader: page.translate.instant("compat_js"),
+                                                      cssClass: ''alert-custom text-generic'',
+                                                      inputs: [
+                                                          {
+                                                              name: ''dontShowWarningAgain'',
+                                                              type: ''checkbox'',
+                                                              label: page.translate.instant("dont_show_warning_again"),
+                                                              value: ''dontShowWarningAgain'',
+                                                              checked: false
+                                                          }
+                                                        ],
+                                                      buttons: [
+                                                          {
+                                                              text: page.translate.instant("cancel_pwamsg"),
+                                                              role: ''cancel'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info''
+                                                          },
+                                                          {
+                                                                text: page.translate.instant("continue_pwamsg"),
+                                                                role: ''confirm'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--primary''
+                                                            },
+                                                        ]
+                                                    });
+                                                    await alert.present();
+                                                    res = await alert.onDidDismiss();
+                                                }
+                                                let str = "";
+                                                if(res.role === ''confirm''){
+                                                    let dismissedValues = res != null && res.data != null && Array.isArray(res.data.values) ? res.data.values : [];
+                                                    if(dismissedValues.indexOf(''dontShowWarningAgain'') != -1){
+                                                        if(page.global != null){
+                                                            if(page.global.settings == null){
+                                                                page.global.settings = {};
+                                                            }
+                                                            page.global.settings.jsModeSwitchWarningAckVersion = compatJsWarningAckVersion;
+                                                        }
+                                                        try{
+                                                            let persistAck = page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"jsModeSwitchWarningAckVersion": compatJsWarningAckVersion})}).async();
+                                                            if(persistAck != null && typeof persistAck.catch == "function"){
+                                                                persistAck.catch(() => {});
+                                                            }
+                                                        }
+                                                        catch(e){
+                                                        }
+                                                    }
+                                                    let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
+                                                    let strWithoutSpace = sourceStr.replace(/\s/g, "");
+                                                    if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
+                                                        let parts = [];
+                                                        let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
+                                                        let lastIndex = 0;
+                                                        let match;
+                                                        while((match = regex.exec(sourceStr)) != null){
+                                                            if(match.index > lastIndex){
+                                                                let txt = sourceStr.substring(lastIndex, match.index);
+                                                                if(txt !== ""){
+                                                                    parts.push(JSON.stringify(txt));
+                                                                }
+                                                            }
+                                                            let token = match[0];
+                                                            let tsExpr = page.pageOwner.transform$toTsMonaco(token);
+                                                            parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
+                                                            lastIndex = match.index + match[0].length;
+                                                        }
+                                                        if(lastIndex < sourceStr.length){
+                                                            let txt = sourceStr.substring(lastIndex);
+                                                            if(txt !== ""){
+                                                                parts.push(JSON.stringify(txt));
+                                                            }
+                                                        }
+                                                        let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
+                                                        if(parts.length === 0){
+                                                            return {
+                                                                str: "(async ()=>{\n\treturn '''';\n})();",
+                                                                type: ''ts''
+                                                            };
+                                                        }
+                                                        if(tsBody.trim() === ""){
+                                                            tsBody = "''";
+                                                        }
+                                                        tsBody = await page.pageOwner.parseMonacoEditor(tsBody);
+                                                        return {
+                                                            str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                    else{
+                                                        return {
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                }
+                                                else{
+                                                    return null;
+                                                }
+                                            }
+                                        } catch (e) {
+                                        }
                                 '
                         ↓If [ngx.components.UIDynamicAction-1687874369262]: 
                           beanData: '{"ionBean":"IfAction","condition":"script:parent.out != null"}'
@@ -11669,29 +11890,16 @@ scriptContent:
             										for (let elem in res.data[0]) {
             											let sourceMeta = res.data[0][elem] != null ? res.data[0][elem] : {};
             											let sourceType = sourceMeta.cType != null ? sourceMeta.cType : sourceMeta.type;
+                                        let sourceField = page.buildSourceFilterField(elem, sourceMeta, sourceType);
             											if (!(res.data[0][elem].filterHide === true)) {
-            												page.local.keyName.push(
-            													{
-            														name: elem,
-            														displayName: res.data[0][elem].displayName != undefined ? res.data[0][elem].displayName : elem,
-            														cType: sourceType,
-            														type: sourceType
-            													}
-            												);
-            												page.local.complByName[elem] = res.data[0][elem].filterCompletion;
+                                                            page.local.keyName.push(sourceField);
+                                                            page.local.complByName[elem] = page.getSourceFilterCompletion(sourceField, res.data[0][elem].filterCompletion);
             												page.local.typeByName[elem] = sourceType;
             												
             											}
             											if(!(res.data[0][elem].sortHide === true)){
-            												page.local.keyNameSort.push(
-            													{
-            														name: elem,
-            														displayName:  res.data[0][elem].displayName != undefined ? res.data[0][elem].displayName : elem,
-            														cType: sourceType,
-            														type: sourceType
-            													}
-            												);
-            												page.local.complByName[elem] = res.data[0][elem].filterCompletion;
+                                                            page.local.keyNameSort.push(sourceField);
+                                                            page.local.complByName[elem] = page.getSourceFilterCompletion(sourceField, res.data[0][elem].filterCompletion);
             												page.local.typeByName[elem] = sourceType;
             												
             											}
@@ -11743,8 +11951,7 @@ scriptContent:
             }
             catch (e) {
             	console.error("error occured here", e);
-            }
-            '
+            }'
 ↓tag [ngx.components.UIControlDirective-1680524753344]: 
   directiveName: If
   directiveSource: 
@@ -12085,7 +12292,7 @@ scriptContent:
           :host ::ng-deep .c8o-default-values-list {
             display: flex !important;
             flex-direction: column !important;
-            align-items: stretch !important;
+            align-items: center !important;
             gap: 8px !important;
             width: 100% !important;
             max-width: 640px !important;
@@ -12117,6 +12324,11 @@ scriptContent:
             text-align: left !important;
             text-transform: none !important;
             white-space: normal !important;
+          }
+          
+          .c8o-default-values-grid-wrapper ion-radio,
+          .c8o-default-values-grid-wrapper ion-checkbox {
+          	margin-bottom: 0px;
           }
           .c8o-default-values-option:hover,
           :host ::ng-deep .c8o-default-values-option:hover {
@@ -15516,81 +15728,123 @@ scriptContent:
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		try {
-                                			// if it''s not ts
-                                			if(page.currentObject.type != ''ts''){
-                                				let alertController = page.getInstance(AlertController);
-                                				// send an alert to confirm data will be lost
-                                				const alert = await alertController.create({
-                                			      header: page.translate.instant("header_pwamsg"),
-                                			      subHeader: page.translate.instant("compat_js"),
-                                			      buttons: [
-                                					  {
-                                						  text: page.translate.instant("cancel_pwamsg"),
-                                						  role: ''cancel'',
-                                					  },
-                                					  {
-                                  						  text: page.translate.instant("continue_pwamsg"),
-                                  						  role: ''confirm'',
-                                  					  },
-                                					]
-                                			    });
-                                			    await alert.present();
-                                			    let res = await alert.onDidDismiss();
-                                			    let str = "";
-                                			    if(res.role === ''confirm''){
-                                					let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
-                                					let strWithoutSpace = sourceStr.replace(/\s/g, "");
-                                					if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
-                                						let parts = [];
-                                						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
-                                						let lastIndex = 0;
-                                						let match;
-                                						while((match = regex.exec(sourceStr)) != null){
-                                							if(match.index > lastIndex){
-                                								let txt = sourceStr.substring(lastIndex, match.index);
-                                								if(txt !== ""){
-                                									parts.push(JSON.stringify(txt));
-                                								}
-                                							}
-                                							let token = match[0];
-                                							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
-                                							lastIndex = match.index + match[0].length;
-                                						}
-                                						if(lastIndex < sourceStr.length){
-                                							let txt = sourceStr.substring(lastIndex);
-                                							if(txt !== ""){
-                                								parts.push(JSON.stringify(txt));
-                                							}
-                                						}
-                                						let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
-                                						if(parts.length === 0){
-                                							return {
-                                								str: "(async ()=>{\n\treturn '''';\n})();",
-                                								type: ''ts''
-                                							};
-                                						}
-                                						if(tsBody.trim() === ""){
-                                							tsBody = "''";
-                                						}
-                                						return {
-                                							str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
-                                							type: ''ts''
-                                						};
-                                					}
-                                					else{
-                                						return {
-                                							type: ''ts''
-                                						};
-                                					}
-                                				}
-                                				else{
-                                					return null;
-                                				}
-                                			}
-                                		} catch (e) {
-                                		}
+                                '        try {
+                                            // if it''s not ts
+                                            if(page.currentObject.type != ''ts''){
+                                                const compatJsWarningAckVersion = 1;
+                                                let ackValue = page.global != null && page.global.settings != null ? page.global.settings.jsModeSwitchWarningAckVersion : null;
+                                                let ackNumber = NaN;
+                                                if(typeof ackValue == "number"){
+                                                    ackNumber = ackValue;
+                                                }
+                                                else if(typeof ackValue == "string" && ackValue.trim() !== ""){
+                                                    ackNumber = Number(ackValue);
+                                                }
+                                                let isCompatJsWarningAcknowledged = isFinite(ackNumber) && Math.floor(ackNumber) == ackNumber && ackNumber >= compatJsWarningAckVersion;
+                                                let res: any = { role: ''confirm'', data: { values: [] } };
+                                                if(!isCompatJsWarningAcknowledged){
+                                                    let alertController = page.getInstance(AlertController);
+                                                    // send an alert to confirm data will be lost
+                                                    const alert = await alertController.create({
+                                                      header: page.translate.instant("header_pwamsg"),
+                                                      subHeader: page.translate.instant("compat_js"),
+                                                      cssClass: ''alert-custom text-generic'',
+                                                      inputs: [
+                                                          {
+                                                              name: ''dontShowWarningAgain'',
+                                                              type: ''checkbox'',
+                                                              label: page.translate.instant("dont_show_warning_again"),
+                                                              value: ''dontShowWarningAgain'',
+                                                              checked: false
+                                                          }
+                                                        ],
+                                                      buttons: [
+                                                          {
+                                                              text: page.translate.instant("cancel_pwamsg"),
+                                                              role: ''cancel'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info''
+                                                          },
+                                                          {
+                                                                text: page.translate.instant("continue_pwamsg"),
+                                                                role: ''confirm'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--primary''
+                                                            },
+                                                        ]
+                                                    });
+                                                    await alert.present();
+                                                    res = await alert.onDidDismiss();
+                                                }
+                                                let str = "";
+                                                if(res.role === ''confirm''){
+                                                    let dismissedValues = res != null && res.data != null && Array.isArray(res.data.values) ? res.data.values : [];
+                                                    if(dismissedValues.indexOf(''dontShowWarningAgain'') != -1){
+                                                        if(page.global != null){
+                                                            if(page.global.settings == null){
+                                                                page.global.settings = {};
+                                                            }
+                                                            page.global.settings.jsModeSwitchWarningAckVersion = compatJsWarningAckVersion;
+                                                        }
+                                                        try{
+                                                            let persistAck = page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"jsModeSwitchWarningAckVersion": compatJsWarningAckVersion})}).async();
+                                                            if(persistAck != null && typeof persistAck.catch == "function"){
+                                                                persistAck.catch(() => {});
+                                                            }
+                                                        }
+                                                        catch(e){
+                                                        }
+                                                    }
+                                                    let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
+                                                    let strWithoutSpace = sourceStr.replace(/\s/g, "");
+                                                    if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
+                                                        let parts = [];
+                                                        let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
+                                                        let lastIndex = 0;
+                                                        let match;
+                                                        while((match = regex.exec(sourceStr)) != null){
+                                                            if(match.index > lastIndex){
+                                                                let txt = sourceStr.substring(lastIndex, match.index);
+                                                                if(txt !== ""){
+                                                                    parts.push(JSON.stringify(txt));
+                                                                }
+                                                            }
+                                                            let token = match[0];
+                                                            let tsExpr = page.pageOwner.transform$toTsMonaco(token);
+                                                            parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
+                                                            lastIndex = match.index + match[0].length;
+                                                        }
+                                                        if(lastIndex < sourceStr.length){
+                                                            let txt = sourceStr.substring(lastIndex);
+                                                            if(txt !== ""){
+                                                                parts.push(JSON.stringify(txt));
+                                                            }
+                                                        }
+                                                        let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
+                                                        if(parts.length === 0){
+                                                            return {
+                                                                str: "(async ()=>{\n\treturn '''';\n})();",
+                                                                type: ''ts''
+                                                            };
+                                                        }
+                                                        if(tsBody.trim() === ""){
+                                                            tsBody = "''";
+                                                        }
+                                                        return {
+                                                            str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                    else{
+                                                        return {
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                }
+                                                else{
+                                                    return null;
+                                                }
+                                            }
+                                        } catch (e) {
+                                        }
                                 '
                         ↓If [ngx.components.UIDynamicAction-1777544520006]: 
                           beanData: '{"ionBean":"IfAction","condition":"script:parent.out != null"}'
@@ -16942,81 +17196,123 @@ scriptContent:
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		try {
-                                			// if it''s not ts
-                                			if(page.currentObject.type != ''ts''){
-                                				let alertController = page.getInstance(AlertController);
-                                				// send an alert to confirm data will be lost
-                                				const alert = await alertController.create({
-                                			      header: page.translate.instant("header_pwamsg"),
-                                			      subHeader: page.translate.instant("compat_js"),
-                                			      buttons: [
-                                					  {
-                                						  text: page.translate.instant("cancel_pwamsg"),
-                                						  role: ''cancel'',
-                                					  },
-                                					  {
-                                  						  text: page.translate.instant("continue_pwamsg"),
-                                  						  role: ''confirm'',
-                                  					  },
-                                					]
-                                			    });
-                                			    await alert.present();
-                                			    let res = await alert.onDidDismiss();
-                                			    let str = "";
-                                			    if(res.role === ''confirm''){
-                                					let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
-                                					let strWithoutSpace = sourceStr.replace(/\s/g, "");
-                                					if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
-                                						let parts = [];
-                                						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
-                                						let lastIndex = 0;
-                                						let match;
-                                						while((match = regex.exec(sourceStr)) != null){
-                                							if(match.index > lastIndex){
-                                								let txt = sourceStr.substring(lastIndex, match.index);
-                                								if(txt !== ""){
-                                									parts.push(JSON.stringify(txt));
-                                								}
-                                							}
-                                							let token = match[0];
-                                							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
-                                							lastIndex = match.index + match[0].length;
-                                						}
-                                						if(lastIndex < sourceStr.length){
-                                							let txt = sourceStr.substring(lastIndex);
-                                							if(txt !== ""){
-                                								parts.push(JSON.stringify(txt));
-                                							}
-                                						}
-                                						let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
-                                						if(parts.length === 0){
-                                							return {
-                                								str: "(async ()=>{\n\treturn '''';\n})();",
-                                								type: ''ts''
-                                							};
-                                						}
-                                						if(tsBody.trim() === ""){
-                                							tsBody = "''";
-                                						}
-                                						return {
-                                							str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
-                                							type: ''ts''
-                                						};
-                                					}
-                                					else{
-                                						return {
-                                							type: ''ts''
-                                						};
-                                					}
-                                				}
-                                				else{
-                                					return null;
-                                				}
-                                			}
-                                		} catch (e) {
-                                		}
+                                '        try {
+                                            // if it''s not ts
+                                            if(page.currentObject.type != ''ts''){
+                                                const compatJsWarningAckVersion = 1;
+                                                let ackValue = page.global != null && page.global.settings != null ? page.global.settings.jsModeSwitchWarningAckVersion : null;
+                                                let ackNumber = NaN;
+                                                if(typeof ackValue == "number"){
+                                                    ackNumber = ackValue;
+                                                }
+                                                else if(typeof ackValue == "string" && ackValue.trim() !== ""){
+                                                    ackNumber = Number(ackValue);
+                                                }
+                                                let isCompatJsWarningAcknowledged = isFinite(ackNumber) && Math.floor(ackNumber) == ackNumber && ackNumber >= compatJsWarningAckVersion;
+                                                let res: any = { role: ''confirm'', data: { values: [] } };
+                                                if(!isCompatJsWarningAcknowledged){
+                                                    let alertController = page.getInstance(AlertController);
+                                                    // send an alert to confirm data will be lost
+                                                    const alert = await alertController.create({
+                                                      header: page.translate.instant("header_pwamsg"),
+                                                      subHeader: page.translate.instant("compat_js"),
+                                                      cssClass: ''alert-custom text-generic'',
+                                                      inputs: [
+                                                          {
+                                                              name: ''dontShowWarningAgain'',
+                                                              type: ''checkbox'',
+                                                              label: page.translate.instant("dont_show_warning_again"),
+                                                              value: ''dontShowWarningAgain'',
+                                                              checked: false
+                                                          }
+                                                        ],
+                                                      buttons: [
+                                                          {
+                                                              text: page.translate.instant("cancel_pwamsg"),
+                                                              role: ''cancel'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info''
+                                                          },
+                                                          {
+                                                                text: page.translate.instant("continue_pwamsg"),
+                                                                role: ''confirm'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--primary''
+                                                            },
+                                                        ]
+                                                    });
+                                                    await alert.present();
+                                                    res = await alert.onDidDismiss();
+                                                }
+                                                let str = "";
+                                                if(res.role === ''confirm''){
+                                                    let dismissedValues = res != null && res.data != null && Array.isArray(res.data.values) ? res.data.values : [];
+                                                    if(dismissedValues.indexOf(''dontShowWarningAgain'') != -1){
+                                                        if(page.global != null){
+                                                            if(page.global.settings == null){
+                                                                page.global.settings = {};
+                                                            }
+                                                            page.global.settings.jsModeSwitchWarningAckVersion = compatJsWarningAckVersion;
+                                                        }
+                                                        try{
+                                                            let persistAck = page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"jsModeSwitchWarningAckVersion": compatJsWarningAckVersion})}).async();
+                                                            if(persistAck != null && typeof persistAck.catch == "function"){
+                                                                persistAck.catch(() => {});
+                                                            }
+                                                        }
+                                                        catch(e){
+                                                        }
+                                                    }
+                                                    let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
+                                                    let strWithoutSpace = sourceStr.replace(/\s/g, "");
+                                                    if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
+                                                        let parts = [];
+                                                        let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
+                                                        let lastIndex = 0;
+                                                        let match;
+                                                        while((match = regex.exec(sourceStr)) != null){
+                                                            if(match.index > lastIndex){
+                                                                let txt = sourceStr.substring(lastIndex, match.index);
+                                                                if(txt !== ""){
+                                                                    parts.push(JSON.stringify(txt));
+                                                                }
+                                                            }
+                                                            let token = match[0];
+                                                            let tsExpr = page.pageOwner.transform$toTsMonaco(token);
+                                                            parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
+                                                            lastIndex = match.index + match[0].length;
+                                                        }
+                                                        if(lastIndex < sourceStr.length){
+                                                            let txt = sourceStr.substring(lastIndex);
+                                                            if(txt !== ""){
+                                                                parts.push(JSON.stringify(txt));
+                                                            }
+                                                        }
+                                                        let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
+                                                        if(parts.length === 0){
+                                                            return {
+                                                                str: "(async ()=>{\n\treturn '''';\n})();",
+                                                                type: ''ts''
+                                                            };
+                                                        }
+                                                        if(tsBody.trim() === ""){
+                                                            tsBody = "''";
+                                                        }
+                                                        return {
+                                                            str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                    else{
+                                                        return {
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                }
+                                                else{
+                                                    return null;
+                                                }
+                                            }
+                                        } catch (e) {
+                                        }
                                 '
                         ↓If [ngx.components.UIDynamicAction-1777544520405]: 
                           beanData: '{"ionBean":"IfAction","condition":"script:parent.out != null"}'
@@ -18258,85 +18554,124 @@ scriptContent:
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
                             - com.twinsoft.convertigo.beans.common.FormatedContent: 
                               →: |
-                                '		try {
-                                			// if it''s not ts
-                                			if(page.currentObject.type != ''ts''){
-                                				let alertController = page.getInstance(AlertController);
-                                				// send an alert to confirm data will be lost
-                                				const alert = await alertController.create({
-                                			      header: page.translate.instant("header_pwamsg"),
-                                			      subHeader: page.translate.instant("compat_js"),
-                                				  cssClass: ''alert-custom text-generic'',
-                                			      buttons: [
-                                					  {
-                                						  text: page.translate.instant("cancel_pwamsg"),
-                                						  role: ''cancel'',
-                                						  cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info''
-                                					  },
-                                					  {
-                                  						  text: page.translate.instant("continue_pwamsg"),
-                                  						  role: ''confirm'',
-                                						  cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--primary''
-                                  					  },
-                                					]
-                                			    });
-                                			    await alert.present();
-                                			    let res = await alert.onDidDismiss();
-                                			    let str = "";
-                                			    if(res.role === ''confirm''){
-                                					let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
-                                					let strWithoutSpace = sourceStr.replace(/\s/g, "");
-                                					if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
-                                						let parts = [];
-                                						let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
-                                						let lastIndex = 0;
-                                						let match;
-                                						while((match = regex.exec(sourceStr)) != null){
-                                							if(match.index > lastIndex){
-                                								let txt = sourceStr.substring(lastIndex, match.index);
-                                								if(txt !== ""){
-                                									parts.push(JSON.stringify(txt));
-                                								}
-                                							}
-                                							let token = match[0];
-                                							let tsExpr = page.pageOwner.transform$toTsMonaco(token);
-                                							parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
-                                							lastIndex = match.index + match[0].length;
-                                						}
-                                						if(lastIndex < sourceStr.length){
-                                							let txt = sourceStr.substring(lastIndex);
-                                							if(txt !== ""){
-                                								parts.push(JSON.stringify(txt));
-                                							}
-                                						}
-                                						let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
-                                						if(parts.length === 0){
-                                							return {
-                                								str: "(async ()=>{\n\treturn '''';\n})();",
-                                								type: ''ts''
-                                							};
-                                						}
-                                						if(tsBody.trim() === ""){
-                                							tsBody = "''";
-                                						}
-                                						tsBody = await page.pageOwner.parseMonacoEditor(tsBody);
-                                						return {
-                                							str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
-                                							type: ''ts''
-                                						};
-                                					}
-                                					else{
-                                						return {
-                                							type: ''ts''
-                                						};
-                                					}
-                                				}
-                                				else{
-                                					return null;
-                                				}
-                                			}
-                                		} catch (e) {
-                                		}
+                                '        try {
+                                            // if it''s not ts
+                                            if(page.currentObject.type != ''ts''){
+                                                const compatJsWarningAckVersion = 1;
+                                                let ackValue = page.global != null && page.global.settings != null ? page.global.settings.jsModeSwitchWarningAckVersion : null;
+                                                let ackNumber = NaN;
+                                                if(typeof ackValue == "number"){
+                                                    ackNumber = ackValue;
+                                                }
+                                                else if(typeof ackValue == "string" && ackValue.trim() !== ""){
+                                                    ackNumber = Number(ackValue);
+                                                }
+                                                let isCompatJsWarningAcknowledged = isFinite(ackNumber) && Math.floor(ackNumber) == ackNumber && ackNumber >= compatJsWarningAckVersion;
+                                                let res: any = { role: ''confirm'', data: { values: [] } };
+                                                if(!isCompatJsWarningAcknowledged){
+                                                    let alertController = page.getInstance(AlertController);
+                                                    // send an alert to confirm data will be lost
+                                                    const alert = await alertController.create({
+                                                      header: page.translate.instant("header_pwamsg"),
+                                                      subHeader: page.translate.instant("compat_js"),
+                                                      cssClass: ''alert-custom text-generic'',
+                                                      inputs: [
+                                                          {
+                                                              name: ''dontShowWarningAgain'',
+                                                              type: ''checkbox'',
+                                                              label: page.translate.instant("dont_show_warning_again"),
+                                                              value: ''dontShowWarningAgain'',
+                                                              checked: false
+                                                          }
+                                                        ],
+                                                      buttons: [
+                                                          {
+                                                              text: page.translate.instant("cancel_pwamsg"),
+                                                              role: ''cancel'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--info''
+                                                          },
+                                                          {
+                                                                text: page.translate.instant("continue_pwamsg"),
+                                                                role: ''confirm'',
+                                                              cssClass: ''btn text-generic width-fit-content btn-padding-start-0 height-28px btn--primary''
+                                                            },
+                                                        ]
+                                                    });
+                                                    await alert.present();
+                                                    res = await alert.onDidDismiss();
+                                                }
+                                                let str = "";
+                                                if(res.role === ''confirm''){
+                                                    let dismissedValues = res != null && res.data != null && Array.isArray(res.data.values) ? res.data.values : [];
+                                                    if(dismissedValues.indexOf(''dontShowWarningAgain'') != -1){
+                                                        if(page.global != null){
+                                                            if(page.global.settings == null){
+                                                                page.global.settings = {};
+                                                            }
+                                                            page.global.settings.jsModeSwitchWarningAckVersion = compatJsWarningAckVersion;
+                                                        }
+                                                        try{
+                                                            let persistAck = page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta: JSON.stringify({"jsModeSwitchWarningAckVersion": compatJsWarningAckVersion})}).async();
+                                                            if(persistAck != null && typeof persistAck.catch == "function"){
+                                                                persistAck.catch(() => {});
+                                                            }
+                                                        }
+                                                        catch(e){
+                                                        }
+                                                    }
+                                                    let sourceStr = page.currentObject.str != null ? "" + page.currentObject.str : "";
+                                                    let strWithoutSpace = sourceStr.replace(/\s/g, "");
+                                                    if(!(strWithoutSpace.indexOf("(async()=>{") == 0) || !(strWithoutSpace.indexOf("})();") == (strWithoutSpace.length - 5)  )){
+                                                        let parts = [];
+                                                        let regex = /\$\$(?:START)?(\d+)(.*?)(?:END)?(?:\d+)?\$\$/g;
+                                                        let lastIndex = 0;
+                                                        let match;
+                                                        while((match = regex.exec(sourceStr)) != null){
+                                                            if(match.index > lastIndex){
+                                                                let txt = sourceStr.substring(lastIndex, match.index);
+                                                                if(txt !== ""){
+                                                                    parts.push(JSON.stringify(txt));
+                                                                }
+                                                            }
+                                                            let token = match[0];
+                                                            let tsExpr = page.pageOwner.transform$toTsMonaco(token);
+                                                            parts.push(tsExpr && tsExpr !== "" ? tsExpr : ''""'');
+                                                            lastIndex = match.index + match[0].length;
+                                                        }
+                                                        if(lastIndex < sourceStr.length){
+                                                            let txt = sourceStr.substring(lastIndex);
+                                                            if(txt !== ""){
+                                                                parts.push(JSON.stringify(txt));
+                                                            }
+                                                        }
+                                                        let tsBody = parts.filter(function(part){return part !== "";}).join(" + ");
+                                                        if(parts.length === 0){
+                                                            return {
+                                                                str: "(async ()=>{\n\treturn '''';\n})();",
+                                                                type: ''ts''
+                                                            };
+                                                        }
+                                                        if(tsBody.trim() === ""){
+                                                            tsBody = "''";
+                                                        }
+                                                        tsBody = await page.pageOwner.parseMonacoEditor(tsBody);
+                                                        return {
+                                                            str: "(async ()=>{\n\treturn " + tsBody + ";\n})();",
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                    else{
+                                                        return {
+                                                            type: ''ts''
+                                                        };
+                                                    }
+                                                }
+                                                else{
+                                                    return null;
+                                                }
+                                            }
+                                        } catch (e) {
+                                        }
                                 '
                         ↓If [ngx.components.UIDynamicAction-1777544520783]: 
                           beanData: '{"ionBean":"IfAction","condition":"script:parent.out != null"}'

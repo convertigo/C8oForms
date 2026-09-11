@@ -405,67 +405,156 @@ title: Title for adminGdrp
           - com.twinsoft.convertigo.beans.common.FormatedContent: 
             →: |
               '		try {
-              			setTimeout(async () => {				
-              //				console.log(page.global, page.global.c8oGDRPmenu, page.global.c8oGDRPmenu._text);
-              				try {
-              					if (page.isValidJSON(page.global.c8oGDRPmenu.text))	{						
-              						page.local.menu = JSON.parse(page.global.c8oGDRPmenu.text);
-              					} else {
-              						page.local.menu = {
-              							"fr": "",
-              							"en": "",
-              							"es": "",
-              							"it": ""
-              						}
-              						page.local.menu[page.translate.currentLang] = page.global.c8oGDRPmenu.text;
+              			setTimeout(async () => {
+              				const supportedLocales = ["fr", "en", "es", "it", "zh-CN"];
+              				const isObject = (value) => value != null && typeof value === "object" && !Array.isArray(value);
+              				const toText = (value) => {
+              					if (value == null) {
+              						return "";
               					}
-              				} catch(e) {
-              //					console.log(page.global.c8oGDRPmenu, page.global);		
-              					page.local.menu = page.global.c8oGDRPmenu.text;
-              		//			console.error(e);
-              					throw e;
-              				}
-              			
-              				try {
-              		//			console.log(page.global.c8oGDRPtoast);
-              					if (page.isValidJSON(page.global.c8oGDRPtoast.text)) {
-              						page.local.toast = JSON.parse(page.global.c8oGDRPtoast.text);						
-              					} else {
-              						page.local.toast = {
-              							"fr": "",
-              							"en": "",
-              							"es": "",
-              							"it": ""
+              					if (typeof value === "string") {
+              						return value;
+              					}
+              					if (typeof value === "number" || typeof value === "boolean") {
+              						return "" + value;
+              					}
+              					return "";
+              				};
+              				const localizedTextMap = (source) => {
+              					const input = isObject(source) ? source : {};
+              					const output = {};
+              					supportedLocales.forEach((locale) => {
+              						output[locale] = toText(input[locale]);
+              					});
+              					return output;
+              				};
+              				const localizedDpoMap = (source) => {
+              					const input = isObject(source) ? source : {};
+              					const output = {};
+              					supportedLocales.forEach((locale) => {
+              						const value = isObject(input[locale]) ? input[locale] : {};
+              						output[locale] = {
+              							title: toText(value.title),
+              							description: toText(value.description),
+              							email: toText(value.email)
+              						};
+              					});
+              					return output;
+              				};
+              				const blankSectionFrom = (source) => {
+              					const icon = isObject(source?.icon) ? source.icon : {};
+              					return {
+              						title: "",
+              						description: "",
+              						icon: {
+              							color: toText(icon.color) || "var(--ion-color-primary)",
+              							backgroundColor: toText(icon.backgroundColor) || "transparent",
+              							name: toText(icon.name) || "database"
               						}
-              						page.local.toast[page.translate.currentLang] = page.global.c8oGDRPtoast.text;					
-              					}  
-              		//			console.log(page.local.data);
-              				} catch(e) {
-              					page.local.toast = page.global.c8oGDRPtoast.text;
-              					throw e;
+              					};
+              				};
+              				const localizedSectionsMap = (source) => {
+              					const input = isObject(source) ? source : {};
+              					const output = {};
+              					const sourceSections = supportedLocales
+              						.map((locale) => input[locale])
+              						.find((value) => Array.isArray(value) && value.length > 0) || [];
+              					supportedLocales.forEach((locale) => {
+              						output[locale] = Array.isArray(input[locale]) && input[locale].length > 0
+              							? input[locale]
+              							: sourceSections.length > 0
+              								? sourceSections.map(blankSectionFrom)
+              								: [blankSectionFrom(null)];
+              					});
+              					return output;
+              				};
+              				const normalizeGdprDocument = (source) => {
+              					const input = isObject(source) ? source : {};
+              					const symbols = isObject(input.symbols) ? input.symbols : {};
+              					return {
+              						toast_viewers_description: localizedTextMap(input.toast_viewers_description),
+              						toast_builders_description: localizedTextMap(input.toast_builders_description),
+              						sections: localizedSectionsMap(input.sections),
+              						dpo_section: localizedDpoMap(input.dpo_section),
+              						symbols: {
+              							menu: localizedTextMap(symbols.menu),
+              							toast: localizedTextMap(symbols.toast)
+              						},
+              						missing_fields: input.missing_fields === true
+              					};
+              				};
+              				const normalizeLegacyStatus = (source, symbolName) => {
+              					const input = isObject(source) ? source : {};
+              					const status = toText(input.status);
+              					const exists = input.exists === true;
+              					return {
+              						name: toText(input.name) || symbolName,
+              						exists: exists,
+              						value: exists ? toText(input.value) : null,
+              						status: status === "error" ? "error" : exists ? "active" : "inactive",
+              						message: toText(input.message)
+              					};
+              				};
+              				const normalizeLegacyState = (source) => {
+              					const input = isObject(source) ? source : {};
+              					return {
+              						menu: normalizeLegacyStatus(input.menu, "C8Oforms.GDRP-MENU"),
+              						toast: normalizeLegacyStatus(input.toast, "C8Oforms.GDRP-TOAST")
+              					};
+              				};
+              				const legacyUnavailableState = () => ({
+              					menu: {name: "C8Oforms.GDRP-MENU", exists: false, value: null, status: "error", message: "Symbol status unavailable"},
+              					toast: {name: "C8Oforms.GDRP-TOAST", exists: false, value: null, status: "error", message: "Symbol status unavailable"}
+              				});
+              				const isLegacyActive = (status) => isObject(status) && status.exists === true && status.status === "active";
+              				const isLegacyUnavailable = (status) => isObject(status) && status.status === "error";
+              
+              				let gdprData = {};
+              				let gdprLegacy = normalizeLegacyState({});
+              
+              				try {
+              					const gdprResponse = await page.c8o.callJsonObject("C8Oforms.admin_gdrp_get", {});
+              					const gdprResponseRecord = isObject(gdprResponse) ? gdprResponse : {};
+              					const gdprDataCandidate = gdprResponseRecord["data"];
+              					gdprData = isObject(gdprDataCandidate) ? gdprDataCandidate : {};
+              					gdprLegacy = normalizeLegacyState(gdprResponseRecord["legacy"]);
               				}
+              				catch (e) {
+              					gdprData = {};
+              					gdprLegacy = legacyUnavailableState();
+              				}
+              
+              				const normalizedDocument = normalizeGdprDocument(gdprData);
+              				page.local.gdprStoredConfig = normalizedDocument;
+              				page.local.legacyGdprSymbols = gdprLegacy;
+              				page.local.legacyMenuEnabled = isLegacyActive(gdprLegacy.menu);
+              				page.local.legacyToastEnabled = isLegacyActive(gdprLegacy.toast);
+              				page.local.legacyMenuStatusUnavailable = isLegacyUnavailable(gdprLegacy.menu);
+              				page.local.legacyToastStatusUnavailable = isLegacyUnavailable(gdprLegacy.toast);
+              				page.local.legacySymbolStatusUnavailable = page.local.legacyMenuStatusUnavailable || page.local.legacyToastStatusUnavailable;
+              				page.local.legacySaveBlocked = false;
+              				page.local.menu = normalizedDocument;
+              				page.local.toast = page.local.menu.symbols.toast;
               				page.local.loading = false;
-              				
-              				if (page.local.menu[page.translate.currentLang]) {
-              					var data = await page.c8o.callJsonObject(''C8Oforms.admin_gdrp_get'', {});
-              					page.local.menu = data[''data'']?.symbols?.menu;
-              					page.local.toast = data[''data'']?.symbols?.toast;
-              //					console.log(data);
-              				}
               				page.ref.detectChanges();
               				return true;
-              			}, 500)
-              //			return;
-              		} catch(e) {
+              			}, 500);
+              		}
+              		catch (e) {
               			console.error(e);
-              //			console.dir(e);
+              			page.local.legacyGdprSymbols = {
+              				menu: {name: "C8Oforms.GDRP-MENU", exists: false, value: null, status: "error", message: "Symbol status unavailable"},
+              				toast: {name: "C8Oforms.GDRP-TOAST", exists: false, value: null, status: "error", message: "Symbol status unavailable"}
+              			};
+              			page.local.legacyMenuStatusUnavailable = true;
+              			page.local.legacyToastStatusUnavailable = true;
+              			page.local.legacySymbolStatusUnavailable = true;
+              			page.local.loading = false;
               			page.ref.detectChanges();
-              //			return;
-              		} finally {
-              //			console.log(page.local);
+              		}
+              		finally {
               			page.ref.detectChanges();
-              //			return;
-              		}	
+              		}
               '
 ↓Header [ngx.components.UIDynamicElement-1764942516600]: 
   beanData: '{"ionBean":"Header"}'
@@ -543,7 +632,7 @@ title: Title for adminGdrp
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'Convertigo Logo'
+          - MobileSmartSourceType: script:this.translate.instant('convertigo_logo_alt')
     ↓logoText [ngx.components.UIUseVariable-1764942622000]: 
       comment: Main text displayed next to the logo
       varValue: 
@@ -555,7 +644,7 @@ title: Title for adminGdrp
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'No Code Studio'
+          - MobileSmartSourceType: script:this.translate.instant('No_Code_Studio')
     ↓searchQuery [ngx.components.UIUseVariable-1764942622006]: 
       comment: Current value of the search input
       varValue: 
@@ -567,7 +656,7 @@ title: Title for adminGdrp
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'Rechercher votre application par nom'
+          - MobileSmartSourceType: script:this.translate.instant('searchProject')
     ↓userInitials [ngx.components.UIUseVariable-1764942622012]: 
       comment: Initials displayed inside the user avatar circle
       isEnabled: false
@@ -1040,7 +1129,7 @@ title: Title for adminGdrp
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: plain:btn
           ↓ButtonSave [ngx.components.UIDynamicElement-1764950292108]: 
-            beanData: '{"ionBean":"Button"}'
+            beanData: '{"ionBean":"Button","Disabled":"script:local?.loading === true || local?.saving === true || local?.legacySymbolStatusUnavailable === true || !local?.legacyGdprSymbols || (local?.legacyGdprSymbols?.menu?.status !== ''active'' && local?.legacyGdprSymbols?.menu?.status !== ''inactive'') || (local?.legacyGdprSymbols?.toast?.status !== ''active'' && local?.legacyGdprSymbols?.toast?.status !== ''inactive'') || (local?.legacyMenuEnabled === true && local?.legacyToastEnabled === true)"}'
             tagName: ion-button
             ↓Icon [ngx.components.UIDynamicElement-1764950292111]: 
               beanData: |
@@ -1069,51 +1158,6 @@ title: Title for adminGdrp
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                     - MobileSmartSourceType: script:t(gdpr.admin_gdpr.save_button)
-            ↓Event [ngx.components.UIControlEvent-1764950292123]: 
-              ↓setMenu [ngx.components.UICustomAction-1765291401326]: 
-                actionValue: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                      →: |
-                        '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                        		try {			
-                        			if (page.local.menu[page.lang]) {
-                        				page.local.menu = {symbols: {
-                        					menu: page.local.menu,
-                        					toast: page.local.toast
-                        				}};
-                        			}
-                        		} catch(e) {
-                        			// silent error
-                        		}
-                        		resolve();
-                        '
-                ↓CallSequence [ngx.components.UIDynamicAction-1765192794430]: 
-                  beanData: '{"ionBean":"CallSequenceAction","requestable":"plain:C8Oforms.admin_gdrp_upsert"}'
-                  ↓meta [ngx.components.UIControlVariable-1765192819078]: 
-                    varValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:JSON.stringify(this.local.menu)
-                  ↓defineGdrp [ngx.components.UICustomAsyncAction-1765193814555]: 
-                    actionValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                          →: |
-                            '		try {
-                            			page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                            			await page.defineGdrp(page.translate);
-                            		} catch (e) {
-                            			console.error(e);
-                            			return false;
-                            		} finally {
-                            			page.local.menu = JSON.parse(page.global.c8oGDRPmenu._text);
-                            			page.local.toast = JSON.parse(page.global.c8oGDRPtoast._text);
-                            			return true;
-                            		}
-                            '
             ↓Style [ngx.components.UIStyle-1764950292126]: 
               styleContent: 
                 - xmlizable: 
@@ -1188,6 +1232,213 @@ title: Title for adminGdrp
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: plain:btn
+            ↓Event [ngx.components.UIControlEvent-1786093659798]: 
+              ↓setMenu [ngx.components.UICustomAction-1786093660580]: 
+                actionValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                      →: |
+                        '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
+                        		const runGdprSave = async () => {
+                        			const supportedLocales = ["fr", "en", "es", "it", "zh-CN"];
+                        			const isObject = (value) => value != null && typeof value === "object" && !Array.isArray(value);
+                        			const toText = (value) => {
+                        				if (value == null) {
+                        					return "";
+                        				}
+                        				if (typeof value === "string") {
+                        					return value;
+                        				}
+                        				if (typeof value === "number" || typeof value === "boolean") {
+                        					return "" + value;
+                        				}
+                        				return "";
+                        			};
+                        			const localizedTextMap = (source) => {
+                        				const input = isObject(source) ? source : {};
+                        				const output = {};
+                        				supportedLocales.forEach((locale) => {
+                        					output[locale] = toText(input[locale]);
+                        				});
+                        				return output;
+                        			};
+                        			const localizedDpoMap = (source) => {
+                        				const input = isObject(source) ? source : {};
+                        				const output = {};
+                        				supportedLocales.forEach((locale) => {
+                        					const value = isObject(input[locale]) ? input[locale] : {};
+                        					output[locale] = {
+                        						title: toText(value.title),
+                        						description: toText(value.description),
+                        						email: toText(value.email)
+                        					};
+                        				});
+                        				return output;
+                        			};
+                        			const localizedSectionsMap = (source) => {
+                        				const input = isObject(source) ? source : {};
+                        				const output = {};
+                        				supportedLocales.forEach((locale) => {
+                        					output[locale] = Array.isArray(input[locale]) ? input[locale] : [];
+                        				});
+                        				return output;
+                        			};
+                        			const normalizeGdprDocument = (source) => {
+                        				const input = isObject(source) ? source : {};
+                        				const symbols = isObject(input.symbols) ? input.symbols : {};
+                        				return {
+                        					toast_viewers_description: localizedTextMap(input.toast_viewers_description),
+                        					toast_builders_description: localizedTextMap(input.toast_builders_description),
+                        					sections: localizedSectionsMap(input.sections),
+                        					dpo_section: localizedDpoMap(input.dpo_section),
+                        					symbols: {
+                        						menu: localizedTextMap(symbols.menu),
+                        						toast: localizedTextMap(symbols.toast)
+                        					},
+                        					missing_fields: input.missing_fields === true
+                        				};
+                        			};
+                        			const looksLikeLocalizedMap = (source) => {
+                        				return isObject(source)
+                        					&& !isObject(source.symbols)
+                        					&& !isObject(source.sections)
+                        					&& supportedLocales.some((locale) => source[locale] != null);
+                        			};
+                        			const normalizeGdprPayload = (source, legacyToast) => {
+                        				const input = isObject(source) ? source : {};
+                        				const sourceDocument = looksLikeLocalizedMap(input)
+                        					? {symbols: {menu: input, toast: legacyToast}}
+                        					: input;
+                        				return normalizeGdprDocument(sourceDocument);
+                        			};
+                        			const normalizeLegacyStatus = (source, symbolName) => {
+                        				const input = isObject(source) ? source : {};
+                        				const exists = input.exists === true || input.exists === "true";
+                        				const status = toText(input.status);
+                        				return {
+                        					name: toText(input.name) || symbolName,
+                        					exists: exists,
+                        					value: exists ? toText(input.value) : null,
+                        					status: status === "error" ? "error" : exists ? "active" : "inactive",
+                        					message: toText(input.message)
+                        				};
+                        			};
+                        			const normalizeLegacySymbols = (source) => {
+                        				const input = isObject(source) ? source : {};
+                        				return {
+                        					menu: normalizeLegacyStatus(input.menu, "C8Oforms.GDRP-MENU"),
+                        					toast: normalizeLegacyStatus(input.toast, "C8Oforms.GDRP-TOAST")
+                        				};
+                        			};
+                        			const isLegacyActive = (state) => isObject(state) && state.exists === true && state.status === "active";
+                        			const isLegacyUnavailable = (state) => !isObject(state) || (state.status !== "active" && state.status !== "inactive");
+                        			const setLocalLegacyState = (legacy, storedDocument) => {
+                        				page.local.gdprStoredConfig = storedDocument;
+                        				page.local.legacyGdprSymbols = legacy;
+                        				page.local.legacyMenuEnabled = isLegacyActive(legacy.menu);
+                        				page.local.legacyToastEnabled = isLegacyActive(legacy.toast);
+                        				page.local.legacyMenuStatusUnavailable = isLegacyUnavailable(legacy.menu);
+                        				page.local.legacyToastStatusUnavailable = isLegacyUnavailable(legacy.toast);
+                        				page.local.legacySymbolStatusUnavailable = page.local.legacyMenuStatusUnavailable || page.local.legacyToastStatusUnavailable;
+                        			};
+                        			const copyLockedMenuFields = (target, stored) => {
+                        				const storedSymbols = isObject(stored.symbols) ? stored.symbols : {};
+                        				const targetSymbols = isObject(target.symbols) ? target.symbols : {};
+                        				target.sections = localizedSectionsMap(stored.sections);
+                        				target.dpo_section = localizedDpoMap(stored.dpo_section);
+                        				targetSymbols.menu = localizedTextMap(storedSymbols.menu);
+                        				target.symbols = targetSymbols;
+                        			};
+                        			const copyLockedToastFields = (target, stored) => {
+                        				const storedSymbols = isObject(stored.symbols) ? stored.symbols : {};
+                        				const targetSymbols = isObject(target.symbols) ? target.symbols : {};
+                        				target.toast_viewers_description = localizedTextMap(stored.toast_viewers_description);
+                        				target.toast_builders_description = localizedTextMap(stored.toast_builders_description);
+                        				targetSymbols.toast = localizedTextMap(storedSymbols.toast);
+                        				target.symbols = targetSymbols;
+                        			};
+                        			const applyLegacyPreservation = (payload, stored, legacy) => {
+                        				const legacyState = isObject(legacy) ? legacy : {};
+                        				const legacyMenu = isObject(legacyState.menu) ? legacyState.menu : {};
+                        				const legacyToast = isObject(legacyState.toast) ? legacyState.toast : {};
+                        				const storedDocument = isObject(stored) ? stored : {};
+                        				if (isLegacyUnavailable(legacyMenu) || isLegacyUnavailable(legacyToast)) {
+                        					page.local.legacySaveBlocked = true;
+                        					throw new Error("GDPR legacy symbol status unavailable");
+                        				}
+                        				if (isLegacyActive(legacyMenu) && isLegacyActive(legacyToast)) {
+                        					page.local.legacySaveBlocked = true;
+                        					throw new Error("Both GDPR legacy symbols are active");
+                        				}
+                        				if (isLegacyActive(legacyMenu)) {
+                        					copyLockedMenuFields(payload, storedDocument);
+                        				}
+                        				if (isLegacyActive(legacyToast)) {
+                        					copyLockedToastFields(payload, storedDocument);
+                        				}
+                        				return payload;
+                        			};
+                        			const showSaveToast = async (key, cssClass) => {
+                        				try {
+                        					await page["actionBeans"].CTS1613727468919(page, null, {
+                        						msg: page.translate.instant(key),
+                        						duration: 3000,
+                        						position: "bottom",
+                        						cssClass: cssClass
+                        					}, null);
+                        				}
+                        				catch (toastError) {
+                        					console.error(toastError);
+                        				}
+                        			};
+                        			page.local.saving = true;
+                        			page.local.legacySaveBlocked = false;
+                        			const gdprResponse = await page.c8o.callJsonObject("C8Oforms.admin_gdrp_get", {}).async();
+                        			const freshStoredConfig = normalizeGdprDocument(isObject(gdprResponse) ? gdprResponse["data"] : {});
+                        			const freshLegacy = normalizeLegacySymbols(isObject(gdprResponse) ? gdprResponse["legacy"] : {});
+                        			setLocalLegacyState(freshLegacy, freshStoredConfig);
+                        			let payload = normalizeGdprPayload(page.local?.menu || {}, page.local?.toast || {});
+                        			payload = applyLegacyPreservation(payload, freshStoredConfig, freshLegacy);
+                        			page.local.gdprSavePayload = payload;
+                        			const saveResponse = await page.c8o.callJsonObject("C8Oforms.admin_gdrp_upsert", {
+                        				meta: JSON.stringify(payload)
+                        			}).async();
+                        			const saveSuccess = isObject(saveResponse) && (saveResponse.success === true || saveResponse.success === "true");
+                        			if (!saveSuccess) {
+                        				throw new Error("GDPR configuration save failed");
+                        			}
+                        			await page.defineGdrp(page.translate);
+                        			page.local.menu = normalizeGdprDocument(payload);
+                        			page.local.toast = page.local.menu.symbols.toast;
+                        			page.local.gdprStoredConfig = page.local.menu;
+                        			page.local.gdprSavePayload = undefined;
+                        			page.local.legacySaveBlocked = false;
+                        			await showSaveToast(page.translate.instant("admin_gdpr_save_success"), "toastSuccess");
+                        		};
+                        		runGdprSave()
+                        			.then(() => {
+                        				page.local.saving = false;
+                        				page.ref.detectChanges();
+                        				resolve(true);
+                        			})
+                        			.catch(async (e) => {
+                        				console.error(e);
+                        				page.local.saving = false;
+                        				page.local.gdprSavePayload = undefined;
+                        				await page["actionBeans"].CTS1613727468919(page, null, {
+                        					msg: page.translate.instant("admin_gdpr_save_error"),
+                        					duration: 5000,
+                        					position: "bottom",
+                        					cssClass: "toastError"
+                        				}, null).catch((toastError) => console.error(toastError));
+                        				page.ref.detectChanges();
+                        				reject(e);
+                        			});
+                        '
+                ↓CallSequence [ngx.components.UIDynamicAction-1786093661374]: 
+                  beanData: '{"ionBean":"CallSequenceAction"}'
+                  isEnabled: false
           ↓Attr [ngx.components.UIAttribute-1765207166356]: 
             attrName: '*ngIf'
             attrValue: 
@@ -1287,6 +1538,51 @@ title: Title for adminGdrp
                   - com.twinsoft.convertigo.beans.common.FormatedContent: 
                     →: |
                       '		try {
+                      			const selectedLang = event?.detail?.value ?? event;
+                      			const ensureBlankLocalizedGdprData = (targetLang) => {
+                      				if (targetLang !== "zh-CN" || page?.local?.menu == null || typeof page.local.menu !== "object") {
+                      					return;
+                      				}
+                      				const menu = page.local.menu;
+                      				const blankSectionFrom = (source) => ({
+                      					title: "",
+                      					description: "",
+                      					icon: {
+                      						color: source?.icon?.color || "var(--ion-color-primary)",
+                      						backgroundColor: source?.icon?.backgroundColor || "transparent",
+                      						name: source?.icon?.name || "database"
+                      					}
+                      				});
+                      				menu.toast_viewers_description = menu.toast_viewers_description || {};
+                      				menu.toast_builders_description = menu.toast_builders_description || {};
+                      				menu.symbols = menu.symbols || {};
+                      				menu.symbols.menu = menu.symbols.menu || {};
+                      				menu.symbols.toast = menu.symbols.toast || {};
+                      				menu.dpo_section = menu.dpo_section || {};
+                      				menu.sections = menu.sections || {};
+                      				if (menu.toast_viewers_description["zh-CN"] == null) {
+                      					menu.toast_viewers_description["zh-CN"] = "";
+                      				}
+                      				if (menu.toast_builders_description["zh-CN"] == null) {
+                      					menu.toast_builders_description["zh-CN"] = "";
+                      				}
+                      				if (menu.symbols.menu["zh-CN"] == null) {
+                      					menu.symbols.menu["zh-CN"] = "";
+                      				}
+                      				if (menu.symbols.toast["zh-CN"] == null) {
+                      					menu.symbols.toast["zh-CN"] = "";
+                      				}
+                      				if (menu.dpo_section["zh-CN"] == null) {
+                      					menu.dpo_section["zh-CN"] = { title: "", description: "", email: "" };
+                      				}
+                      				if (!Array.isArray(menu.sections["zh-CN"])) {
+                      					const sourceSections = Array.isArray(menu.sections.fr) ? menu.sections.fr : [];
+                      					menu.sections["zh-CN"] = sourceSections.length > 0
+                      						? sourceSections.map(blankSectionFrom)
+                      						: [blankSectionFrom(null)];
+                      				}
+                      			};
+                      			ensureBlankLocalizedGdprData(selectedLang);
                       			page.c8o.callJsonObject("C8Oforms.APIV2_OverrideUserSettings", {meta:JSON.stringify({"published_First" : ""+event})}).async();
                       		} catch (e) {
                       		
@@ -1384,6 +1680,14 @@ title: Title for adminGdrp
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: script:'it' | translate
+          ↓SelectOptionZH [ngx.components.UIDynamicElement-1786013739683]: 
+            beanData: '{"ionBean":"SelectOption","Value":"plain:zh-CN"}'
+            tagName: ion-select-option
+            ↓Text [ngx.components.UIText-1786013739685]: 
+              textValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:'zh-CN' | translate
         ↓Attr2 [ngx.components.UIAttribute-1764950731408]: 
           attrName: '[ngClass]'
           attrValue: 
@@ -1768,7 +2072,7 @@ title: Title for adminGdrp
               directiveSource: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:local?.menu && local.menu?.sections && local.menu?.dpo_section
+                  - MobileSmartSourceType: script:local?.menu && !local?.legacyMenuEnabled && !local?.legacyMenuStatusUnavailable && local.menu?.sections && local.menu?.dpo_section
               ↓Directive [ngx.components.UIControlDirective-1764955763500]: 
                 directiveIndexName: idSection
                 directiveItemName: section
@@ -4426,7 +4730,7 @@ title: Title for adminGdrp
               directiveSource: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:!(local?.menu && local.menu?.sections && local.menu?.dpo_section)
+                  - MobileSmartSourceType: script:local?.legacyMenuEnabled === true || local?.legacyMenuStatusUnavailable === true || !(local?.menu && local.menu?.sections && local.menu?.dpo_section)
               ↓DivCardMenu [ngx.components.UIDynamicElement-1765201064126]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -5018,16 +5322,15 @@ title: Title for adminGdrp
                               	gap: 7px;
                               	flex: 1 0 0;
                               '
-                    ↓TextItem [ngx.components.UIDynamicElement-1765203120891]: 
+                    ↓TextItem [ngx.components.UIDynamicElement-1786033943404]: 
                       beanData: '{"ionBean":"TextItem"}'
                       tagName: ion-text
-                      ↓Text [ngx.components.UIText-1765203120890]: 
-                        i18n: true
+                      ↓Text [ngx.components.UIText-1786033943406]: 
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:gdpr_info_title
-                      ↓Style [ngx.components.UIStyle-1765203456256]: 
+                            - MobileSmartSourceType: 'script:local?.legacyMenuStatusUnavailable ? t(''admin_gdpr_legacy_symbol_status_unavailable'') : t(''admin_gdpr_legacy_configuration_active'')'
+                      ↓Style [ngx.components.UIStyle-1786033995528]: 
                         styleContent: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -5041,19 +5344,30 @@ title: Title for adminGdrp
                                 	line-height: 21px; /* 150% */
                                 	letter-spacing: -0.15px;
                                 '
-                    ↓TextItem1 [ngx.components.UIDynamicElement-1765203523616]: 
+                    ↓TextItem1 [ngx.components.UIDynamicElement-1786033947920]: 
                       beanData: '{"ionBean":"TextItem"}'
                       tagName: ion-text
-                      ↓Span3 [ngx.components.UIDynamicElement-1765204072525]: 
+                      ↓Span3 [ngx.components.UIDynamicElement-1786033947922]: 
                         beanData: '{"ionBean":"SpanTag"}'
                         tagName: span
-                        ↓Text [ngx.components.UIText-1765203523619]: 
-                          i18n: true
+                        ↓Text [ngx.components.UIText-1786033947928]: 
                           textValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:gdpr_info_desc_1
-                      ↓Style [ngx.components.UIStyle-1765203523622]: 
+                              - MobileSmartSourceType: 'script:local?.legacyMenuStatusUnavailable ? t(''admin_gdpr_legacy_symbol_retry'') : t(''admin_gdpr_legacy_menu_symbol_explanation'')'
+                      ↓Span [ngx.components.UIDynamicElement-1786033947937]: 
+                        beanData: '{"ionBean":"SpanTag"}'
+                        isEnabled: false
+                        tagName: span
+                      ↓Text1 [ngx.components.UIText-1786033947941]: 
+                        isEnabled: false
+                      ↓Text2 [ngx.components.UIText-1786033947945]: 
+                        isEnabled: false
+                      ↓Span2 [ngx.components.UIDynamicElement-1786033947947]: 
+                        beanData: '{"ionBean":"SpanTag"}'
+                        isEnabled: false
+                        tagName: span
+                      ↓Style [ngx.components.UIStyle-1786034003154]: 
                         styleContent: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -5068,119 +5382,15 @@ title: Title for adminGdrp
                                 	line-height: 19.906px; /* 162.5% */
                                 	letter-spacing: -0.018px;
                                 '
-                      ↓Span [ngx.components.UIDynamicElement-1765203581971]: 
-                        beanData: '{"ionBean":"SpanTag"}'
-                        tagName: span
-                        ↓Text1 [ngx.components.UIText-1765203569987]: 
-                          i18n: true
-                          textValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:gdpr_info_desc_2_bold
-                        ↓Style [ngx.components.UIStyle-1765203594820]: 
-                          styleContent: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  'margin: 0;
-                                  color: #973C00;
-                                  //font-family: Inter;
-                                  font-size: 12.25px;
-                                  font-style: normal;
-                                  font-weight: 700;
-                                  line-height: 19.906px; /* 162.5% */
-                                  letter-spacing: -0.018px;
-                                  '
-                      ↓Text1 [ngx.components.UIText-1765203649224]: 
-                        i18n: true
-                        textValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:gdpr_info_desc_3
-                      ↓Span1 [ngx.components.UIDynamicElement-1765203664652]: 
-                        beanData: '{"ionBean":"SpanTag"}'
-                        tagName: span
-                        ↓Text1 [ngx.components.UIText-1765203664655]: 
-                          textValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:C8Oforms.GDRP-MENU
-                        ↓Style [ngx.components.UIStyle-1765203664658]: 
-                          styleContent: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  'margin: 0;
-                                  //display: flex;
-                                  width: fit-content;
-                                  //width: 58.258px;
-                                  height: 19px;
-                                  padding: 3.5px 7px;
-                                  //align-items: flex-start;
-                                  border-radius: 3.5px;
-                                  background: #FEF3C6;
-                                  
-                                  color: #7B3306;
-                                  //font-family: Inter;
-                                  font-size: 10.5px;
-                                  font-style: normal;
-                                  font-weight: 400;
-                                  line-height: 14px; /* 133.333% */
-                                  '
-                      ↓Text2 [ngx.components.UIText-1765203674170]: 
-                        i18n: true
-                        textValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:' '+t('and')+' '
-                      ↓Span2 [ngx.components.UIDynamicElement-1765203732562]: 
-                        beanData: '{"ionBean":"SpanTag"}'
-                        tagName: span
-                        ↓Text1 [ngx.components.UIText-1765203732565]: 
-                          textValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:C8Oforms.GDRP-TOAST
-                        ↓Style [ngx.components.UIStyle-1765203732568]: 
-                          styleContent: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  'margin: 0;
-                                  //display: flex;
-                                  width: fit-content;
-                                  //width: 58.258px;
-                                  height: 19px;
-                                  padding: 3.5px 7px;
-                                  //align-items: flex-start;
-                                  border-radius: 3.5px;
-                                  background: #FEF3C6;
-                                  
-                                  color: #7B3306;
-                                  //font-family: Inter;
-                                  font-size: 10.5px;
-                                  font-style: normal;
-                                  font-weight: 400;
-                                  line-height: 14px; /* 133.333% */
-                                  '
-                      ↓Text3 [ngx.components.UIText-1765203833769]: 
-                        textValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:'.'
-                    ↓TextItem2 [ngx.components.UIDynamicElement-1765203885439]: 
+                    ↓TextItem2 [ngx.components.UIDynamicElement-1786033957845]: 
                       beanData: '{"ionBean":"TextItem"}'
                       tagName: ion-text
-                      ↓Text [ngx.components.UIText-1765203885442]: 
-                        i18n: true
+                      ↓Text [ngx.components.UIText-1786033957848]: 
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:gdpr_info_desc_4
-                      ↓Style [ngx.components.UIStyle-1765203885445]: 
+                            - MobileSmartSourceType: 'script:local?.legacyMenuStatusUnavailable ? t(''admin_gdpr_legacy_symbol_retry'') : t(''admin_gdpr_legacy_remove_symbol_reload'')'
+                      ↓Style [ngx.components.UIStyle-1786034016244]: 
                         styleContent: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -5205,7 +5415,7 @@ title: Title for adminGdrp
               directiveSource: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:local?.menu && local.menu?.toast_viewers_description && local.menu?.toast_builders_description
+                  - MobileSmartSourceType: script:local?.menu && !local?.legacyToastEnabled && !local?.legacyToastStatusUnavailable && local.menu?.toast_viewers_description && local.menu?.toast_builders_description
               ↓DivCardViewer [ngx.components.UIDynamicElement-1765199449936]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -6057,7 +6267,7 @@ title: Title for adminGdrp
               directiveSource: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                  - MobileSmartSourceType: script:!(local?.menu && local.menu?.toast_viewers_description && local.menu?.toast_builders_description)
+                  - MobileSmartSourceType: script:local?.legacyToastEnabled === true || local?.legacyToastStatusUnavailable === true || !(local?.menu && local.menu?.toast_viewers_description && local.menu?.toast_builders_description)
               ↓DivCardToast [ngx.components.UIDynamicElement-1765201159338]: 
                 beanData: '{"ionBean":"DivTag"}'
                 tagName: div
@@ -6653,11 +6863,10 @@ title: Title for adminGdrp
                       beanData: '{"ionBean":"TextItem"}'
                       tagName: ion-text
                       ↓Text [ngx.components.UIText-1765204283690]: 
-                        i18n: true
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:gdpr_info_title
+                            - MobileSmartSourceType: 'script:local?.legacyToastStatusUnavailable ? t(''admin_gdpr_legacy_symbol_status_unavailable'') : t(''admin_gdpr_legacy_configuration_active'')'
                       ↓Style [ngx.components.UIStyle-1765204283693]: 
                         styleContent: 
                           - xmlizable: 
@@ -6679,11 +6888,10 @@ title: Title for adminGdrp
                         beanData: '{"ionBean":"SpanTag"}'
                         tagName: span
                         ↓Text [ngx.components.UIText-1765204283702]: 
-                          i18n: true
                           textValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:gdpr_info_desc_1
+                              - MobileSmartSourceType: 'script:local?.legacyToastStatusUnavailable ? t(''admin_gdpr_legacy_symbol_retry'') : t(''admin_gdpr_legacy_toast_symbol_explanation'')'
                       ↓Style [ngx.components.UIStyle-1765204283705]: 
                         styleContent: 
                           - xmlizable: 
@@ -6701,6 +6909,7 @@ title: Title for adminGdrp
                                 '
                       ↓Span [ngx.components.UIDynamicElement-1765204283708]: 
                         beanData: '{"ionBean":"SpanTag"}'
+                        isEnabled: false
                         tagName: span
                         ↓Text1 [ngx.components.UIText-1765204283711]: 
                           i18n: true
@@ -6725,6 +6934,7 @@ title: Title for adminGdrp
                                   '
                       ↓Text1 [ngx.components.UIText-1765204283717]: 
                         i18n: true
+                        isEnabled: false
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
@@ -6736,7 +6946,7 @@ title: Title for adminGdrp
                           textValue: 
                             - xmlizable: 
                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:C8Oforms.GDRP-MENU
+                              - MobileSmartSourceType: plain:C8Oforms.GDRP-TOAST
                         ↓Style [ngx.components.UIStyle-1765204283726]: 
                           styleContent: 
                             - xmlizable: 
@@ -6762,12 +6972,14 @@ title: Title for adminGdrp
                                   '
                       ↓Text2 [ngx.components.UIText-1765204283729]: 
                         i18n: true
+                        isEnabled: false
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: script:' '+t('and')+' '
                       ↓Span2 [ngx.components.UIDynamicElement-1765204283732]: 
                         beanData: '{"ionBean":"SpanTag"}'
+                        isEnabled: false
                         tagName: span
                         ↓Text1 [ngx.components.UIText-1765204283735]: 
                           textValue: 
@@ -6806,11 +7018,10 @@ title: Title for adminGdrp
                       beanData: '{"ionBean":"TextItem"}'
                       tagName: ion-text
                       ↓Text [ngx.components.UIText-1765204283747]: 
-                        i18n: true
                         textValue: 
                           - xmlizable: 
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: plain:gdpr_info_desc_4
+                            - MobileSmartSourceType: 'script:local?.legacyToastStatusUnavailable ? t(''admin_gdpr_legacy_symbol_retry'') : t(''admin_gdpr_legacy_remove_symbol_reload'')'
                       ↓Style [ngx.components.UIStyle-1765204283750]: 
                         styleContent: 
                           - xmlizable: 

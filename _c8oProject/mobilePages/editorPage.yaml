@@ -564,8 +564,9 @@ scriptContent:
         				}
         				let liveEditor = editor;
         				const body = liveTarget.closest?.(".mce-content-body");
-        				if (body?.id != null && window["tinymce"]?.get != null) {
-        					liveEditor = window["tinymce"].get(body.id) || liveEditor;
+                                        var editorGlobal = window["hugerte"] || window["tinymce"];
+                                        if (body?.id != null && editorGlobal?.get != null) {
+                                            liveEditor = editorGlobal.get(body.id) || liveEditor;
         				}
         				const doc = liveEditor?.getDoc?.() || document;
         				const div = doc.createElement("div");
@@ -584,10 +585,9 @@ scriptContent:
         				liveEditor?.fire?.("change");
         				liveEditor?.fire?.("input");
         				liveEditor?.nodeChanged?.();
+                                liveEditor?.save?.();
         				liveEditor?.focus?.();
-        				setTimeout(() => {
-        					liveEditor?.fire?.("blur");
-        				});
+                                liveEditor?.fire?.("blur");
         				return true;
         			}
         			catch (error) {
@@ -597,6 +597,53 @@ scriptContent:
         		}
         		this.tinyFuncDrop = function(editor) {
         			_this.registerTinySpacingControls(editor);
+        			let internalDragSourceEditor = null;
+        			let internalDragClearTimer = null;
+        			const hasC8oFormsSourceMarker = (event) => {
+        				try {
+        					const types = event?.dataTransfer?.types;
+        					return !!types && Array.from(types).some((type) => type === "__c8oformsdrag_source");
+        				}
+        				catch (err) {
+        					return false;
+        				}
+        			};
+        			const isEventInsideEditor = (event) => {
+        				try {
+        					const body = editor?.getBody?.();
+        					const target = event?.target;
+        					return !!body && !!target && (target === body || (typeof body.contains === "function" && body.contains(target)));
+        				}
+        				catch (err) {
+        					return false;
+        				}
+        			};
+        			const clearInternalDragSource = () => {
+        				internalDragSourceEditor = null;
+        				if (internalDragClearTimer != null) {
+        					clearTimeout(internalDragClearTimer);
+        					internalDragClearTimer = null;
+        				}
+        			};
+        			const scheduleInternalDragSourceClear = (delay = 0) => {
+        				if (internalDragClearTimer != null) {
+        					clearTimeout(internalDragClearTimer);
+        				}
+        				internalDragClearTimer = setTimeout(() => {
+        					internalDragSourceEditor = null;
+        					internalDragClearTimer = null;
+        				}, delay);
+        			};
+        			const rememberInternalDragSource = (event) => {
+        				if (hasC8oFormsSourceMarker(event) || !isEventInsideEditor(event)) {
+        					return;
+        				}
+        				internalDragSourceEditor = editor;
+        				scheduleInternalDragSourceClear(10000);
+        			};
+        			const isSameEditorInternalDrag = (event) => {
+        				return internalDragSourceEditor === editor && !hasC8oFormsSourceMarker(event);
+        			};
         			const setCaretFromEvent = (event) => {
         				try {
         					const doc = editor?.getDoc?.();
@@ -722,15 +769,31 @@ scriptContent:
         					return false;
         				}
         			};
+        			editor.on(''dragstart'', (event) => {
+        				rememberInternalDragSource(event);
+        			});
+        			editor.on(''dragend'', () => {
+        				clearInternalDragSource();
+        			});
         			editor.on(''dragenter'', (event) => {
+        				if (isSameEditorInternalDrag(event)) {
+        					return;
+        				}
         				focusEditorDuringDrag(event);
         			});
         			editor.on(''dragover'', (event) => {
+        				if (isSameEditorInternalDrag(event)) {
+        					return;
+        				}
         				if (focusEditorDuringDrag(event)) {
         					event?.preventDefault?.();
         				}
         			});
         			editor.on(''drop'', (e) => {
+        				if (isSameEditorInternalDrag(e)) {
+        					clearInternalDragSource();
+        					return;
+        				}
         				focusEditorDuringDrag(e);
         				if (e.dataTransfer) {
         					let html = e.dataTransfer.getData(''text/html'');
@@ -836,6 +899,53 @@ scriptContent:
         		}
         		this.tinyFuncDropWithCancel = function(editor) {
         			_this.registerTinySpacingControls(editor);
+        			let internalDragSourceEditor = null;
+        			let internalDragClearTimer = null;
+        			const hasC8oFormsSourceMarker = (event) => {
+        				try {
+        					const types = event?.dataTransfer?.types;
+        					return !!types && Array.from(types).some((type) => type === "__c8oformsdrag_source");
+        				}
+        				catch (err) {
+        					return false;
+        				}
+        			};
+        			const isEventInsideEditor = (event) => {
+        				try {
+        					const body = editor?.getBody?.();
+        					const target = event?.target;
+        					return !!body && !!target && (target === body || (typeof body.contains === "function" && body.contains(target)));
+        				}
+        				catch (err) {
+        					return false;
+        				}
+        			};
+        			const clearInternalDragSource = () => {
+        				internalDragSourceEditor = null;
+        				if (internalDragClearTimer != null) {
+        					clearTimeout(internalDragClearTimer);
+        					internalDragClearTimer = null;
+        				}
+        			};
+        			const scheduleInternalDragSourceClear = (delay = 0) => {
+        				if (internalDragClearTimer != null) {
+        					clearTimeout(internalDragClearTimer);
+        				}
+        				internalDragClearTimer = setTimeout(() => {
+        					internalDragSourceEditor = null;
+        					internalDragClearTimer = null;
+        				}, delay);
+        			};
+        			const rememberInternalDragSource = (event) => {
+        				if (hasC8oFormsSourceMarker(event) || !isEventInsideEditor(event)) {
+        					return;
+        				}
+        				internalDragSourceEditor = editor;
+        				scheduleInternalDragSourceClear(10000);
+        			};
+        			const isSameEditorInternalDrag = (event) => {
+        				return internalDragSourceEditor === editor && !hasC8oFormsSourceMarker(event);
+        			};
         			const setCaretFromEvent = (event) => {
         				try {
         					const doc = editor?.getDoc?.();
@@ -961,15 +1071,31 @@ scriptContent:
         					return false;
         				}
         			};
+        			editor.on(''dragstart'', (event) => {
+        				rememberInternalDragSource(event);
+        			});
+        			editor.on(''dragend'', () => {
+        				clearInternalDragSource();
+        			});
         			editor.on(''dragenter'', (event) => {
+        				if (isSameEditorInternalDrag(event)) {
+        					return;
+        				}
         				focusEditorDuringDrag(event);
         			});
         			editor.on(''dragover'', (event) => {
+        				if (isSameEditorInternalDrag(event)) {
+        					return;
+        				}
         				if (focusEditorDuringDrag(event)) {
         					event?.preventDefault?.();
         				}
         			});
         			editor.on(''drop'', (e) => {
+        				if (isSameEditorInternalDrag(e)) {
+        					clearInternalDragSource();
+        					return;
+        				}
         				focusEditorDuringDrag(e);
         				if (e.dataTransfer) {
         					let html = e.dataTransfer.getData(''text/html'');
@@ -1579,7 +1705,7 @@ scriptContent:
         				return elem.name;
         			}
         		}
-        		if (pageTechName == "__c8o_next" || pageTechName == "__c8o_previous") {
+        		if (pageTechName == "__c8o_next" || pageTechName == "__c8o_previous" || pageTechName == "__c8o_back") {
         			return this.translate.instant(pageTechName.substring(6));
         		}
         		return "";
@@ -2564,6 +2690,10 @@ scriptContent:
         		}
         		if (this.form.flows != undefined) {
         			this.form.flows.forEach((flow) => {
+                    const flowName = flow != null ? flow["name"] : null;
+                    if (typeof flowName == "string" && flowName !== "") {
+                        obj.push(flowName);
+                    }
         				if (flow == null || !Array.isArray(flow.elements)) {
         					return;
         				}
@@ -3787,6 +3917,72 @@ scriptContent:
         		return objToInsert;
         	}
         
+            public deleteFlowElement(item, persist = true): boolean {
+                const normalizeId = (ref) => ref != null && typeof ref == "object" ? ref.id : ref;
+                const deletedId = normalizeId(item);
+                if (deletedId == null || !Array.isArray(this.form?.flows)) {
+                    return false;
+                }
+                const currentFlow = this.form.flows[this.local?.currentIndex];
+                let targetFlow = Array.isArray(currentFlow?.elements) && currentFlow.elements.some((element) => normalizeId(element?.id) == deletedId)
+                    ? currentFlow
+                    : null;
+                if (targetFlow == null) {
+                    targetFlow = this.form.flows.find((flow) => {
+                        return Array.isArray(flow?.elements) && flow.elements.some((element) => normalizeId(element?.id) == deletedId);
+                    });
+                }
+                if (targetFlow == null) {
+                    return false;
+                }
+                const elements = targetFlow.elements;
+                const refKeys = ["childrenRefs", "childrenRefsElse"];
+                const idsToDelete = new Set();
+                const collectIds = (id) => {
+                    const normalizedId = normalizeId(id);
+                    if (normalizedId == null || idsToDelete.has("" + normalizedId)) {
+                        return;
+                    }
+                    idsToDelete.add("" + normalizedId);
+                    const element = elements.find((candidate) => normalizeId(candidate?.id) == normalizedId);
+                    if (element == null) {
+                        return;
+                    }
+                    for (const refKey of refKeys) {
+                        if (Array.isArray(element[refKey])) {
+                            for (const childRef of element[refKey]) {
+                                collectIds(childRef);
+                            }
+                        }
+                    }
+                };
+                collectIds(deletedId);
+                for (const element of elements) {
+                    for (const refKey of refKeys) {
+                        if (Array.isArray(element?.[refKey])) {
+                            element[refKey] = element[refKey].filter((ref) => !idsToDelete.has("" + normalizeId(ref)));
+                        }
+                    }
+                }
+                const remainingElements = elements.filter((element) => !idsToDelete.has("" + normalizeId(element?.id)));
+                elements.splice(0, elements.length, ...remainingElements);
+                targetFlow.elements = elements;
+                const parentId = normalizeId(item?.parentRef);
+                this.idselectedC = "";
+                if (parentId != null && targetFlow.elements.some((element) => normalizeId(element?.id) == parentId)) {
+                    this.idselected = parentId;
+                }
+                else if (this.idselected == deletedId || idsToDelete.has("" + normalizeId(this.idselected))) {
+                    this.idselected = "";
+                }
+                if (this.local?.showItemid != null && idsToDelete.has("" + normalizeId(this.local.showItemid))) {
+                    this.local.showItemid = "";
+                }
+                if (persist) {
+                    this.updateState();
+                }
+                return true;
+            }
         	delElementIndex(i, j = null, k = null) {
         		const normalizeId = (ref) => ref != null && typeof ref == "object" ? ref.id : ref;
         		const getIndex = (id) => this.getElementIndexById(normalizeId(id));
@@ -3864,7 +4060,7 @@ scriptContent:
         					clearEditorSelectionAfterDelete(childId, normalizeId(i?.id));
         				}
         			}
-        			else {
+                    else if (!this.deleteFlowElement(i, false)) {
         				const deletedId = normalizeId(i?.id);
         				const deletedParentId = normalizeId(i?.parentRef);
         				if (i?.parentRef != null) {
@@ -5009,7 +5205,7 @@ scriptContent:
         	}
         
         	removeCurrentPage() {
-        		if (this.form == null || !Array.isArray(this.form.pages) || this.local == null) {
+        		if (this.form == null || !Array.isArray(this.form.pages) || this.form.pages.length <= 1 || this.local == null) {
         			return;
         		}
         		let pageTechName = this.local["currentPage"];
@@ -5578,8 +5774,514 @@ scriptContent:
         				}
         			}
         		}
-        		return null;
-        	}
+                const relationLookupId = this.getRelationElementId(id);
+                if (relationLookupId != null) {
+                    const relationItem = this.buildElementIndex(form).get(relationLookupId);
+                    if (relationItem != null) {
+                        return relationItem;
+                    }
+                }
+                return null;
+            }
+            public getRelationElementId(ref: any): string | null {
+                if (ref == null || ref === "") {
+                    return null;
+                }
+                if (typeof ref === "object") {
+                    if (ref.id == null || ref.id === "") {
+                        return null;
+                    }
+                    return "" + ref.id;
+                }
+                return "" + ref;
+            }
+            public buildElementIndex(elements: any[] | null = this.formsList): Map<string, any> {
+                const elementIndex = new Map<string, any>();
+                const visitedObjects = new Set<any>();
+                const visit = (items: any[] | null) => {
+                    if (!Array.isArray(items)) {
+                        return;
+                    }
+                    for (let item of items) {
+                        if (item == null || typeof item !== "object" || visitedObjects.has(item)) {
+                            continue;
+                        }
+                        visitedObjects.add(item);
+                        const itemId = this.getRelationElementId(item);
+                        if (itemId != null && !elementIndex.has(itemId)) {
+                            elementIndex.set(itemId, item);
+                        }
+                        if (Array.isArray(item.children)) {
+                            visit(item.children);
+                        }
+                    }
+                };
+                visit(elements);
+                return elementIndex;
+            }
+            public getDirectChildren(parent: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any[] {
+                if (parent == null || typeof parent !== "object") {
+                    return [];
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                const children: any[] = [];
+                const seenIds = new Set<string>();
+                const addChild = (child: any) => {
+                    const childId = this.getRelationElementId(child);
+                    if (childId == null || seenIds.has(childId)) {
+                        return;
+                    }
+                    seenIds.add(childId);
+                    children.push(child);
+                };
+                if (Array.isArray(parent.childrenRefs)) {
+                    for (let childRef of parent.childrenRefs) {
+                        const childId = this.getRelationElementId(childRef);
+                        const child = childId != null ? index.get(childId) : null;
+                        if (child != null) {
+                            addChild(child);
+                        }
+                    }
+                }
+                if (Array.isArray(parent.children)) {
+                    for (let child of parent.children) {
+                        addChild(child);
+                    }
+                }
+                return children;
+            }
+            public getParentById(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any | null {
+                const childId = this.getRelationElementId(id);
+                if (childId == null) {
+                    return null;
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                const child = index.get(childId);
+                if (child != null) {
+                    const parentId = this.getRelationElementId(child.parentRef);
+                    if (parentId != null) {
+                        const parent = index.get(parentId);
+                        if (parent != null) {
+                            return parent;
+                        }
+                    }
+                }
+                const indexedItems = Array.from(index.values());
+                for (let candidateParent of indexedItems) {
+                    const directChildren = this.getDirectChildren(candidateParent, elements, index);
+                    for (let directChild of directChildren) {
+                        if (this.getRelationElementId(directChild) === childId) {
+                            return candidateParent;
+                        }
+                    }
+                }
+                return null;
+            }
+            public getAncestors(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): any[] {
+                const ancestors: any[] = [];
+                const index = relationIndex || this.buildElementIndex(elements);
+                const visitedIds = new Set<string>();
+                let currentId = this.getRelationElementId(id);
+                while (currentId != null && !visitedIds.has(currentId)) {
+                    visitedIds.add(currentId);
+                    const parent = this.getParentById(currentId, elements, index);
+                    const parentId = this.getRelationElementId(parent);
+                    if (parent == null || parentId == null) {
+                        break;
+                    }
+                    ancestors.push(parent);
+                    currentId = parentId;
+                }
+                return ancestors;
+            }
+            public hasRelationCycle(id: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): boolean {
+                const index = relationIndex || this.buildElementIndex(elements);
+                const visitedIds = new Set<string>();
+                let currentId = this.getRelationElementId(id);
+                while (currentId != null) {
+                    if (visitedIds.has(currentId)) {
+                        return true;
+                    }
+                    visitedIds.add(currentId);
+                    const parent = this.getParentById(currentId, elements, index);
+                    currentId = this.getRelationElementId(parent);
+                }
+                return false;
+            }
+            public isDescendant(id: any, possibleAncestorId: any, elements: any[] | null = this.formsList, relationIndex: Map<string, any> | null = null): boolean {
+                const childId = this.getRelationElementId(id);
+                const ancestorId = this.getRelationElementId(possibleAncestorId);
+                if (childId == null || ancestorId == null || childId === ancestorId) {
+                    return false;
+                }
+                const index = relationIndex || this.buildElementIndex(elements);
+                for (let ancestor of this.getAncestors(childId, elements, index)) {
+                    if (this.getRelationElementId(ancestor) === ancestorId) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            public addRelationDiagnostic(diagnostic: any, severity: string, code: string, elementId: any = null, parentId: any = null, message: string = ""): void {
+                const entry: any = { code };
+                const normalizedElementId = this.getRelationElementId(elementId);
+                const normalizedParentId = this.getRelationElementId(parentId);
+                if (normalizedElementId != null) {
+                    entry.elementId = normalizedElementId;
+                }
+                if (normalizedParentId != null) {
+                    entry.parentId = normalizedParentId;
+                }
+                if (message !== "") {
+                    entry.message = message;
+                }
+                if (severity === "warning") {
+                    diagnostic.warnings.push(entry);
+                }
+                else {
+                    diagnostic.errors.push(entry);
+                    diagnostic.valid = false;
+                }
+            }
+            public validateRelationIntegrity(elements: any[] | null = this.formsList): any {
+                const diagnostic: any = { valid: true, errors: [], warnings: [] };
+                if (!Array.isArray(elements)) {
+                    this.addRelationDiagnostic(diagnostic, "error", "INVALID_RELATION_MODEL", null, null, "The canonical element collection is not an array.");
+                    return diagnostic;
+                }
+                const index = this.buildElementIndex(elements);
+                const parentsByChildId = new Map<string, Set<string>>();
+                const addParentForChild = (childId: string, parentId: string) => {
+                    if (!parentsByChildId.has(childId)) {
+                        parentsByChildId.set(childId, new Set<string>());
+                    }
+                    parentsByChildId.get(childId).add(parentId);
+                };
+                for (let parent of elements) {
+                    const parentId = this.getRelationElementId(parent);
+                    if (parent == null || typeof parent !== "object" || parentId == null) {
+                        continue;
+                    }
+                    if (parent.childrenRefs != null && !Array.isArray(parent.childrenRefs)) {
+                        this.addRelationDiagnostic(diagnostic, "error", "INVALID_CHILDREN_REFS", null, parentId, "childrenRefs must be an array when present.");
+                        continue;
+                    }
+                    if (!Array.isArray(parent.childrenRefs)) {
+                        continue;
+                    }
+                    const seenChildIds = new Set<string>();
+                    for (let childRef of parent.childrenRefs) {
+                        const childId = this.getRelationElementId(childRef);
+                        if (childId == null) {
+                            this.addRelationDiagnostic(diagnostic, "error", "MISSING_CHILD_REFERENCE", null, parentId, "childrenRefs contains an empty reference.");
+                            continue;
+                        }
+                        if (childId === parentId) {
+                            this.addRelationDiagnostic(diagnostic, "error", "SELF_REFERENCE", childId, parentId, "An element cannot reference itself as a child.");
+                        }
+                        if (seenChildIds.has(childId)) {
+                            this.addRelationDiagnostic(diagnostic, "error", "DUPLICATE_CHILD_REFERENCE", childId, parentId, "The same child is referenced more than once by this parent.");
+                        }
+                        seenChildIds.add(childId);
+                        const child = index.get(childId);
+                        if (child == null) {
+                            this.addRelationDiagnostic(diagnostic, "error", "MISSING_CHILD_REFERENCE", childId, parentId, "childrenRefs points to an unknown element.");
+                            continue;
+                        }
+                        addParentForChild(childId, parentId);
+                        const declaredParentId = this.getRelationElementId(child.parentRef);
+                        if (declaredParentId == null || declaredParentId !== parentId) {
+                            this.addRelationDiagnostic(diagnostic, "error", "PARENT_CHILD_MISMATCH", childId, parentId, "child.parentRef does not match the parent childrenRefs relation.");
+                        }
+                    }
+                }
+                for (let item of elements) {
+                    const itemId = this.getRelationElementId(item);
+                    if (item == null || typeof item !== "object" || itemId == null) {
+                        continue;
+                    }
+                    const parentId = this.getRelationElementId(item.parentRef);
+                    if (parentId == null) {
+                        continue;
+                    }
+                    if (parentId === itemId) {
+                        this.addRelationDiagnostic(diagnostic, "error", "SELF_REFERENCE", itemId, parentId, "An element cannot reference itself as parent.");
+                        continue;
+                    }
+                    const parent = index.get(parentId);
+                    if (parent == null) {
+                        this.addRelationDiagnostic(diagnostic, "error", "MISSING_PARENT_REFERENCE", itemId, parentId, "parentRef points to an unknown element.");
+                        continue;
+                    }
+                    if (!Array.isArray(parent.childrenRefs) || parent.childrenRefs.findIndex((ref: any) => this.getRelationElementId(ref) === itemId) === -1) {
+                        this.addRelationDiagnostic(diagnostic, "error", "PARENT_CHILD_MISMATCH", itemId, parentId, "parentRef is not mirrored in parent.childrenRefs.");
+                    }
+                }
+                parentsByChildId.forEach((parents, childId) => {
+                    if (parents.size > 1) {
+                        this.addRelationDiagnostic(diagnostic, "error", "MULTIPLE_RELATION_PARENTS", childId, Array.from(parents).join(","), "The child appears in childrenRefs of multiple parents.");
+                    }
+                });
+                for (let item of elements) {
+                    const itemId = this.getRelationElementId(item);
+                    if (itemId != null && this.hasRelationCycle(itemId, elements, index)) {
+                        this.addRelationDiagnostic(diagnostic, "error", "RELATION_CYCLE", itemId, null, "The parentRef chain contains a cycle.");
+                    }
+                }
+                return diagnostic;
+            }
+            public getRelationReferenceForParent(parent: any, child: any, preferredRef: any = null): any {
+                if (preferredRef != null) {
+                    return preferredRef;
+                }
+                if (Array.isArray(parent?.childrenRefs)) {
+                    const usesObjectRefs = parent.childrenRefs.some((ref: any) => ref != null && typeof ref === "object");
+                    if (usesObjectRefs) {
+                        return child;
+                    }
+                }
+                return child?.id;
+            }
+            public prepareRelationMove(draggedRef: any, targetParentRef: any, targetIndex: any = null, elements: any[] | null = this.formsList): any {
+                if (!Array.isArray(elements)) {
+                    return { valid: false, error: { code: "INVALID_RELATION_MODEL" } };
+                }
+                const draggedId = this.getRelationElementId(draggedRef);
+                if (draggedId == null) {
+                    return { valid: false, error: { code: "ELEMENT_NOT_FOUND" } };
+                }
+                const index = this.buildElementIndex(elements);
+                const dragged = index.get(draggedId);
+                const draggedInFlatList = elements.some((item: any) => this.getRelationElementId(item) === draggedId);
+                if (dragged == null) {
+                    return { valid: false, error: { code: "ELEMENT_NOT_FOUND", elementId: draggedId } };
+                }
+                if (!draggedInFlatList) {
+                    return { valid: false, error: { code: "LEGACY_NESTED_MUTATION_UNSUPPORTED", elementId: draggedId } };
+                }
+                const targetParentId = this.getRelationElementId(targetParentRef);
+                if (targetParentId == null) {
+                    return { valid: false, error: { code: "TARGET_PARENT_NOT_FOUND" } };
+                }
+                if (draggedId === targetParentId) {
+                    return { valid: false, error: { code: "SELF_RELATION", elementId: draggedId, parentId: targetParentId } };
+                }
+                const targetParent = index.get(targetParentId);
+                const targetParentInFlatList = elements.some((item: any) => this.getRelationElementId(item) === targetParentId);
+                if (targetParent == null || !targetParentInFlatList) {
+                    return { valid: false, error: { code: "TARGET_PARENT_NOT_FOUND", parentId: targetParentId } };
+                }
+                if (!Array.isArray(targetParent.childrenRefs)) {
+                    return { valid: false, error: { code: "TARGET_PARENT_CHILDREN_REFS_INVALID", parentId: targetParentId } };
+                }
+                if (this.isDescendant(targetParentId, draggedId, elements, index)) {
+                    return { valid: false, error: { code: "RELATION_CYCLE", elementId: draggedId, parentId: targetParentId } };
+                }
+                const sourceParentId = this.getRelationElementId(dragged.parentRef);
+                const parentsContainingChild: string[] = [];
+                const refsByParentId: any = {};
+                for (let parent of elements) {
+                    const parentId = this.getRelationElementId(parent);
+                    if (parentId == null || !Array.isArray(parent?.childrenRefs)) {
+                        continue;
+                    }
+                    refsByParentId[parentId] = parent.childrenRefs.concat([]);
+                    if (parent.childrenRefs.some((ref: any) => this.getRelationElementId(ref) === draggedId)) {
+                        parentsContainingChild.push(parentId);
+                    }
+                }
+                const parentIdsToDetachFrom = Array.from(new Set(parentsContainingChild));
+                const parentIdsToTouch = Array.from(new Set(parentIdsToDetachFrom.concat([targetParentId])));
+                const targetOriginalRefs = targetParent.childrenRefs.concat([]);
+                let requestedTargetIndex = Number(targetIndex);
+                if (!Number.isFinite(requestedTargetIndex)) {
+                    requestedTargetIndex = targetOriginalRefs.length;
+                }
+                requestedTargetIndex = Math.max(0, Math.min(requestedTargetIndex, targetOriginalRefs.length));
+                const removedBeforeTarget = targetOriginalRefs.slice(0, requestedTargetIndex).filter((ref: any) => this.getRelationElementId(ref) === draggedId).length;
+                const targetRefsAfterDetach = targetOriginalRefs.filter((ref: any) => this.getRelationElementId(ref) !== draggedId);
+                const normalizedTargetIndex = Math.max(0, Math.min(requestedTargetIndex - removedBeforeTarget, targetRefsAfterDetach.length));
+                const preferredTargetRef = targetOriginalRefs.find((ref: any) => this.getRelationElementId(ref) === draggedId);
+                const childReference = this.getRelationReferenceForParent(targetParent, dragged, preferredTargetRef);
+                const targetChildrenRefsAfter = targetRefsAfterDetach.concat([]);
+                targetChildrenRefsAfter.splice(normalizedTargetIndex, 0, childReference);
+                const originalChildrenRefsByParent = parentIdsToTouch.map((parentId) => {
+                    const parent = index.get(parentId);
+                    return {
+                        parentId,
+                        hadChildrenRefs: Object.prototype.hasOwnProperty.call(parent, "childrenRefs"),
+                        childrenRefs: Array.isArray(parent?.childrenRefs) ? parent.childrenRefs.concat([]) : parent?.childrenRefs
+                    };
+                });
+                const contradictoryParents = parentIdsToDetachFrom.filter((parentId) => sourceParentId != null && parentId !== sourceParentId);
+                return {
+                    valid: true,
+                    dragged,
+                    targetParent,
+                    draggedId,
+                    sourceParentId,
+                    targetParentId,
+                    requestedTargetIndex,
+                    targetIndex: normalizedTargetIndex,
+                    parentIdsToDetachFrom,
+                    parentIdsToTouch,
+                    originalParentRef: dragged.parentRef,
+                    originalChildrenRefsByParent,
+                    targetChildrenRefsAfter,
+                    newParentRef: targetParent.id,
+                    childReference,
+                    normalizedContradiction: contradictoryParents.length > 0 || (sourceParentId != null && parentsContainingChild.indexOf(sourceParentId) === -1),
+                    diagnostics: {
+                        contradictoryParents
+                    }
+                };
+            }
+            public detachRelationChild(parent: any, childRef: any, relationKey: string = "childrenRefs"): any {
+                const childId = this.getRelationElementId(childRef);
+                if (parent == null || childId == null || !Array.isArray(parent[relationKey])) {
+                    return { success: false, removed: 0, error: { code: "INVALID_CHILDREN_REFS" } };
+                }
+                const initialLength = parent[relationKey].length;
+                const keptRefs = parent[relationKey].filter((ref: any) => this.getRelationElementId(ref) !== childId);
+                parent[relationKey].splice(0, parent[relationKey].length, ...keptRefs);
+                return { success: true, removed: initialLength - keptRefs.length };
+            }
+            public attachRelationChild(parent: any, child: any, targetIndex: any, childReference: any = null, relationKey: string = "childrenRefs"): any {
+                const childId = this.getRelationElementId(child);
+                if (parent == null || childId == null || !Array.isArray(parent[relationKey])) {
+                    return { success: false, error: { code: "INVALID_CHILDREN_REFS" } };
+                }
+                this.detachRelationChild(parent, childId, relationKey);
+                let normalizedIndex = Number(targetIndex);
+                if (!Number.isFinite(normalizedIndex)) {
+                    normalizedIndex = parent[relationKey].length;
+                }
+                normalizedIndex = Math.max(0, Math.min(normalizedIndex, parent[relationKey].length));
+                parent[relationKey].splice(normalizedIndex, 0, this.getRelationReferenceForParent(parent, child, childReference));
+                return { success: true, targetIndex: normalizedIndex };
+            }
+            public validateRelationMoveResult(plan: any, elements: any[] | null = this.formsList): any {
+                const diagnostic: any = { valid: true, errors: [], warnings: [] };
+                const index = this.buildElementIndex(elements);
+                const dragged = index.get(plan?.draggedId);
+                const targetParent = index.get(plan?.targetParentId);
+                if (dragged == null) {
+                    this.addRelationDiagnostic(diagnostic, "error", "ELEMENT_NOT_FOUND", plan?.draggedId, null, "Moved element is missing after mutation.");
+                    return diagnostic;
+                }
+                if (targetParent == null || !Array.isArray(targetParent.childrenRefs)) {
+                    this.addRelationDiagnostic(diagnostic, "error", "TARGET_PARENT_NOT_FOUND", plan?.draggedId, plan?.targetParentId, "Target parent is missing after mutation.");
+                    return diagnostic;
+                }
+                const actualParentId = this.getRelationElementId(dragged.parentRef);
+                if (actualParentId !== plan.targetParentId) {
+                    this.addRelationDiagnostic(diagnostic, "error", "PARENT_REF_NOT_UPDATED", plan.draggedId, plan.targetParentId, "Moved element parentRef does not reference the target parent.");
+                }
+                const targetOccurrences = targetParent.childrenRefs.filter((ref: any) => this.getRelationElementId(ref) === plan.draggedId).length;
+                if (targetOccurrences !== 1) {
+                    this.addRelationDiagnostic(diagnostic, "error", "TARGET_CHILD_OCCURRENCE_INVALID", plan.draggedId, plan.targetParentId, "Target parent must contain the moved child exactly once.");
+                }
+                for (let parent of elements || []) {
+                    const parentId = this.getRelationElementId(parent);
+                    if (parentId == null || parentId === plan.targetParentId || !Array.isArray(parent?.childrenRefs)) {
+                        continue;
+                    }
+                    if (parent.childrenRefs.some((ref: any) => this.getRelationElementId(ref) === plan.draggedId)) {
+                        this.addRelationDiagnostic(diagnostic, "error", "MULTIPLE_RELATION_PARENTS", plan.draggedId, parentId, "A non-target parent still contains the moved child.");
+                    }
+                }
+                if (this.hasRelationCycle(plan.draggedId, elements, index)) {
+                    this.addRelationDiagnostic(diagnostic, "error", "RELATION_CYCLE", plan.draggedId, plan.targetParentId, "Move created a relation cycle.");
+                }
+                return diagnostic;
+            }
+            public moveRelationElement(draggedRef: any, targetParentRef: any, targetIndex: any = null, elements: any[] | null = this.formsList, options: any = null): any {
+                const plan = this.prepareRelationMove(draggedRef, targetParentRef, targetIndex, elements);
+                if (!plan.valid) {
+                    return { success: false, error: plan.error, rolledBack: false };
+                }
+                const index = this.buildElementIndex(elements);
+                const parentSnapshots = plan.parentIdsToTouch.map((parentId) => {
+                    const parent = index.get(parentId);
+                    return {
+                        parent,
+                        hadChildrenRefs: Object.prototype.hasOwnProperty.call(parent, "childrenRefs"),
+                        childrenRefs: Array.isArray(parent?.childrenRefs) ? parent.childrenRefs.concat([]) : parent?.childrenRefs
+                    };
+                });
+                const parentRefSnapshot = {
+                    hadParentRef: Object.prototype.hasOwnProperty.call(plan.dragged, "parentRef"),
+                    parentRef: plan.dragged.parentRef
+                };
+                const restore = () => {
+                    for (let snapshot of parentSnapshots) {
+                        if (snapshot.parent == null) {
+                            continue;
+                        }
+                        if (snapshot.hadChildrenRefs) {
+                            if (Array.isArray(snapshot.childrenRefs)) {
+                                if (!Array.isArray(snapshot.parent.childrenRefs)) {
+                                    snapshot.parent.childrenRefs = [];
+                                }
+                                snapshot.parent.childrenRefs.splice(0, snapshot.parent.childrenRefs.length, ...snapshot.childrenRefs);
+                            }
+                            else {
+                                snapshot.parent.childrenRefs = snapshot.childrenRefs;
+                            }
+                        }
+                        else {
+                            delete snapshot.parent.childrenRefs;
+                        }
+                    }
+                    if (parentRefSnapshot.hadParentRef) {
+                        plan.dragged.parentRef = parentRefSnapshot.parentRef;
+                    }
+                    else {
+                        delete plan.dragged.parentRef;
+                    }
+                };
+                try {
+                    for (let parentId of plan.parentIdsToDetachFrom) {
+                        const parent = index.get(parentId);
+                        const detachResult = this.detachRelationChild(parent, plan.draggedId);
+                        if (!detachResult.success) {
+                            throw { code: detachResult.error?.code || "DETACH_FAILED" };
+                        }
+                    }
+                    if (options?.forceFailureAfterDetach === true) {
+                        throw { code: "FORCED_ROLLBACK" };
+                    }
+                    const attachResult = this.attachRelationChild(plan.targetParent, plan.dragged, plan.targetIndex, plan.childReference);
+                    if (!attachResult.success) {
+                        throw { code: attachResult.error?.code || "ATTACH_FAILED" };
+                    }
+                    plan.dragged.parentRef = plan.newParentRef;
+                    const postValidation = this.validateRelationMoveResult(plan, elements);
+                    if (!postValidation.valid) {
+                        throw { code: "POST_MUTATION_INTEGRITY_FAILURE", diagnostic: postValidation };
+                    }
+                    return {
+                        success: true,
+                        movedId: plan.draggedId,
+                        sourceParentId: plan.sourceParentId,
+                        targetParentId: plan.targetParentId,
+                        targetIndex: plan.targetIndex,
+                        normalizedContradiction: plan.normalizedContradiction,
+                        diagnostic: postValidation
+                    };
+                }
+                catch (e) {
+                    restore();
+                    return {
+                        success: false,
+                        error: {
+                            code: e?.code || "RELATION_MOVE_FAILED",
+                            diagnostic: e?.diagnostic
+                        },
+                        rolledBack: true
+                    };
+                }
+            }
         	public async searchCompletionWithId(id, currentElem) {
         		try {
         			// if its source elem
@@ -7077,7 +7779,7 @@ scriptContent:
         					//create a page if not exists
         					let list = this[''form''][''pages''].map(x => x.name);
         					let name = this.getNameDispo("Page ", list, true);
-        					this[''form''][''pages''].push({ name: name, pageTechName: "Page" + (time++), desc: '''', positionTab: "bottom", enabledTab: false, included: true, enabledButtons: true, positionButtons: "tab", iconName: "book-outline" });
+                            this[''form''][''pages''].push({ name: name, pageTechName: "Page" + (time++), desc: '''', positionTab: "bottom", enabledTab: false, included: true, enabledButtons: true, positionButtons: "tab", buttonsBehavior: "scroll", buttonsOrientation: "horizontal", buttonsVerticalPosition: "left", iconName: "book-outline" });
         				}
         				let currentPage = this.form.pages[i];
         				// update page name
@@ -8485,6 +9187,8 @@ scriptContent:
         			&&
         			(this.form?.navigation?.positionButtons == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.positionButtons)
         			&&
+        			(this.form?.navigation?.buttonsBehavior == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.buttonsBehavior)
+        			&&
         			(this.form?.navigation?.checkMandatoryInCurrentPage == this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.checkMandatoryInCurrentPage)
         		)
         	}
@@ -8495,83 +9199,190 @@ scriptContent:
         		this.form.navigation.enabledTab = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.enabledTab;
         		this.form.navigation.enabledButtons = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.enabledButtons;
         		this.form.navigation.positionButtons = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.positionButtons;
+        		this.form.navigation.buttonsBehavior = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.buttonsBehavior;
         		this.form.navigation.checkMandatoryInCurrentPage = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.checkMandatoryInCurrentPage;
         		this.form.navigation.appliedConfiguration = this.local.pages?.[((index != -1) ? index : this.local.currentIndex)]?.appliedConfiguration;
         	}
         
         	public getNavigationValue<T>(
-        	  key: string,
-        	  defaultValue: T,
-        	  index = -1
+        		key: string,
+        		defaultValue: T,
+        		index = -1,
+        		fallbackToPageWhenGlobalMissing = true
         	): T {
-        	  const currentPage = this.getCurrentPage(index);
-        	  const globalNavigation = this.form?.navigation;
         
-        	  /**
-        	   * 1. Si la navigation globale est activée,
-        	   * alors la config globale prime.
-        	   *
-        	   * Important :
-        	   * - false est une valeur valide
-        	   * - null / undefined signifient "pas de valeur globale"
-        	   */
-        	  if (this.isGlobalNavigationEnabled() && !this.isIndividualNavigationEnabled(index)) {
-        	    const hasGlobalValue =
-        	      globalNavigation &&
-        	      this.hasOwn(globalNavigation, key) &&
-        	      globalNavigation[key] !== null &&
-        	      globalNavigation[key] !== undefined;
+        		const currentPage = this.getCurrentPage(index);
+        		const globalNavigation = this.form?.navigation;
         
-        	    if (hasGlobalValue) {
-        	      return globalNavigation[key];
-        	    }
-        	  }
+        		const globalNavigationEnabled =
+        			this.isGlobalNavigationEnabled();
         
-        	  /**
-        	   * 2. Si la navigation globale est désactivée,
-        	   * ou si la valeur globale est null / undefined,
-        	   * alors la page courante prend le relais.
-        	   */
-        	  const hasPageValue =
-        	    currentPage &&
-        	    this.hasOwn(currentPage, key) &&
-        	    currentPage[key] !== null &&
-        	    currentPage[key] !== undefined;
+        		const individualNavigationEnabled =
+        			this.isIndividualNavigationEnabled(index);
         
-        	  if (hasPageValue) {
-        	    return currentPage[key];
-        	  }
+        		console.groupCollapsed(
+        			`[getNavigationValue] key="${key}" index=${index}`
+        		);
         
-        	  /**
-        	   * 3. Fallback final.
-        	   */
-        	  return defaultValue;
+        		console.log("INPUT", {
+        			key,
+        			defaultValue,
+        			index,
+        			fallbackToPageWhenGlobalMissing
+        		});
+        
+        		console.log("NAVIGATION STATE", {
+        			globalNavigationEnabled,
+        			individualNavigationEnabled,
+        			globalNavigation,
+        			currentPage
+        		});
+        
+        		/**
+        		 * 1. Si la navigation globale est activée
+        		 * et que la page n''utilise pas sa navigation individuelle,
+        		 * alors la config globale prime.
+        		 */
+        		if (
+        			globalNavigationEnabled &&
+        			!individualNavigationEnabled
+        		) {
+        			const hasGlobalValue =
+        				globalNavigation != null &&
+        				this.hasOwn(globalNavigation, key) &&
+        				globalNavigation[key] !== null &&
+        				globalNavigation[key] !== undefined;
+        
+        			console.log("GLOBAL CHECK", {
+        				hasGlobalValue,
+        				hasOwn:
+        					globalNavigation != null
+        						? this.hasOwn(globalNavigation, key)
+        						: false,
+        				value:
+        					globalNavigation != null
+        						? globalNavigation[key]
+        						: undefined
+        			});
+        
+        			if (hasGlobalValue) {
+        				console.log(
+        					"RETURN → GLOBAL",
+        					globalNavigation[key]
+        				);
+        
+        				console.groupEnd();
+        
+        				return globalNavigation[key];
+        			}
+        
+        			if (!fallbackToPageWhenGlobalMissing) {
+        				console.log(
+        					"RETURN → DEFAULT (global missing + fallback disabled)",
+        					defaultValue
+        				);
+        
+        				console.groupEnd();
+        
+        				return defaultValue;
+        			}
+        
+        			console.log(
+        				"GLOBAL VALUE MISSING → FALLBACK TO PAGE"
+        			);
+        		}
+        		else {
+        			console.log(
+        				"GLOBAL NAVIGATION SKIPPED",
+        				{
+        					reason: !globalNavigationEnabled
+        						? "global navigation disabled"
+        						: "individual navigation enabled"
+        				}
+        			);
+        		}
+        
+        		/**
+        		 * 2. Page courante.
+        		 */
+        		const hasPageValue =
+        			currentPage != null &&
+        			this.hasOwn(currentPage, key) &&
+        			currentPage[key] !== null &&
+        			currentPage[key] !== undefined;
+        
+        		console.log("PAGE CHECK", {
+        			hasPageValue,
+        			hasOwn:
+        				currentPage != null
+        					? this.hasOwn(currentPage, key)
+        					: false,
+        			value:
+        				currentPage != null
+        					? currentPage[key]
+        					: undefined
+        		});
+        
+        		if (hasPageValue) {
+        			console.log(
+        				"RETURN → PAGE",
+        				currentPage[key]
+        			);
+        
+        			console.groupEnd();
+        
+        			return currentPage[key];
+        		}
+        
+        		/**
+        		 * 3. Fallback final.
+        		 */
+        		console.log(
+        			"RETURN → DEFAULT",
+        			defaultValue
+        		);
+        
+        		console.groupEnd();
+        
+        		return defaultValue;
         	}
-        
-        	public isTabsEnabledAt(position: "top" | "bottom"): boolean {
-        	  if (!this.getCurrentPage()) {
-        	    return false;
-        	  }
-        
-        	  const positionTab = this.getNavigationValue<string>("positionTab", "bottom");
-        	  const enabledTab = this.getNavigationValue<boolean>("enabledTab", false);
-        	  const enabledButtons = this.getNavigationValue<boolean>("enabledButtons", false);
-        	  const positionButtons = this.getNavigationValue<string>("positionButtons", "standard");
-        
-        	  return (
-        		(positionTab === position &&
-        		(
-        		  enabledTab === true ||
-        		  (
-        			(
-        		    enabledButtons === true &&
-        		    positionButtons === "tab"
-        			)
-        		  )
-        		))
-        	  );
-        	}
-        
+          public getTabsOrientation(index = -1): "horizontal" | "vertical" {
+            const orientation = this.getNavigationValue<string>("buttonsOrientation", "horizontal", index);
+            return orientation === "vertical" ? "vertical" : "horizontal";
+          }
+          public getTabsVerticalPosition(index = -1): "left" | "right" {
+            const verticalPosition = this.getNavigationValue<string>("buttonsVerticalPosition", "left", index);
+            return verticalPosition === "right" ? "right" : "left";
+          }
+          private isTabsNavigationActive(index = -1): boolean {
+            if (!this.getCurrentPage(index)) {
+              return false;
+            }
+            const enabledTab = this.getNavigationValue<boolean>("enabledTab", false, index);
+            const enabledButtons = this.getNavigationValue<boolean>("enabledButtons", false, index);
+            const positionButtons = this.getNavigationValue<string>("positionButtons", "standard", index);
+            return enabledTab === true || (enabledButtons === true && positionButtons === "tab");
+          }
+          public isVerticalTabsNavigationEnabled(position?: "left" | "right"): boolean {
+            if (this.getTabsOrientation() !== "vertical" || !this.isTabsNavigationActive()) {
+              return false;
+            }
+            return position == null || this.getTabsVerticalPosition() === position;
+          }
+          public isHorizontalTabsNavigationEnabled(): boolean {
+            return this.getTabsOrientation() !== "vertical";
+          }
+          public isTabsEnabledAt(position: "top" | "bottom"): boolean {
+            if (!this.getCurrentPage()) {
+              return false;
+            }
+            if (this.getTabsOrientation() === "vertical") {
+              const verticalPosition = this.getTabsVerticalPosition();
+              return this.isTabsNavigationActive() && ((verticalPosition === "left" && position === "top") || (verticalPosition === "right" && position === "bottom"));
+            }
+            const positionTab = this.getNavigationValue<string>("positionTab", "bottom");
+            return positionTab === position && this.isTabsNavigationActive();
+          }
         	public isTopNavigationEnabled(): boolean {
         	  return this.isTabsEnabledAt("top");
         	}
@@ -8845,7 +9656,7 @@ title: Title for editor
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'Convertigo Logo'
+          - MobileSmartSourceType: script:this.translate.instant('convertigo_logo_alt')
     ↓logoText [ngx.components.UIUseVariable-1772640129076]: 
       comment: Main text displayed next to the logo
       varValue: 
@@ -8857,7 +9668,7 @@ title: Title for editor
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'No Code Studio'
+          - MobileSmartSourceType: script:this.translate.instant('No_Code_Studio')
     ↓searchQuery [ngx.components.UIUseVariable-1772640129082]: 
       comment: Current value of the search input
       varValue: 
@@ -8869,7 +9680,7 @@ title: Title for editor
       varValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:'Rechercher votre application par nom'
+          - MobileSmartSourceType: script:this.translate.instant('searchProject')
     ↓userInitials [ngx.components.UIUseVariable-1772640129088]: 
       comment: Initials displayed inside the user avatar circle
       varValue: 
@@ -9807,7 +10618,12 @@ title: Title for editor
                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                         - MobileSmartSourceType: 'script:(this.local.isPaletteDisplay === ''pages'' && !(this.local?.isPanelSettingsOrigin && this.idselected === ''settings'')) ? ''background: var(--ion-color-primary) !important;color: #FFF;'' : ''background: rgba(255, 255, 255, 0.4) !important;'''
                 ↓ButtonWorkflows [ngx.components.UIDynamicElement-1773250515928]: 
-                  beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+                  beanData: |
+                    '{
+                     "ionBean": "Button",
+                     "Disabled": "script:!this.form?.flows?.length",
+                     "IonFill": "plain:clear"
+                    }'
                   tagName: ion-button
                   ↓Event [ngx.components.UIControlEvent-1773250515931]: 
                     ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1773250515934]: 
@@ -9834,15 +10650,20 @@ title: Title for editor
                             →: |
                               '		
                               		try {
+                                          var flows = page["form"] != null && Array.isArray(page["form"]["flows"]) ? page["form"]["flows"] : [];
+                                          if (flows.length === 0) {
+                                              page.c8o.log.warn("[editorPage] Workflows are not ready yet");
+                                              return;
+                                          }
                               			const origin = (page.local?.isPanelSettingsOrigin && page.idselected === ''settings'')
                               			page.idselected = "";
                               			if (page.local?.isPaletteDisplay !== ''workflows'' && page.local.currentPage !== ''formulas'' && page.local.currentPage !== ''submit'' && page.local?.flow !== true) {
                               //				page.local.currentPage = ''formulas'';
-                              				page.local.currentPage = page[''form''][''flows''][0].id;
+                                              page.local.currentPage = flows[0].id;
                               				page.local.currentIndex = 0;
                               				page.local.flow = true;
                               				page.local.visualHover = "";
-                              				let flowId = page[''form''][''flows''][0].id;
+                                              let flowId = flows[0].id;
                               				// old icon -> calculator-outline
                               				if(flowId == "formulas"){
                               					page.local.currentFlowNoticeUsedBy = page.translate.instant("flow_formulas");
@@ -9875,7 +10696,7 @@ title: Title for editor
                               			this.tick();
                               			page.ref.detectChanges();
                               		} catch (e) {
-                              		
+                                          page.c8o.log.error("[editorPage] Failed to open the Workflows panel", e);
                               		} finally {
                               			return;
                               		}
@@ -11043,7 +11864,7 @@ title: Title for editor
                                       '		let list = page[''form''][''pages''].map(x=> x.name);
                                       		let name = page.getNameDispo("Page ", list, true);
                                       		// iconName oldly set to "book-outline"
-                                      		page[''form''][''pages''].push({name:name, pageTechName: "Page"+new Date().getTime(), desc:'''', positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", iconName: "sticky-note", checkMandatoryInCurrentPage: true });
+                                              page[''form''][''pages''].push({name:name, pageTechName: "Page"+new Date().getTime(), desc:'''', positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", buttonsBehavior: "scroll", buttonsOrientation: "horizontal", buttonsVerticalPosition: "left", iconName: "sticky-note", checkMandatoryInCurrentPage: true });
                                       		resolve();
                                       '
                               ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1750084474773]: 
@@ -12022,6 +12843,12 @@ title: Title for editor
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                 - MobileSmartSourceType: 'script:this.translate.instant(''deletePageTooltip'', {page: item.name})'
+                                          ↓Attr [ngx.components.UIAttribute-1789049042760]: 
+                                            attrName: '*ngIf'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: plain:this.form?.pages?.length > 1
                                     ↓Event3 [ngx.components.UIControlEvent-1780925168044]: 
                                       attrName: (mouseenter)
                                       eventName: (mouseenter)
@@ -12809,7 +13636,7 @@ title: Title for editor
                                             attrValue: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                - MobileSmartSourceType: plain:this.local.idHovered == i
+                                                - MobileSmartSourceType: plain:this.local.idHovered == i && this.form?.pages?.length > 1
                                           ↓Attr2 [ngx.components.UIAttribute-1780926519007]: 
                                             attrName: '[title]'
                                             attrValue: 
@@ -13787,7 +14614,7 @@ title: Title for editor
                                       '		let list = page[''form''][''pages''].map(x=> x.name);
                                       		let name = page.getNameDispo("Page ", list, true);
                                       		// iconName oldly set to "book-outline"
-                                      		page[''form''][''pages''].push({name:name, pageTechName: "Page"+new Date().getTime(), desc:'''', positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", iconName: "sticky-note", checkMandatoryInCurrentPage: true , individualNavigation: false});
+                                              page[''form''][''pages''].push({name:name, pageTechName: "Page"+new Date().getTime(), desc:'''', positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", buttonsBehavior: "scroll", buttonsOrientation: "horizontal", buttonsVerticalPosition: "left", iconName: "sticky-note", checkMandatoryInCurrentPage: true , individualNavigation: false, isNameDisplayed: false});
                                       		resolve();
                                       '
                               ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1780583331068]: 
@@ -15717,7 +16544,7 @@ title: Title for editor
                                       →: |
                                         '		let list = page[''form''][''pages''].map(x=> x.name);
                                         		let name = page.getNameDispo("Page ", list, true);
-                                        		page[''form''][''pages''].push({name:name, pageTechName: "Page"+new Date().getTime(), desc:'''', positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", iconName: "book-outline", checkMandatoryInCurrentPage: true });
+                                                page[''form''][''pages''].push({name:name, pageTechName: "Page"+new Date().getTime(), desc:'''', positionTab: "bottom",enabledTab: false,included: true,enabledButtons: true, positionButtons: "tab", buttonsBehavior: "scroll", buttonsOrientation: "horizontal", buttonsVerticalPosition: "left", iconName: "book-outline", checkMandatoryInCurrentPage: true });
                                         		resolve();
                                         '
                                 ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1773251124201]: 
@@ -17879,6 +18706,7 @@ title: Title for editor
                                   beanData: '{"ionBean":"DivTag"}'
                                   tagName: div
                                   ↓Style [ngx.components.UIStyle-1775136866554]: 
+                                    comment: Badge overflow must remain visible; clipping/scrolling is handled by the dedicated SharedTabs scroll owner.
                                     styleContent: 
                                       - xmlizable: 
                                         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -17892,6 +18720,7 @@ title: Title for editor
                                             align-items: center;
                                             transition: 300ms linear;
                                             position: relative;
+                                            overflow: visible;
                                             &.c8o-editor-component-disabled::after {
                                             	content: "";
                                             	position: absolute;
@@ -17927,42 +18756,6 @@ title: Title for editor
                                               		this.tick();
                                               		resolve();
                                               
-                                  ↓Badge [ngx.components.UIDynamicElement-1775136866571]: 
-                                    beanData: '{"ionBean":"Badge","IonColor":"plain:convertigo"}'
-                                    tagName: ion-badge
-                                    ↓Style [ngx.components.UIStyle-1775136866574]: 
-                                      styleContent: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                            →: |
-                                              'position:absolute;
-                                              top: -10px;
-                                              left:-10px;
-                                              border-radius: 10px;
-                                              cursor: help;
-                                              color: var(--ion-color-white);
-                                              z-index:10;
-                                              transition: 300ms linear;
-                                              '
-                                    ↓Text [ngx.components.UIText-1775136866577]: 
-                                      i18n: true
-                                      textValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: plain:visual
-                                    ↓Attr [ngx.components.UIAttribute-1775136866580]: 
-                                      attrName: title
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: script:translate.instant('visual_title')
-                                    ↓Attr1 [ngx.components.UIAttribute-1777291164708]: 
-                                      attrName: '*ngIf'
-                                      attrValue: 
-                                        - xmlizable: 
-                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: plain:!(this.local['visualHover'] == 'page-nav')
                                   ↓DivContainerFlex [ngx.components.UIDynamicElement-1775136866583]: 
                                     beanData: '{"ionBean":"DivTag"}'
                                     isEnabled: false
@@ -18088,6 +18881,44 @@ title: Title for editor
                                                 	align-items:center;
                                                 	color:black;
                                                 '
+                                  ↓Badge [ngx.components.UIDynamicElement-1775136866571]: 
+                                    beanData: '{"ionBean":"Badge","IonColor":"plain:convertigo"}'
+                                    tagName: ion-badge
+                                    ↓Style [ngx.components.UIStyle-1775136866574]: 
+                                      styleContent: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                            →: |
+                                              'position:absolute;
+                                              //top: -10px;
+                                              top: -10px;
+                                              left:-10px;
+                                              border-radius: 10px;
+                                              cursor: help;
+                                              color: var(--ion-color-white);
+                                              z-index:100000;
+                                              
+                                              transition: 300ms linear;
+                                              '
+                                    ↓Text [ngx.components.UIText-1775136866577]: 
+                                      i18n: true
+                                      textValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: plain:visual
+                                    ↓Attr [ngx.components.UIAttribute-1775136866580]: 
+                                      attrName: title
+                                      attrValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: script:translate.instant('visual_title')
+                                    ↓Attr1 [ngx.components.UIAttribute-1777291164708]: 
+                                      attrName: '*ngIf'
+                                      attrValue: 
+                                        - xmlizable: 
+                                          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                          - MobileSmartSourceType: plain:!(this.local['visualHover'] == 'page-nav')
                                   ↓DivContentInnerHTML [ngx.components.UIDynamicElement-1775136866637]: 
                                     beanData: '{"ionBean":"DivTag"}'
                                     tagName: div
@@ -18145,7 +18976,7 @@ title: Title for editor
                                       attrValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: plain:this.isTabsEnabledAt('top')
+                                          - MobileSmartSourceType: plain:this.isTabsEnabledAt('top') || this.isVerticalTabsNavigationEnabled()
                                   ↓Attr3 [ngx.components.UIAttribute-1775136866658]: 
                                     attrName: '*ngIf'
                                     attrValue: 
@@ -18473,7 +19304,7 @@ title: Title for editor
                                 attrValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: plain:this.shouldDisplayTopNavigationOrStandardButtons()
+                                    - MobileSmartSourceType: plain:this.shouldDisplayTopNavigationOrStandardButtons() || this.isVerticalTabsNavigationEnabled()
                               ↓Style [ngx.components.UIStyle-1775137264959]: 
                                 styleContent: 
                                   - xmlizable: 
@@ -18481,7 +19312,14 @@ title: Title for editor
                                     - com.twinsoft.convertigo.beans.common.FormatedContent: 
                                       →: |
                                         ' margin-top: 0px;
+                                         position: relative;
                                         '
+                              ↓AttrVerticalTabsClass [ngx.components.UIAttribute-1787575164190]: 
+                                attrName: '[ngClass]'
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: 'script:{ ''c8o-tabs-vertical-editor-nav'': this.isVerticalTabsNavigationEnabled() }'
                             ↓Directive3 [ngx.components.UIControlDirective-1774950763892]: 
                               directiveName: If
                               directiveSource: 
@@ -23139,6 +23977,212 @@ title: Title for editor
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                     - MobileSmartSourceType: script:true
+                                            ↓UseGlobalButtonsOrientation [ngx.components.UIUseShared-1787576886492]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1787576888868]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('tabs_orientation')
+                                              ↓options [ngx.components.UIUseVariable-1787576888870]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['tabs_horizontal', 'tabs_vertical']
+                                              ↓model [ngx.components.UIUseVariable-1787576888872]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.form?.navigation?.buttonsOrientation === ''vertical'' ? ''tabs_vertical'' : ''tabs_horizontal'''
+                                              ↓style [ngx.components.UIUseVariable-1787576888874]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1787576888876]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:(this.local.currentSettingsPanel == ''app'' && this.local.currentAppSettingsSubPanel == ''navigation'') ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1787576888878]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1787576888880]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1787576888882]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1787576888884]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setGlobalButtonsOrientation [ngx.components.UICustomAsyncAction-1787576889666]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          '		try {
+                                                          			if (page.form.navigation == null || typeof page.form.navigation !== "object" || Array.isArray(page.form.navigation)) {
+                                                          				page.form.navigation = {};
+                                                          			}
+                                                          			page.form.navigation.buttonsOrientation = event.out == "tabs_vertical" ? "vertical" : "horizontal";
+                                                          		} catch (e) {
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          '
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1787576890460]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
+                                              ↓keyName [ngx.components.UIUseVariable-1787576890462]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓i18nCallback [ngx.components.UIUseVariable-1787576890464]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓hasSeparators [ngx.components.UIUseVariable-1787576890466]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓disabled [ngx.components.UIUseVariable-1787576890468]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓tooltipEnabled [ngx.components.UIUseVariable-1787576890470]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:true
+                                              ↓tooltipContent [ngx.components.UIUseVariable-1787576890472]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:'tooltip_tabs_orientation'
+                                              ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1787576890474]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:true
+                                            ↓UseGlobalButtonsBehavior [ngx.components.UIUseShared-1786367183326]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1786367185702]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('buttons_behavior')
+                                              ↓options [ngx.components.UIUseVariable-1786367185704]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['scroll', 'wrap']
+                                              ↓model [ngx.components.UIUseVariable-1786367185706]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.form?.navigation?.buttonsBehavior === ''wrap'' ? ''wrap'' : ''scroll'''
+                                              ↓style [ngx.components.UIUseVariable-1786367185708]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1786367185710]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:(this.local.currentSettingsPanel == ''app'' && this.local.currentAppSettingsSubPanel == ''navigation'' && this.form?.navigation?.buttonsOrientation !== ''vertical'') ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1786367185712]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1786367185714]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1786367185716]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1786367185718]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setGlobalButtonsBehavior [ngx.components.UICustomAsyncAction-1786367186500]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          '		try {
+                                                          			if (page.form.navigation == null || typeof page.form.navigation !== "object" || Array.isArray(page.form.navigation)) {
+                                                          				page.form.navigation = {};
+                                                          			}
+                                                          			page.form.navigation.buttonsBehavior = event.out == "wrap" ? "wrap" : "scroll";
+                                                          		} catch (e) {
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          '
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1786367187294]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
+                                              ↓keyName [ngx.components.UIUseVariable-1786367187296]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓i18nCallback [ngx.components.UIUseVariable-1786367187298]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓hasSeparators [ngx.components.UIUseVariable-1786367187300]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓disabled [ngx.components.UIUseVariable-1786367187302]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓tooltipEnabled [ngx.components.UIUseVariable-1786367187304]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:true
+                                              ↓tooltipContent [ngx.components.UIUseVariable-1786367187306]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:'tooltip_app_nav_buttons'
+                                              ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1786367187308]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:true
                                             ↓UsePageTabsNavigation [ngx.components.UIUseShared-1781084751359]: 
                                               sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
                                               ↓label [ngx.components.UIUseVariable-1781084751362]: 
@@ -23166,7 +24210,7 @@ title: Title for editor
                                                 attrValue: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                    - MobileSmartSourceType: 'script:(this.local.currentSettingsPanel == ''app'' && this.local.currentAppSettingsSubPanel == ''navigation'') ? null : ''none'''
+                                                    - MobileSmartSourceType: 'script:(this.local.currentSettingsPanel == ''app'' && this.local.currentAppSettingsSubPanel == ''navigation'' && this.form?.navigation?.buttonsOrientation !== ''vertical'') ? null : ''none'''
                                               ↓AttrPadding [ngx.components.UIAttribute-1781084751377]: 
                                                 attrName: '[style.--c8o-setting-row-padding]'
                                                 attrValue: 
@@ -23241,6 +24285,117 @@ title: Title for editor
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                     - MobileSmartSourceType: script:'tooltip_app_nav_tabs'
                                               ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1782981343462]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:true
+                                            ↓UseGlobalButtonsVerticalPosition [ngx.components.UIUseShared-1787576909645]: 
+                                              sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                              ↓label [ngx.components.UIUseVariable-1787576912021]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:this.translate.instant('tabs_page')
+                                              ↓options [ngx.components.UIUseVariable-1787576912023]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:['disabled','tabs_left', 'tabs_right']
+                                              ↓model [ngx.components.UIUseVariable-1787576912025]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:this.form?.navigation?.enabledTab === false ? ''disabled'' : (this.form?.navigation?.buttonsVerticalPosition === ''right'' ? ''tabs_right'' : ''tabs_left'')'
+                                              ↓style [ngx.components.UIUseVariable-1787576912027]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:{width: 100}'
+                                              ↓AttrDisplay [ngx.components.UIAttribute-1787576912029]: 
+                                                attrName: '[style.display]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: 'script:(this.local.currentSettingsPanel == ''app'' && this.local.currentAppSettingsSubPanel == ''navigation'' && this.form?.navigation?.buttonsOrientation === ''vertical'') ? null : ''none'''
+                                              ↓AttrPadding [ngx.components.UIAttribute-1787576912031]: 
+                                                attrName: '[style.--c8o-setting-row-padding]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:0
+                                              ↓AttrLabelWidth [ngx.components.UIAttribute-1787576912033]: 
+                                                attrName: '[style.--c8o-toggle-label-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:320px
+                                              ↓AttrControlWidth [ngx.components.UIAttribute-1787576912035]: 
+                                                attrName: '[style.--c8o-toggle-control-width]'
+                                                attrValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: plain:max-content
+                                              ↓Event [ngx.components.UIControlEvent-1787576912037]: 
+                                                attrName: (modelChanged)
+                                                eventName: modelChanged
+                                                ↓setGlobalButtonsVerticalPosition [ngx.components.UICustomAsyncAction-1787576912819]: 
+                                                  actionValue: 
+                                                    - xmlizable: 
+                                                      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                        →: |
+                                                          '		try {
+                                                          			
+                                                          			if (page.form.navigation == null || typeof page.form.navigation !== "object" || Array.isArray(page.form.navigation)) {
+                                                          				page.form.navigation = {};
+                                                          			}
+                                                          			if(event.out == "disabled"){
+                                                          				page.form.navigation.enabledTab = false;
+                                                          			}
+                                                          			else {
+                                                          				page.form.navigation.enabledTab = true;
+                                                          				page.form.navigation.buttonsVerticalPosition = event.out == "tabs_right" ? "right" : "left";
+                                                          			}
+                                                          			page.form.navigation.buttonsVerticalPosition = event.out == "tabs_right" ? "right" : "left";
+                                                          		} catch (e) {
+                                                          		} finally {
+                                                          			return;
+                                                          		}
+                                                          '
+                                                  ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1787576913613]: 
+                                                    beanData: '{"ionBean":"InvokeAction"}'
+                                                    stack: C8Oforms.MobileApplication.Application.updateState
+                                              ↓keyName [ngx.components.UIUseVariable-1787576913615]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓i18nCallback [ngx.components.UIUseVariable-1787576913617]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:null
+                                              ↓hasSeparators [ngx.components.UIUseVariable-1787576913619]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓disabled [ngx.components.UIUseVariable-1787576913621]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:false
+                                              ↓tooltipEnabled [ngx.components.UIUseVariable-1787576913623]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:true
+                                              ↓tooltipContent [ngx.components.UIUseVariable-1787576913625]: 
+                                                varValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                    - MobileSmartSourceType: script:'tooltip_tabs_vertical_position'
+                                              ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1787576913627]: 
                                                 varValue: 
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
@@ -26087,7 +27242,12 @@ title: Title for editor
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                           - MobileSmartSourceType: 'script:(this.local.isPaletteDisplay === ''pages'') ? ''background: var(--ion-color-primary) !important;color: #FFF;'' : ''background: rgba(255, 255, 255, 0.4) !important;'''
                                   ↓ButtonWorkflows [ngx.components.UIDynamicElement-1780909504555]: 
-                                    beanData: '{"ionBean":"Button","IonFill":"plain:clear"}'
+                                    beanData: |
+                                      '{
+                                       "ionBean": "Button",
+                                       "Disabled": "script:!this.form?.flows?.length",
+                                       "IonFill": "plain:clear"
+                                      }'
                                     tagName: ion-button
                                     ↓Event [ngx.components.UIControlEvent-1780909504558]: 
                                       ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1780909504561]: 
@@ -26114,13 +27274,18 @@ title: Title for editor
                                               →: |
                                                 '		
                                                 		try {
+                                                            var flows = page["form"] != null && Array.isArray(page["form"]["flows"]) ? page["form"]["flows"] : [];
+                                                            if (flows.length === 0) {
+                                                                page.c8o.log.warn("[editorPage] Workflows are not ready yet");
+                                                                return;
+                                                            }
                                                 			if (page.local?.isPaletteDisplay !== ''workflows'' && page.local.currentPage !== ''formulas'' && page.local.currentPage !== ''submit'' && page.local?.flow !== true) {
                                                 //				page.local.currentPage = ''formulas'';
-                                                				page.local.currentPage = page[''form''][''flows''][0].id;
+                                                                page.local.currentPage = flows[0].id;
                                                 				page.local.currentIndex = 0;
                                                 				page.local.flow = true;
                                                 				page.local.visualHover = "";
-                                                				let flowId = page[''form''][''flows''][0].id;
+                                                                let flowId = flows[0].id;
                                                 				// old icon -> calculator-outline
                                                 				if(flowId == "formulas"){
                                                 					page.local.currentFlowNoticeUsedBy = page.translate.instant("flow_formulas");
@@ -26152,7 +27317,7 @@ title: Title for editor
                                                 			}
                                                 			page.ref.detectChanges();
                                                 		} catch (e) {
-                                                		
+                                                            page.c8o.log.error("[editorPage] Failed to open the Workflows panel", e);
                                                 		} finally {
                                                 			return;
                                                 		}
@@ -28577,6 +29742,210 @@ title: Title for editor
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:true
+                                          ↓UsePageButtonsOrientation [ngx.components.UIUseShared-1787576931830]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                            ↓label [ngx.components.UIUseVariable-1787576934206]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:this.translate.instant('tabs_orientation')
+                                            ↓options [ngx.components.UIUseVariable-1787576934208]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:['tabs_horizontal', 'tabs_vertical']
+                                            ↓model [ngx.components.UIUseVariable-1787576934210]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:this.form?.pages?.[this.local?.currentIndex]?.buttonsOrientation === ''vertical'' ? ''tabs_vertical'' : ''tabs_horizontal'''
+                                            ↓style [ngx.components.UIUseVariable-1787576934212]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:{width: 100}'
+                                            ↓AttrDisplay [ngx.components.UIAttribute-1787576934214]: 
+                                              attrName: '[style.display]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:(this.local.currentPageSettingsPanel == ''navigation'' && this.local?.pages[this.local?.currentIndex]?.individualNavigation) ? null : ''none'''
+                                            ↓AttrPadding [ngx.components.UIAttribute-1787576934216]: 
+                                              attrName: '[style.--c8o-setting-row-padding]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:0
+                                            ↓AttrLabelWidth [ngx.components.UIAttribute-1787576934218]: 
+                                              attrName: '[style.--c8o-toggle-label-width]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:320px
+                                            ↓AttrControlWidth [ngx.components.UIAttribute-1787576934220]: 
+                                              attrName: '[style.--c8o-toggle-control-width]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:max-content
+                                            ↓Event [ngx.components.UIControlEvent-1787576934222]: 
+                                              attrName: (modelChanged)
+                                              eventName: modelChanged
+                                              ↓setPageButtonsOrientation [ngx.components.UICustomAsyncAction-1787576935004]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        '		try {
+                                                        			let currentPage = page.form.pages[page.local.currentIndex];
+                                                        			currentPage.buttonsOrientation = event.out == "tabs_vertical" ? "vertical" : "horizontal";
+                                                        			page.setFlags();
+                                                        		} catch (e) {
+                                                        		} finally {
+                                                        			return;
+                                                        		}
+                                                        '
+                                                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1787576935798]: 
+                                                  beanData: '{"ionBean":"InvokeAction"}'
+                                                  stack: C8Oforms.MobileApplication.Application.updateState
+                                            ↓keyName [ngx.components.UIUseVariable-1787576935800]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:null
+                                            ↓i18nCallback [ngx.components.UIUseVariable-1787576935802]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:null
+                                            ↓hasSeparators [ngx.components.UIUseVariable-1787576935804]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓disabled [ngx.components.UIUseVariable-1787576935806]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓tooltipEnabled [ngx.components.UIUseVariable-1787576935808]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
+                                            ↓tooltipContent [ngx.components.UIUseVariable-1787576935810]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:'tooltip_tabs_orientation'
+                                            ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1787576935812]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
+                                          ↓UsePageButtonsBehavior [ngx.components.UIUseShared-1786367207647]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                            ↓label [ngx.components.UIUseVariable-1786367210023]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:this.translate.instant('buttons_behavior')
+                                            ↓options [ngx.components.UIUseVariable-1786367210025]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:['scroll', 'wrap']
+                                            ↓model [ngx.components.UIUseVariable-1786367210027]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:this.form?.pages?.[this.local?.currentIndex]?.buttonsBehavior === ''wrap'' ? ''wrap'' : ''scroll'''
+                                            ↓style [ngx.components.UIUseVariable-1786367210029]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:{width: 100}'
+                                            ↓AttrDisplay [ngx.components.UIAttribute-1786367210031]: 
+                                              attrName: '[style.display]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:(this.local.currentPageSettingsPanel == ''navigation'' && this.local?.pages[this.local?.currentIndex]?.individualNavigation && this.form?.pages?.[this.local?.currentIndex]?.buttonsOrientation !== ''vertical'') ? null : ''none'''
+                                            ↓AttrPadding [ngx.components.UIAttribute-1786367210033]: 
+                                              attrName: '[style.--c8o-setting-row-padding]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:0
+                                            ↓AttrLabelWidth [ngx.components.UIAttribute-1786367210035]: 
+                                              attrName: '[style.--c8o-toggle-label-width]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:320px
+                                            ↓AttrControlWidth [ngx.components.UIAttribute-1786367210037]: 
+                                              attrName: '[style.--c8o-toggle-control-width]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:max-content
+                                            ↓Event [ngx.components.UIControlEvent-1786367210039]: 
+                                              attrName: (modelChanged)
+                                              eventName: modelChanged
+                                              ↓setPageButtonsBehavior [ngx.components.UICustomAsyncAction-1786367210821]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        '		try {
+                                                        			let currentPage = page.form.pages[page.local.currentIndex];
+                                                        			currentPage.buttonsBehavior = event.out == "wrap" ? "wrap" : "scroll";
+                                                        			page.setFlags();
+                                                        		} catch (e) {
+                                                        		} finally {
+                                                        			return;
+                                                        		}
+                                                        '
+                                                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1786367211615]: 
+                                                  beanData: '{"ionBean":"InvokeAction"}'
+                                                  stack: C8Oforms.MobileApplication.Application.updateState
+                                            ↓keyName [ngx.components.UIUseVariable-1786367211617]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:null
+                                            ↓i18nCallback [ngx.components.UIUseVariable-1786367211619]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:null
+                                            ↓hasSeparators [ngx.components.UIUseVariable-1786367211621]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓disabled [ngx.components.UIUseVariable-1786367211623]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓tooltipEnabled [ngx.components.UIUseVariable-1786367211625]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
+                                            ↓tooltipContent [ngx.components.UIUseVariable-1786367211627]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:'tooltip_page_nav_buttons'
+                                            ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1786367211629]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
                                           ↓UsePageTabsNavigation [ngx.components.UIUseShared-1779359000066]: 
                                             sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
                                             ↓label [ngx.components.UIUseVariable-1779359000067]: 
@@ -28604,7 +29973,7 @@ title: Title for editor
                                               attrValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                  - MobileSmartSourceType: 'script:(this.local.currentPageSettingsPanel == ''navigation'' && this.local?.pages[this.local?.currentIndex]?.individualNavigation) ? null : ''none'''
+                                                  - MobileSmartSourceType: 'script:(this.local.currentPageSettingsPanel == ''navigation'' && this.local?.pages[this.local?.currentIndex]?.individualNavigation && this.form?.pages?.[this.local?.currentIndex]?.buttonsOrientation !== ''vertical'') ? null : ''none'''
                                             ↓AttrPadding [ngx.components.UIAttribute-1779359000072]: 
                                               attrName: '[style.--c8o-setting-row-padding]'
                                               attrValue: 
@@ -28682,6 +30051,108 @@ title: Title for editor
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                   - MobileSmartSourceType: script:'tooltip_page_nav_tabs'
                                             ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1782982436216]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
+                                          ↓UsePageButtonsVerticalPosition [ngx.components.UIUseShared-1787576953540]: 
+                                            sharedcomponent: C8Oforms.MobileApplication.Application.ToggleSwitch
+                                            ↓label [ngx.components.UIUseVariable-1787576955916]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:this.translate.instant('tabs_vertical_position')
+                                            ↓options [ngx.components.UIUseVariable-1787576955918]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:['tabs_left', 'tabs_right']
+                                            ↓model [ngx.components.UIUseVariable-1787576955920]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:this.form?.pages?.[this.local?.currentIndex]?.buttonsVerticalPosition === ''right'' ? ''tabs_right'' : ''tabs_left'''
+                                            ↓style [ngx.components.UIUseVariable-1787576955922]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:{width: 100}'
+                                            ↓AttrDisplay [ngx.components.UIAttribute-1787576955924]: 
+                                              attrName: '[style.display]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: 'script:(this.local.currentPageSettingsPanel == ''navigation'' && this.local?.pages[this.local?.currentIndex]?.individualNavigation && this.form?.pages?.[this.local?.currentIndex]?.buttonsOrientation === ''vertical'') ? null : ''none'''
+                                            ↓AttrPadding [ngx.components.UIAttribute-1787576955926]: 
+                                              attrName: '[style.--c8o-setting-row-padding]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:0
+                                            ↓AttrLabelWidth [ngx.components.UIAttribute-1787576955928]: 
+                                              attrName: '[style.--c8o-toggle-label-width]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:320px
+                                            ↓AttrControlWidth [ngx.components.UIAttribute-1787576955930]: 
+                                              attrName: '[style.--c8o-toggle-control-width]'
+                                              attrValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: plain:max-content
+                                            ↓Event [ngx.components.UIControlEvent-1787576955932]: 
+                                              attrName: (modelChanged)
+                                              eventName: modelChanged
+                                              ↓setPageButtonsVerticalPosition [ngx.components.UICustomAsyncAction-1787576956714]: 
+                                                actionValue: 
+                                                  - xmlizable: 
+                                                    - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                                                    - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                                                      →: |
+                                                        '		try {
+                                                        			let currentPage = page.form.pages[page.local.currentIndex];
+                                                        			currentPage.buttonsVerticalPosition = event.out == "tabs_right" ? "right" : "left";
+                                                        			page.setFlags();
+                                                        		} catch (e) {
+                                                        		} finally {
+                                                        			return;
+                                                        		}
+                                                        '
+                                                ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1787576957508]: 
+                                                  beanData: '{"ionBean":"InvokeAction"}'
+                                                  stack: C8Oforms.MobileApplication.Application.updateState
+                                            ↓keyName [ngx.components.UIUseVariable-1787576957510]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:null
+                                            ↓i18nCallback [ngx.components.UIUseVariable-1787576957512]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:null
+                                            ↓hasSeparators [ngx.components.UIUseVariable-1787576957514]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓disabled [ngx.components.UIUseVariable-1787576957516]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:false
+                                            ↓tooltipEnabled [ngx.components.UIUseVariable-1787576957518]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:true
+                                            ↓tooltipContent [ngx.components.UIUseVariable-1787576957520]: 
+                                              varValue: 
+                                                - xmlizable: 
+                                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                  - MobileSmartSourceType: script:'tooltip_tabs_vertical_position'
+                                            ↓tooltipAlwaysVisible [ngx.components.UIUseVariable-1787576957522]: 
                                               varValue: 
                                                 - xmlizable: 
                                                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
@@ -29596,7 +31067,7 @@ title: Title for editor
                                 directiveSource: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: script:item.config.page == this.local.currentPage && item.parentRef == undefined
+                                    - MobileSmartSourceType: script:item.config.page == this.local.currentPage && (item.parentRef == undefined || item.id == this.idselected)
                                 ↓BeforeItem [ngx.components.UIDynamicElement-1650357060272]: 
                                   beanData: '{"ionBean":"GridRow","Height":"plain:unset"}'
                                   tagName: ion-row
@@ -33347,8 +34818,17 @@ title: Title for editor
                                                 	            this.c8o.log.debug("dragstart at level0, index of target to move is "+vars.index);
                                                 	            event.dataTransfer.setData("__c8oformsdrag", true);
                                                 	            event.dataTransfer.setData(vars.item.type, true);
+                                                	            event.dataTransfer.setData("type", vars.item.type);
                                                 	            event.dataTransfer.setData("origin", "moved");
                                                 	            event.dataTransfer.setData("index", vars.index);
+                                                	            if (vars.item?.type === "layout" && vars.item?.id != null) {
+                                                	                const relationElementId = String(vars.item.id);
+                                                	                event.dataTransfer.setData("relationElementId", relationElementId);
+                                                	                event.dataTransfer.setData("relationOperation", "move");
+                                                	                page.local.relationElementId = relationElementId;
+                                                	                page.local.relationOperation = "move";
+                                                	            }
+                                                	            page.local.draggingType = vars.item.type;
                                                 	            page.local.draggingOrigin = "moved";
                                                 	            page.local.draggingOriginIndex = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((entry) => Number(entry));
                                                 	            page.local.dragging = true;
@@ -33774,9 +35254,18 @@ title: Title for editor
                                                 //			event.dataTransfer.setData(vars.item.type, true);
                                                 			event.dataTransfer.setData("__c8oformsdrag", "true");
                                                 			event.dataTransfer.setData(vars.item.type, "true");
+                                                			event.dataTransfer.setData("type", vars.item.type);
                                                 	        event.dataTransfer.setData("origin", "moved");
                                                 	        event.dataTransfer.setData("index", vars.index);
+                                                			if (vars.item?.type === "layout" && vars.item?.id != null) {
+                                                				const relationElementId = String(vars.item.id);
+                                                				event.dataTransfer.setData("relationElementId", relationElementId);
+                                                				event.dataTransfer.setData("relationOperation", "move");
+                                                				page.local.relationElementId = relationElementId;
+                                                				page.local.relationOperation = "move";
+                                                			}
                                                 			event.dataTransfer.setData("text/plain", vars.item.name || vars.item.type || "c8oforms-item");
+                                                			page.local.draggingType = vars.item.type;
                                                 	        page.local.draggingOrigin = "moved";
                                                 	        page.local.draggingOriginIndex = Array.isArray(vars.index) ? [...vars.index] : String(vars.index).split(",").map((entry) => Number(entry));
                                                 			page.local.dragging = true;
@@ -33800,6 +35289,8 @@ title: Title for editor
                                                 				page.local.draggingName = "";
                                                 				delete page.local.draggingOrigin;
                                                 				delete page.local.draggingOriginIndex;
+                                                				delete page.local.relationElementId;
+                                                				delete page.local.relationOperation;
                                                 				page.ref.detectChanges();
                                                 				delete window["draggingELEMC8O"];
                                                 			}
@@ -34404,7 +35895,13 @@ title: Title for editor
                                 attrValue: 
                                   - xmlizable: 
                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                    - MobileSmartSourceType: plain:this.shouldDisplayBottomNavigationOrStandardButtons()
+                                    - MobileSmartSourceType: plain:!this.isVerticalTabsNavigationEnabled() && this.shouldDisplayBottomNavigationOrStandardButtons()
+                              ↓AttrVerticalTabsClass [ngx.components.UIAttribute-1787575166530]: 
+                                attrName: '[ngClass]'
+                                attrValue: 
+                                  - xmlizable: 
+                                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                    - MobileSmartSourceType: 'script:{ ''c8o-tabs-vertical-editor-nav'': this.isVerticalTabsNavigationEnabled() }'
                             ↓Style [ngx.components.UIStyle-1664196532805]: 
                               styleContent: 
                                 - xmlizable: 
@@ -34436,6 +35933,12 @@ title: Title for editor
                                       flex-direction: column;
                                       //padding-top: 60px;
                                       '
+                            ↓AttrVerticalTabsClass [ngx.components.UIAttribute-1787575161850]: 
+                              attrName: '[ngClass]'
+                              attrValue: 
+                                - xmlizable: 
+                                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                  - MobileSmartSourceType: 'script:{ ''c8o-tabs-vertical-editor'': this.isVerticalTabsNavigationEnabled(), ''c8o-tabs-vertical-editor-right'': this.isVerticalTabsNavigationEnabled(''right''), ''c8o-tabs-vertical-editor-left'': this.isVerticalTabsNavigationEnabled(''left'') }'
                         ↓Tag [ngx.components.UIElement-1650357060959]: 
                           identifier: ElseBlock_1599818211975
                           tagName: ng-template
@@ -53206,7 +54709,7 @@ title: Title for editor
                                                           					}
                                                           				}
                                                                       }
-                                                          		    page.form.flows[page.local.currentIndex].elements.splice(vars.i, 1);
+                                                                  page.deleteFlowElement(vars.i, false);
                                                           		    page.idselected = "";
                                                           		    await page.updateState();
                                                           		    if(attach_to_delete.length > 0){
@@ -53230,7 +54733,7 @@ title: Title for editor
                                                     varValue: 
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                        - MobileSmartSourceType: script:stack.root.scope.t
+                                                        - MobileSmartSourceType: script:stack.root.scope.thing
                                           ↓Attr [ngx.components.UIAttribute-1741109898853]: 
                                             attrName: '[title]'
                                             attrValue: 
@@ -56067,6 +57570,8 @@ title: Title for editor
                     	height: 25px;
                     	width: 25px;
                     }
+                    width: 60px;
+                    height: 60px;
                     '
           ↓TigoImage [ngx.components.UIDynamicElement-1785251215497]: 
             beanData: |
@@ -56081,6 +57586,16 @@ title: Title for editor
             isEnabled: false
             selfClose: true
             tagName: img
+        ↓Style [ngx.components.UIStyle-1787587400125]: 
+          styleContent: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '	width: 60px;
+                  	height: 60px;
+                  	z-index: 999999999;
+                  '
     ↓Attr [ngx.components.UIAttribute-1773252544263]: 
       attrName: '[style]'
       attrValue: 
@@ -56169,10 +57684,14 @@ title: Title for editor
             				if (hasAi.has) {
             					await page.ref.detectChanges();
             					try{
-            						if(document.getElementById("brevo-conversations") != undefined){
-            							page.fabia.el.style.marginBottom = "140px";
-            							document.getElementById("brevo-conversations").style.right = "10px";
-            						}
+                                    const aiFab = page.fabia && page.fabia.el ? page.fabia.el : null;
+                                    const brevoConversations = document.getElementById("brevo-conversations");
+                                    if(aiFab != null){
+                                        aiFab.style.marginBottom = brevoConversations != undefined ? "140px" : "70px";
+                                    }
+                                    if(brevoConversations != undefined){
+                                        brevoConversations.style.right = "10px";
+                                    }
             					}
             					catch (e) {
             		
@@ -65694,7 +67213,58 @@ title: Title for editor
           //		background: #faf5ff;
           //		border-color: #c27aff; 
           //	}
-          //}'
+          //}
+          
+          /* #1390 vertical tab runtime layout */
+          .class1663751560396.c8o-tabs-vertical-editor {
+          	display: grid;
+          	grid-template-columns: minmax(132px, max-content) minmax(0, 1fr);
+          	column-gap: 12px;
+          	align-items: stretch;
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor.c8o-tabs-vertical-editor-right {
+          	grid-template-columns: minmax(0, 1fr) minmax(132px, max-content);
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row {
+          	grid-column: 2;
+          	width: 100%;
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor.c8o-tabs-vertical-editor-right > ion-row {
+          	grid-column: 1;
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav {
+          	grid-column: 1;
+          	grid-row: 1 / span 999;
+          	align-self: stretch;
+          	width: 100%;
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor.c8o-tabs-vertical-editor-right > ion-row.c8o-tabs-vertical-editor-nav {
+          	grid-column: 2;
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav ion-col,
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav .card,
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav c8oforms-sharedtabs {
+          	display: block;
+          	width: 100%;
+          	height: 100%;
+          	min-height: 0;
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav .class1775136866637,
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav .class1775139583506 {
+          	width: 100% !important;
+          	margin: 0 !important;
+          	padding: 0 !important;
+          	height: 100%;
+          	min-height: 0;
+          }
+          '
 ↓PageEvent5 [ngx.components.UIPageEvent-1777562556756]: 
   ↓CustomAction [ngx.components.UICustomAction-1777562561663]: 
     actionValue: 
@@ -65840,3 +67410,43 @@ title: Title for editor
               		}
               '
       comment: Applies the refreshed form while preserving the current page and exact element selection when possible.
+↓StyleVerticalTabsCompact [ngx.components.UIStyle-1787934098304]: 
+  comment: '#1390/#badge: editor vertical nav rail is content-sized, but the outer nav row must not clip badges.'
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '/* #1390 compact vertical tab rail */
+          .class1663751560396.c8o-tabs-vertical-editor {
+            grid-template-columns: fit-content(min(25vw, 14rem)) minmax(0, 1fr);
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor.c8o-tabs-vertical-editor-right {
+            grid-template-columns: minmax(0, 1fr) fit-content(min(25vw, 14rem));
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav {
+            width: fit-content;
+            inline-size: fit-content;
+            max-width: min(25vw, 14rem);
+            max-inline-size: min(25vw, 14rem);
+            min-width: 0;
+            min-inline-size: 0;
+            overflow: visible;
+          }
+          
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav ion-col,
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav .card,
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav c8oforms-sharedtabs,
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav .class1775136866637,
+          .class1663751560396.c8o-tabs-vertical-editor > ion-row.c8o-tabs-vertical-editor-nav .class1775139583506 {
+            display: block;
+            width: fit-content !important;
+            inline-size: fit-content !important;
+            max-width: 100% !important;
+            max-inline-size: 100% !important;
+            min-width: 0 !important;
+            min-inline-size: 0 !important;
+          }
+          '

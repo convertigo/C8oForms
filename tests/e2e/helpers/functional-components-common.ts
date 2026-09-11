@@ -1083,9 +1083,35 @@ async function addPaletteComponentAndAssertVisible(page: Page, component: Palett
 async function setTextInputQuestionLabel(page: Page, value: string): Promise<void> {
   const editorBody = await visibleTinyMceBody(page);
   await editorBody.click({ timeout: 10_000 });
-  const filledThroughTinyMce = await page.evaluate((text) => {
-    const tinymce = (window as unknown as { tinymce?: { activeEditor?: TinyMceLikeEditor } }).tinymce;
-    const editor = tinymce?.activeEditor;
+  const filledThroughTinyMce = await editorBody.evaluate((body, text) => {
+    const frameWindow = body.ownerDocument.defaultView as any;
+    const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+    const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+      (registry, index, all) => registry && all.indexOf(registry) === index,
+    );
+    const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+    const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const editorIds = [body.id, frameId].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
+    const matchesTarget = (candidate: any) => {
+      if (!candidate || candidate.removed) return false;
+      try {
+        return (
+          candidate.getBody?.() === body ||
+          candidate.iframeElement === frameElement ||
+          candidate.iframeElement?.contentDocument?.body === body ||
+          (frameId != null && candidate.id === frameId)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const editors = registries.flatMap((registry: any) => {
+      const rawEditors = registry?.editors;
+      return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+    });
+    const editor =
+      registries.flatMap((registry: any) => editorIds.map((id) => registry.get?.(id))).find(matchesTarget) ??
+      editors.find(matchesTarget);
     if (!editor) {
       return false;
     }
@@ -1095,6 +1121,7 @@ async function setTextInputQuestionLabel(page: Page, value: string): Promise<voi
     editor.setContent(`<p>${holder.innerHTML}</p>`);
     editor.fire('input');
     editor.fire('change');
+    editor.save?.();
     editor.fire('blur');
     return true;
   }, value);
@@ -1115,9 +1142,8 @@ async function setTextInputQuestionLabel(page: Page, value: string): Promise<voi
   }
 
   await page.keyboard.press('Tab').catch(() => undefined);
-  await fireActiveTinyMceChange(page);
+  await fireActiveTinyMceChange(page, editorBody);
   await expectQuestionLabelEditorText(page, value);
-  await page.waitForTimeout(1_000);
 }
 
 async function openTextInputQuestionTab(page: Page): Promise<void> {
@@ -1233,6 +1259,13 @@ async function expectTextInputCommonProperties(
 }
 
 async function visibleTinyMceBody(page: Page): Promise<Locator> {
+  const inlineEditor = page
+    .locator('[contenteditable="true"].mce-content-body:visible, .tox-edit-area [contenteditable="true"]:visible')
+    .last();
+  if (await inlineEditor.isVisible({ timeout: 500 }).catch(() => false)) {
+    return inlineEditor;
+  }
+
   for (const selector of [
     'iframe[title="Rich Text Area"]',
     'iframe.tox-edit-area__iframe',
@@ -1250,16 +1283,49 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
     }
   }
 
-  const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
-  await expect(inlineEditor, 'a TinyMCE editor should be visible').toBeVisible({ timeout: 10_000 });
-  return inlineEditor;
+  const eventualInlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
+  await expect(eventualInlineEditor, 'a HugeRTE editor should be visible').toBeVisible({ timeout: 10_000 });
+  return eventualInlineEditor;
 }
 
-async function fireActiveTinyMceChange(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const tinymce = (window as unknown as { tinymce?: { activeEditor?: TinyMceLikeEditor } }).tinymce;
-    tinymce?.activeEditor?.fire('change');
-    tinymce?.activeEditor?.fire('blur');
+async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promise<void> {
+  const body = editorBody ?? (await visibleTinyMceBody(page));
+  await body.evaluate((targetBody) => {
+    const frameWindow = targetBody.ownerDocument.defaultView as any;
+    const hostWindow = frameWindow?.parent && frameWindow.parent !== frameWindow ? frameWindow.parent : frameWindow;
+    const registries = [hostWindow?.hugerte, hostWindow?.tinymce, frameWindow?.hugerte, frameWindow?.tinymce].filter(
+      (registry, index, all) => registry && all.indexOf(registry) === index,
+    );
+    const frameElement = frameWindow?.frameElement as HTMLIFrameElement | null;
+    const frameId = frameElement?.id?.replace(/_ifr$/, '');
+    const editorIds = [targetBody.id, frameId].filter(
+      (id, index, all): id is string => Boolean(id) && all.indexOf(id) === index,
+    );
+    const matchesTarget = (candidate: any) => {
+      if (!candidate || candidate.removed) return false;
+      try {
+        return (
+          candidate.getBody?.() === targetBody ||
+          candidate.iframeElement === frameElement ||
+          candidate.iframeElement?.contentDocument?.body === targetBody ||
+          (frameId != null && candidate.id === frameId)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const editors = registries.flatMap((registry: any) => {
+      const rawEditors = registry?.editors;
+      return Array.isArray(rawEditors) ? rawEditors : rawEditors != null ? Object.values(rawEditors) : [];
+    });
+    const editor =
+      registries.flatMap((registry: any) => editorIds.map((id) => registry.get?.(id))).find(matchesTarget) ??
+      editors.find(matchesTarget);
+    if (!editor) throw new Error('HugeRTE instance not found for the visible question editor');
+    editor.fire('input');
+    editor.fire('change');
+    editor.save?.();
+    editor.fire('blur');
   });
 }
 
@@ -1654,7 +1720,7 @@ async function expectInvalidTechnicalIdentifierRestoresPreviousValue(
 ): Promise<void> {
   await recordToasts(page);
   const toastCountBefore = (await recordedToasts(page)).length;
-  await setTechnicalId(page, invalidValue);
+  await setTechnicalId(page, invalidValue, { expectPersistence: false });
   await expect(
     page.locator(`${SEL.technicalIdInput}:visible`).first(),
     `invalid technical identifier "${invalidValue}" should restore the previous value`,

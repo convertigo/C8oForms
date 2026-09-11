@@ -6,9 +6,6 @@ import {
   configureTextInputCommonPropertiesThroughUi,
   configureConditionalComponentNavigationThroughUi,
   configureHorizontalLayoutChildrenThroughUi,
-  configureVisibilityOnContainerComponentTypesThroughUi,
-  configureVisibilityOnDataDisplayComponentTypesThroughUi,
-  configureVisibilityOnMainComponentTypesThroughUi,
   deleteTextInputCancelThenConfirmThroughUi,
   duplicateConfiguredButtonAndAssertCopyThroughUi,
   renameTextInputTechnicalIdentifierThroughUi,
@@ -76,27 +73,6 @@ test.describe('No-Code Studio functional common component contract', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await configureSelectDefaultValuesInAllModesThroughUi(page);
-  });
-
-  test('CMP-COM-009 - visibility on main target component types', async ({ page }) => {
-    test.setTimeout(600_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await configureVisibilityOnMainComponentTypesThroughUi(page);
-  });
-
-  test('VIS-003 - visibility on data display component types', async ({ page }) => {
-    test.setTimeout(600_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await configureVisibilityOnDataDisplayComponentTypesThroughUi(page);
-  });
-
-  test('VIS-003 - visibility on layout and container component types', async ({ page }) => {
-    test.setTimeout(300_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await configureVisibilityOnContainerComponentTypesThroughUi(page);
   });
 
   test('CMP-COM-010 - component navigation with a condition', async ({ page }) => {

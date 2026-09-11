@@ -54,6 +54,8 @@ test("#1383 - clearing a page name raises the empty-field message, not 'name alr
 
   // Clear the page name and commit it (validation runs on change/blur).
   await nameInput.fill('');
+  await expect(nameInput, 'page name should be empty before committing the change').toHaveValue('');
+  await nameInput.dispatchEvent('change');
   await nameInput.blur();
 
   // A validation toast must appear — guards against a false green where nothing

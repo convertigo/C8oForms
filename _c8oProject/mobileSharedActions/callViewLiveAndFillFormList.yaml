@@ -202,12 +202,23 @@ comment: Process a tick (Refresh define in caf)
           				pagination.pageSize =
           					normalizedPageSize;
           
+          				pagination.mode = null;
+          
           				pagination.currentPageToken = null;
+          				pagination.previousPageToken = null;
           				pagination.nextPageToken = null;
+          				pagination.lastPageToken = null;
+          
           				pagination.pageTokenHistory = [];
           
+          				pagination.hasPreviousPage = false;
           				pagination.hasNextPage = false;
+          
+          				pagination.totalCount = null;
+          				pagination.pageCount = null;
+          
           				pagination.paginated = false;
+          				pagination.loading = false;
           			};
           			const stringifyActionError = (error) => {
           				try{
@@ -481,30 +492,26 @@ comment: Process a tick (Refresh define in caf)
           
           				page.ref.detectChanges();
           
-          				setTimeout(() => {
-          					page["list"] = docs;
-          
-          					if (
-          						page.local.done &&
-          						page["viewport"] != null
-          					) {
-          						const renderedRange =
-          							page["viewport"]
-          								.getRenderedRange();
-          
-          						page["viewport"]
-          							.setRenderedRange({
-          								start: 0,
-          								end:
-          									renderedRange.end + 1
-          							});
-          					}
-          					else {
-          						page.local.done = true;
-          					}
-          
-          					page.ref.detectChanges();
-          				});
+          setTimeout(() => {
+              page["list"] = docs;
+              page.local.done = true;
+              page.ref.detectChanges();
+              requestAnimationFrame(() => {
+                  const currentPage = page as any;
+                  if (
+                      typeof currentPage.refreshViewportMetrics ===
+                          "function"
+                  ) {
+                      currentPage.refreshViewportMetrics(6);
+                  }
+                  else if (
+                      typeof currentPage.viewport?.checkViewportSize ===
+                          "function"
+                  ) {
+                      currentPage.viewport.checkViewportSize();
+                  }
+              });
+          });
           
           				return null;
           			};
@@ -525,12 +532,24 @@ comment: Process a tick (Refresh define in caf)
           				page.local.hash = undefined;
           				page.local.hashFolders = undefined;
           				page.local.count = undefined;
-          				const hasActiveSearch = () => {
-          					return (page["query"] != undefined && page["query"] != "")
-          						|| (Array.isArray(page.local.searchTags) && page.local.searchTags.length > 0)
-          						|| (Array.isArray(page.local.searchSubTags) && page.local.searchSubTags.length > 0)
-          						|| (Array.isArray(page.local._searchUser) && page.local._searchUser.length > 0);
-          				};
+          				const normalizeActiveSearchQuery = (value) => {
+          						return value == null
+          							? ""
+          							: ("" + value).trim();
+          					};
+          					const getActiveSearchQuery = () => {
+          						return typeof page["getActiveSearchQuery"] === "function"
+          							? page["getActiveSearchQuery"].call(page)
+          							: normalizeActiveSearchQuery(page["query"]);
+          					};
+          					const hasActiveSearch = () => {
+                              const normalizedQuery =
+                                  getActiveSearchQuery();
+                              return normalizedQuery != ""
+                                  || (Array.isArray(page.local.searchTags) && page.local.searchTags.length > 0)
+                                  || (Array.isArray(page.local.searchSubTags) && page.local.searchSubTags.length > 0)
+                                  || (Array.isArray(page.local._searchUser) && page.local._searchUser.length > 0);
+          					};
           //				let execQuery = () => {
           //					page.local.requestCounter++;
           //					let currentRequestId = page.local.requestCounter;
@@ -694,6 +713,9 @@ comment: Process a tick (Refresh define in caf)
           									call:
           										currentRequestId,
           				
+          									activeSearchRefresh:
+          										true,
+          				
           									resetPagination:
           										options[
           											"resetPagination"
@@ -802,7 +824,11 @@ comment: Process a tick (Refresh define in caf)
           						);
           					});
           				};
-          				execQuery();
+                          execQuery({
+                              resetPagination:
+                                  vars != null &&
+                                  vars["resetPagination"] === true
+                          });
           				// live changes
           				let p = Pouch["default"];
           				const header = {

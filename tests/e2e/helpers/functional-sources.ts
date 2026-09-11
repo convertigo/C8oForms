@@ -257,16 +257,33 @@ export async function openSourceSelectionPanelFromSelectThroughUi(page: Page): P
     await openConfigTabById(page, 'tab_selector_choice_source');
     await activateDataSourceMode(page);
 
-    const sourceButton = page.locator(`${SEL.dataSourceSelectButton}:visible`).first();
-    await expect(sourceButton, 'source selection button should be visible').toBeVisible({ timeout: 15_000 });
-    await sourceButton.click({ timeout: 10_000 }).catch(async () => sourceButton.dispatchEvent('click'));
+    const openPicker = async (): Promise<Locator> => {
+      const sourceButton = page.locator(`${SEL.dataSourceSelectButton}:visible`).first();
+      await expect(sourceButton, 'source selection button should be visible').toBeVisible({ timeout: 15_000 });
+      await sourceButton.click({ timeout: 10_000 }).catch(async () => sourceButton.dispatchEvent('click'));
 
-    const picker = page.locator('ion-modal:not(.overlay-hidden):visible').last();
-    await expect(picker, 'source selection modal should open').toBeVisible({ timeout: 30_000 });
-    await expect(
-      picker.locator(`${SEL.dataSourceSelectButton}:visible`).first(),
-      'source selection modal should expose at least one selectable source',
-    ).toBeVisible({ timeout: 30_000 });
+      const modal = page.locator('ion-modal:not(.overlay-hidden):visible').last();
+      await expect(modal, 'source selection modal should open').toBeVisible({ timeout: 30_000 });
+      return modal;
+    };
+
+    let picker = await openPicker();
+    let selectableSource = picker.locator(`${SEL.dataSourceSelectButton}:visible`).first();
+    const sourceTreeReady = await selectableSource
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!sourceTreeReady) {
+      // The Ionic shell can occasionally be presented before its source tree
+      // is initialized. Reopening the UI restarts that initialization without
+      // carrying the empty modal state into the rest of the test.
+      await closeSourceSelectionModal(picker);
+      picker = await openPicker();
+      selectableSource = picker.locator(`${SEL.dataSourceSelectButton}:visible`).first();
+    }
+    await expect(selectableSource, 'source selection modal should expose at least one selectable source').toBeVisible({
+      timeout: 30_000,
+    });
 
     await closeSourceSelectionModal(picker);
   });

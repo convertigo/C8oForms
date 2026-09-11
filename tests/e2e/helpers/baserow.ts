@@ -296,10 +296,34 @@ export async function ensureBaserowTable(spec: EnsureTableSpec, token?: string):
   }
 
   const readBack = catalogFromSchemaReadBack(r);
-  if (readBack?.tables.some((table) => table.name === spec.table)) {
+  if (readBack && catalogContainsExpectedTable(readBack, spec)) {
     return readBack;
   }
-  return baserowCatalog({ includeColumns: true }, token);
+
+  let lastCatalog = readBack;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (attempt > 0) {
+      await sleep([1_000, 2_000, 3_000, 5_000, 8_000][attempt - 1] ?? 8_000);
+    }
+    lastCatalog = await baserowCatalog({ includeColumns: true }, token);
+    if (catalogContainsExpectedTable(lastCatalog, spec)) {
+      return lastCatalog;
+    }
+  }
+  throw new Error(
+    `Baserow catalog did not expose table ${spec.table} with columns ${spec.columns
+      .map((column) => column.name)
+      .join(', ')} after schema apply: ${JSON.stringify(lastCatalog).slice(0, 1_000)}`,
+  );
+}
+
+function catalogContainsExpectedTable(catalog: BaserowCatalog, spec: EnsureTableSpec): boolean {
+  const table = catalog.tables.find((candidate) => candidate.name === spec.table);
+  if (!table) return false;
+  const columns = Array.isArray(table.columns) ? table.columns : [];
+  return spec.columns.every((expected) =>
+    columns.some((candidate) => candidate.name === expected.name && candidate.type === expected.type),
+  );
 }
 
 function catalogFromSchemaReadBack(response: Json): BaserowCatalog | null {

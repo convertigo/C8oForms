@@ -2946,6 +2946,9 @@ Stores an anonymous response and handles confirmation flows.
 <td>actions</td><td>List of actions to execute sequentially.</td>
 </tr>
 <tr>
+<td>c8oAnonymizationRequested</td><td>Snapshot of the authenticated-response anonymization setting at submission time.</td>
+</tr>
+<tr>
 <td>files</td><td></td>
 </tr>
 <tr>
@@ -5755,6 +5758,9 @@ Update the state of a field
 <td>label</td><td></td>
 </tr>
 <tr>
+<td>selectable</td><td>Set to false for action buttons that must accept successive clicks without selecting themselves.</td>
+</tr>
+<tr>
 <td>selected</td><td></td>
 </tr>
 </table>
@@ -7955,6 +7961,12 @@ The Chart Widget viewer
 <td>j</td><td></td>
 </tr>
 <tr>
+<td>layoutRenderDepth</td><td></td>
+</tr>
+<tr>
+<td>layoutRenderPath</td><td></td>
+</tr>
+<tr>
 <td>renderSelectedEditor</td><td></td>
 </tr>
 <tr>
@@ -8018,6 +8030,12 @@ The Chart Widget viewer
 <tr>
 <td>item</td><td></td>
 </tr>
+<tr>
+<td>layoutRenderDepth</td><td></td>
+</tr>
+<tr>
+<td>layoutRenderPath</td><td></td>
+</tr>
 </table>
 #### itemLayoutViewer
 
@@ -8035,6 +8053,12 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>redList</td><td></td>
+</tr>
+<tr>
+<td>viewerLayoutRenderDepth</td><td></td>
+</tr>
+<tr>
+<td>viewerLayoutRenderPath</td><td></td>
 </tr>
 </table>
 #### itemLayoutViewer_Elem
@@ -8062,6 +8086,12 @@ The Chart Widget viewer
 </tr>
 <tr>
 <td>redList</td><td></td>
+</tr>
+<tr>
+<td>viewerLayoutRenderDepth</td><td></td>
+</tr>
+<tr>
+<td>viewerLayoutRenderPath</td><td></td>
 </tr>
 </table>
 #### itemLocationEditor
@@ -9413,19 +9443,22 @@ This component is a modal dialog for resetting the password. It accepts an input
 <td>hasSeparators</td><td></td>
 </tr>
 <tr>
-<td>i18nCallback</td><td></td>
+<td>i18nCallback</td><td>Optional translation callback for object option labels. Failures leave the raw visible value unchanged.</td>
 </tr>
 <tr>
-<td>keyName</td><td></td>
+<td>keyName</td><td>Optional object property used as the option value and display seed when options are object-based.</td>
 </tr>
 <tr>
 <td>label</td><td></td>
 </tr>
 <tr>
-<td>model</td><td></td>
+<td>model</td><td>Selected value exchanged with the form model. Primitive and keyName-based object values keep the existing contract.</td>
 </tr>
 <tr>
-<td>options</td><td></td>
+<td>options</td><td>Source option list. Search filtering must read from this input without mutating or reindexing it.</td>
+</tr>
+<tr>
+<td>searchEnabled</td><td>Enables the custom searchable options popover. When false, the component keeps the historical native Ionic select branch.</td>
 </tr>
 <tr>
 <td>style</td><td></td>
@@ -9484,6 +9517,9 @@ This component is a modal dialog for resetting the password. It accepts an input
 </tr>
 <tr>
 <td>if_else</td><td></td>
+</tr>
+<tr>
+<td>relationTargetParentId</td><td></td>
 </tr>
 <tr>
 <td>targetCardChild</td><td></td>
@@ -10027,6 +10063,9 @@ This component represents a toolbar UI similar to the provided image. It include
 </tr>
 <tr>
 <td>isEditorPage</td><td></td>
+</tr>
+<tr>
+<td>isResponseSubmittedPage</td><td></td>
 </tr>
 <tr>
 <td>isViewerPage</td><td></td>

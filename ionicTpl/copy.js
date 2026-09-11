@@ -1,10 +1,14 @@
 const mv = require('mv');
+const fs = require('fs');
 
 let sources = ['../../DisplayObjects/template-pwa/scripts/index.html', '../../DisplayObjects/template-pwa/scripts/manifest.webmanifest', '../../DisplayObjects/template-pwa/scripts/ngsw-worker.js', '../../DisplayObjects/template-pwa/scripts/ngsw.json', '../../DisplayObjects/template-pwa/scripts/assets', '../../DisplayObjects/template-pwa/scripts/svg'];
 let destinations = ['../../DisplayObjects/template-pwa/index.html', '../../DisplayObjects/template-pwa/manifest.webmanifest', '../../DisplayObjects/template-pwa/ngsw-worker.js', '../../DisplayObjects/template-pwa/ngsw.json', '../../DisplayObjects/template-pwa/assets', '../../DisplayObjects/template-pwa/svg'];
 let promises = [];
 for (let i = 0; i < sources.length; i++) {
 	promises.push(new Promise((resolve, reject) => {
+		if (fs.existsSync(sources[i])) {
+			fs.rmSync(destinations[i], { recursive: true, force: true });
+		}
 		mv(sources[i], destinations[i], { mkdirp: true }, function(err) {
 			if (err) {
 				console.error('Error moving the file: ' + sources[i], err);
@@ -16,19 +20,23 @@ for (let i = 0; i < sources.length; i++) {
 	}));
 }
 
-const fs = require('fs');
 Promise.all(promises).then(() => {
 	// Lire un fichier de manière synchrone
 	try {
 		var ngswJson = fs.readFileSync('../../DisplayObjects/template-pwa/ngsw.json', 'utf8');
 		//		console.log('Contenu du fichier:', ngswJson);
 		ngswJson = JSON.parse(ngswJson);
-		ngswJson.assetGroups[0].urls = ngswJson.assetGroups[0].urls.map(function(url) {
-			if (url.endsWith(".js") || url.endsWith(".css") || url.endsWith(".woff2")) {
-				return url.replace("DisplayObjects/mobile/", "DisplayObjects/mobile/scripts/");
+		for (const group of ngswJson.assetGroups) {
+			if (!Array.isArray(group.urls)) {
+				continue;
 			}
-			return url;
-		});
+			group.urls = group.urls.map(function(url) {
+				if (url.endsWith(".js") || url.endsWith(".css") || url.endsWith(".woff2")) {
+					return url.replace("DisplayObjects/mobile/", "DisplayObjects/mobile/scripts/");
+				}
+				return url;
+			});
+		}
 		ngswJson.hashTable = Object.fromEntries(
 			Object.entries(ngswJson.hashTable).map(([key, value]) => {
 				if (!key.includes("/assets/") && !key.includes("/svg/") && !key.endsWith("/ngsw.json") && !key.endsWith("/index.html") && !key.endsWith("/manifest.webmanifest") && !key.endsWith("/ngsw-worker.js") && !key.includes("/scripts/") && (key.endsWith(".js") || key.endsWith(".css") || key.endsWith(".woff2"))) {
@@ -43,5 +51,3 @@ Promise.all(promises).then(() => {
 		console.error('Erreur lors de la lecture du fichier:', err);
 	}
 });
-
-
