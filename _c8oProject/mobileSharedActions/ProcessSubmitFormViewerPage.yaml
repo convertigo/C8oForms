@@ -15,6 +15,51 @@
           '		try {
           			let cancels = [];
           			const regexEMAIL = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+          			const isGregorianDate = (year: number, month: number, day: number) => {
+          				if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day) || year < 1 || month < 1 || month > 12 || day < 1) {
+          					return false;
+          				}
+          				const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+          				const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+          				return day <= days[month - 1];
+          			};
+          			const normalizeCanonicalDate = (value: any) => {
+          				if (value == null) {
+          					return null;
+          				}
+          				const match = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(("" + value).trim());
+          				if (match == null) {
+          					return null;
+          				}
+          				const year = Number(match[1]);
+          				const month = Number(match[2]);
+          				const day = Number(match[3]);
+          				return isGregorianDate(year, month, day) ? match[1] + "-" + match[2] + "-" + match[3] : null;
+          			};
+          			const getTodayDate = () => {
+          				const now = new Date();
+          				const month = "" + (now.getMonth() + 1);
+          				const day = "" + now.getDate();
+          				return now.getFullYear() + "-" + (month.length < 2 ? "0" + month : month) + "-" + (day.length < 2 ? "0" + day : day);
+          			};
+          			const validateSubmitDate = (value: any, config: any) => {
+          				const canonical = normalizeCanonicalDate(value);
+          				if (canonical == null) {
+          					return { canonical: null, error: "invalid_date" };
+          				}
+          				const effectiveConfig = config || {};
+          				const configuredMin = normalizeCanonicalDate(effectiveConfig.min_datetime);
+          				const configuredMax = normalizeCanonicalDate(effectiveConfig.max_datetime);
+          				const effectiveMin = effectiveConfig.date_less_than_today === true ? getTodayDate() : configuredMin;
+          				const effectiveMax = effectiveConfig.date_more_than_today === true ? getTodayDate() : configuredMax;
+          				if (effectiveMin != null && canonical < effectiveMin) {
+          					return { canonical: canonical, error: "date_before_min" };
+          				}
+          				if (effectiveMax != null && canonical > effectiveMax) {
+          					return { canonical: canonical, error: "date_after_max" };
+          				}
+          				return { canonical: canonical, error: "" };
+          			};
           			if (page["pageOwner"] != undefined) {
           				page = page["pageOwner"];
           			}
@@ -222,6 +267,34 @@
           						doThis = computeVisibility(currentList[item]);
           					}
           					if (doThis) {
+          						if (currentList[item]["type"] === "datetime") {
+          							const dateItem = currentList[item];
+          							const dateResponse = formsSubmit[dateItem["name"]];
+          							const rawDateValue = dateResponse != null && dateResponse["value"] != null ? "" + dateResponse["value"] : "";
+          							const dateFieldKey = dateItem["id"] != null && dateItem["id"] !== "" ? "" + dateItem["id"] : "" + dateItem["name"];
+          							page.global.__c8oDateValidationErrors ??= {};
+          							const dateValidationStore = page.global.__c8oDateValidationErrors;
+          							let dateValidationError = "";
+          							if (rawDateValue.trim() === "") {
+          								const pendingError = dateValidationStore[dateFieldKey];
+          								if (pendingError === "invalid_date" || pendingError === "date_before_min" || pendingError === "date_after_max") {
+          									dateValidationError = pendingError;
+          								}
+          							}
+          							else {
+          								const validation = validateSubmitDate(rawDateValue, dateItem["config"]);
+          								dateValidationError = validation.error;
+          								if (validation.canonical != null && validation.error === "") {
+          									dateResponse["value"] = validation.canonical;
+          									delete dateValidationStore[dateFieldKey];
+          								}
+          							}
+          							if (dateValidationError !== "") {
+          								dateValidationStore[dateFieldKey] = dateValidationError;
+          								page["redList"][dateItem["name"]] = true;
+          								submit = false;
+          							}
+          						}
           						// Process just one by column
           						if (currentList[item]["config"] != undefined && currentList[item]["config"]["different"] == true) {
           

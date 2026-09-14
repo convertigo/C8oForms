@@ -823,6 +823,52 @@
           					}
           				}
           			};
+          
+          			const migrateDateEntryMode = (items: any): number => {
+          				const validModes = { calendar: true, manual: true, both: true };
+          				const visitedIds = {};
+          				const visitedObjects = typeof WeakSet !== "undefined" ? new WeakSet() : null;
+          				let changed = 0;
+          				const visit = (elements: any): void => {
+          					if (!Array.isArray(elements)) {
+          						return;
+          					}
+          					for (let i = 0; i < elements.length; i++) {
+          						const item = elements[i];
+          						if (item == null || typeof item !== "object") {
+          							continue;
+          						}
+          						const itemId = item.id != null && item.id !== "" ? "" + item.id : null;
+          						if (itemId != null) {
+          							if (visitedIds[itemId] === true) {
+          								continue;
+          							}
+          							visitedIds[itemId] = true;
+          						}
+          						else if (visitedObjects != null) {
+          							if (visitedObjects.has(item)) {
+          								continue;
+          							}
+          							visitedObjects.add(item);
+          						}
+          						if (item.type === "datetime") {
+          							if (item.config == null || typeof item.config !== "object" || Array.isArray(item.config)) {
+          								item.config = {};
+          							}
+          							const currentMode = item.config.date_entry_mode;
+          							if (validModes[currentMode] !== true) {
+          								item.config.date_entry_mode = item.config.accessibility === true ? "both" : "calendar";
+          								changed++;
+          							}
+          						}
+          						if (Array.isArray(item.children)) {
+          							visit(item.children);
+          						}
+          					}
+          				};
+          				visit(items);
+          				return changed;
+          			};
                     // Calling sync continuous
                     page["datetimeconfig"][''fr''] = false;
                     page["datetimeconfig"][''en''] = false;
@@ -971,6 +1017,11 @@
                                 if((page["form"] as any)["technicalVersion"] == "1.0.21") {
                                      addButtonsOrientationNavigationSettings((page["form"] as any));
                                     (page["form"] as any)["technicalVersion"] = "1.0.22";
+                                    flag = true;
+                                }
+                                if((page["form"] as any)["technicalVersion"] == "1.0.22") {
+                                    migrateDateEntryMode((page["form"] as any).formulaire);
+                                    (page["form"] as any)["technicalVersion"] = "1.0.23";
                                     flag = true;
                                 }
                                 if(flag){

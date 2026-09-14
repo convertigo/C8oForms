@@ -11,12 +11,22 @@ scriptContent:
         		/*End_c8o_CompConstructor*/
         /*Begin_c8o_CompInitialization*/
         		this.local.value = "";
+        		this.local.manualText = "";
+        		this.local.lastModelValue = undefined;
+        		this.local.lastDisplayFormat = undefined;
+        		this.local.manualTouched = false;
         		/*End_c8o_CompInitialization*/
         /*Begin_c8o_CompFinalization*/
         		/*End_c8o_CompFinalization*/
         /*Begin_c8o_CompChanges*/
+        		this.syncDateFromModel();
         		/*End_c8o_CompChanges*/
         /*Begin_c8o_CompDoCheck*/
+        		const currentDateModelValue = this.model != null && this.model["value"] != null ? "" + this.model["value"] : "";
+        		const currentDateDisplayFormat = this.item?.config?.display_format || "DD/MM/YYYY";
+        		if (currentDateModelValue !== this.local.lastModelValue || currentDateDisplayFormat !== this.local.lastDisplayFormat) {
+        			this.syncDateFromModel();
+        		}
         		/*End_c8o_CompDoCheck*/
         /*Begin_c8o_CompAfterContentInit*/
         		/*End_c8o_CompAfterContentInit*/
@@ -27,74 +37,336 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
-        	public getInitialDateValue(){
-        		if(this.model["value"] != undefined && this.model["value"] != ""){
-        			return this.model["value"];
+        	public getDateEntryMode(): string {
+        		const configuredMode = this.item?.config?.date_entry_mode;
+        		if (configuredMode === "calendar" || configuredMode === "manual" || configuredMode === "both") {
+        			return configuredMode;
         		}
-        		return this.getTodayDateFomatted();
+        		return this.item?.config?.accessibility === true ? "both" : "calendar";
         	}
-        	showDisplayValue(val){
-        		if(val != undefined && val != "" && typeof val === "string"){
-        			let day = val.substring(8,10);
-        			let month = val.substring(5,7);
-        			let year = val.substring(0,4);
-        			switch(this.item.config.display_format){
-        				case "MM/DD/YY":
-        					return month + "/" + day + "/" + year.substring(2);
-        				break;
-        				case "DD/MM/YY":
-        					return day + "/" + month + "/" + year.substring(2);
-        				break;
-        				case "MM/DD/YYYY":
-        					return month + "/" + day + "/" + year;
-        				break;
-        				case "DD/MM/YYYY":
-        					return day + "/" + month + "/" + year
-        				break;
-        				case "YYYY/MM/DD":
-        					return year + "/" + month + "/" + day
-        				break;
-        				default:
-        					return val;
-        			}
+        
+        	public isManualDateMode(): boolean {
+        		const mode = this.getDateEntryMode();
+        		return mode === "manual" || mode === "both";
+        	}
+        
+        	public isCalendarDateMode(): boolean {
+        		const mode = this.getDateEntryMode();
+        		return mode === "calendar" || mode === "both";
+        	}
+        
+        	public getDateFieldKey(): string {
+        		const value = this.item?.id != null && this.item.id !== "" ? this.item.id : this.item?.name;
+        		return value == null ? "" : "" + value;
+        	}
+        
+        	public getDateErrorId(): string {
+        		return "date_error_" + this.getDateFieldKey().replace(/[^a-zA-Z0-9_-]/g, "_");
+        	}
+        
+        	private isGregorianDate(year: number, month: number, day: number): boolean {
+        		if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day) || year < 1 || month < 1 || month > 12 || day < 1) {
+        			return false;
         		}
-        		else{
+        		const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+        		const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        		return day <= days[month - 1];
+        	}
+        
+        	private padDatePart(value: number): string {
+        		return value < 10 ? "0" + value : "" + value;
+        	}
+        
+        	public normalizeCanonicalDate(value: any): string | null {
+        		if (value == null) {
+        			return null;
+        		}
+        		const raw = ("" + value).trim();
+        		const match = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(raw);
+        		if (match == null) {
+        			return null;
+        		}
+        		const year = Number(match[1]);
+        		const month = Number(match[2]);
+        		const day = Number(match[3]);
+        		if (!this.isGregorianDate(year, month, day)) {
+        			return null;
+        		}
+        		return match[1] + "-" + match[2] + "-" + match[3];
+        	}
+        
+        	public formatCanonicalDate(canonicalValue: any, displayFormat: string = this.item?.config?.display_format): string {
+        		const canonical = this.normalizeCanonicalDate(canonicalValue);
+        		if (canonical == null) {
         			return "";
         		}
+        		const year = canonical.substring(0, 4);
+        		const month = canonical.substring(5, 7);
+        		const day = canonical.substring(8, 10);
+        		switch (displayFormat) {
+        			case "MM/DD/YY":
+        				return month + "/" + day + "/" + year.substring(2);
+        			case "DD/MM/YY":
+        				return day + "/" + month + "/" + year.substring(2);
+        			case "MM/DD/YYYY":
+        				return month + "/" + day + "/" + year;
+        			case "YYYY/MM/DD":
+        				return year + "/" + month + "/" + day;
+        			case "DD/MM/YYYY":
+        			default:
+        				return day + "/" + month + "/" + year;
+        		}
         	}
-        	/**
-        	 * 
-        	 * @returns a date formatted like following: 2023-06-02
-        	 */
-        	public getTodayDateFomatted(){
-        		let now = new Date();
-        		let month = "" + (now.getMonth() + 1);
-        		let day = "" + now.getDate();
-        		return now.getFullYear() + "-" + (month.length < 2 ? "0" + month : month) + "-" + (day.length < 2 ? "0" + day : day);
+        
+        	public parseManualDate(input: any, displayFormat: string = this.item?.config?.display_format): string | null {
+        		if (input == null) {
+        			return null;
+        		}
+        		const raw = ("" + input).trim();
+        		const supportedFormat = ["MM/DD/YY", "DD/MM/YY", "MM/DD/YYYY", "DD/MM/YYYY", "YYYY/MM/DD"].indexOf(displayFormat) !== -1
+        			? displayFormat
+        			: "DD/MM/YYYY";
+        		const tokens = supportedFormat.split("/");
+        		const parts = raw.split("/");
+        		if (parts.length !== 3) {
+        			return null;
+        		}
+        		let year = 0;
+        		let month = 0;
+        		let day = 0;
+        		for (let index = 0; index < tokens.length; index++) {
+        			const token = tokens[index];
+        			const part = parts[index];
+        			const expectedLength = token === "YYYY" ? 4 : 2;
+        			if (part.length !== expectedLength || !/^\d+$/.test(part)) {
+        				return null;
+        			}
+        			const numericValue = Number(part);
+        			if (token === "YYYY") {
+        				year = numericValue;
+        			}
+        			else if (token === "YY") {
+        				year = numericValue <= 68 ? 2000 + numericValue : 1900 + numericValue;
+        			}
+        			else if (token === "MM") {
+        				month = numericValue;
+        			}
+        			else if (token === "DD") {
+        				day = numericValue;
+        			}
+        		}
+        		if (!this.isGregorianDate(year, month, day)) {
+        			return null;
+        		}
+        		return ("" + year).padStart(4, "0") + "-" + this.padDatePart(month) + "-" + this.padDatePart(day);
+        	}
+        
+        	public getTodayDateFomatted(): string {
+        		const now = new Date();
+        		return now.getFullYear() + "-" + this.padDatePart(now.getMonth() + 1) + "-" + this.padDatePart(now.getDate());
+        	}
+        
+        	public validateCanonicalDate(canonicalValue: any, config: any = this.item?.config): string {
+        		const canonical = this.normalizeCanonicalDate(canonicalValue);
+        		if (canonical == null) {
+        			return "invalid_date";
+        		}
+        		const effectiveConfig = config || {};
+        		const configuredMin = this.normalizeCanonicalDate(effectiveConfig.min_datetime);
+        		const configuredMax = this.normalizeCanonicalDate(effectiveConfig.max_datetime);
+        		const effectiveMin = effectiveConfig.date_less_than_today === true ? this.getTodayDateFomatted() : configuredMin;
+        		const effectiveMax = effectiveConfig.date_more_than_today === true ? this.getTodayDateFomatted() : configuredMax;
+        		if (effectiveMin != null && canonical < effectiveMin) {
+        			return "date_before_min";
+        		}
+        		if (effectiveMax != null && canonical > effectiveMax) {
+        			return "date_after_max";
+        		}
+        		return "";
+        	}
+        
+        	private getDateValidationStore(): any {
+        		if (this.global.__c8oDateValidationErrors == null || typeof this.global.__c8oDateValidationErrors !== "object") {
+        			this.global.__c8oDateValidationErrors = {};
+        		}
+        		return this.global.__c8oDateValidationErrors;
+        	}
+        
+        	public setDateValidationError(errorKey: string): void {
+        		const fieldKey = this.getDateFieldKey();
+        		const store = this.getDateValidationStore();
+        		if (fieldKey !== "") {
+        			if (errorKey === "") {
+        				delete store[fieldKey];
+        			}
+        			else {
+        				store[fieldKey] = errorKey;
+        			}
+        		}
+        		this.updateMandatoryState(errorKey !== "");
+        	}
+        
+        	public getDateValidationError(): string {
+        		const fieldKey = this.getDateFieldKey();
+        		if (fieldKey === "") {
+        			return "";
+        		}
+        		const value = this.getDateValidationStore()[fieldKey];
+        		return value === "invalid_date" || value === "date_before_min" || value === "date_after_max" ? value : "";
+        	}
+        
+        	public getDateErrorKey(): string {
+        		const validationError = this.getDateValidationError();
+        		if (validationError !== "") {
+        			return validationError;
+        		}
+        		if (this.redList != null && this.item?.name != null && this.redList[this.item.name] === true) {
+        			return "repMandartory";
+        		}
+        		return "";
+        	}
+        
+        	public hasDateError(): boolean {
+        		return this.getDateErrorKey() !== "";
+        	}
+        
+        	public updateMandatoryState(hasDateValidationError: boolean = false): void {
+        		if (this.redList == null || this.item?.name == null) {
+        			return;
+        		}
+        		const empty = this.model == null || this.model["value"] == null || this.model["value"] === "";
+        		this.redList[this.item.name] = hasDateValidationError || (this.item?.config?.mandatory === true && empty);
+        	}
+        
+        	public commitDate(canonicalValue: any): any {
+        		const canonical = this.normalizeCanonicalDate(canonicalValue);
+        		const previousValue = this.model != null && this.model["value"] != null ? "" + this.model["value"] : "";
+        		if (canonical == null) {
+        			if (this.model != null) {
+        				this.model["value"] = "";
+        			}
+        			this.local.value = "";
+        			this.local.lastModelValue = "";
+        			this.setDateValidationError("invalid_date");
+        			this.pageOwner?.ref?.detectChanges();
+        			return { notify: previousValue !== "", committed: false };
+        		}
+        		const validationError = this.validateCanonicalDate(canonical, this.item?.config);
+        		if (validationError !== "") {
+        			if (this.model != null) {
+        				this.model["value"] = "";
+        			}
+        			this.local.value = canonical;
+        			this.local.lastModelValue = "";
+        			this.setDateValidationError(validationError);
+        			this.pageOwner?.ref?.detectChanges();
+        			return { notify: previousValue !== "", committed: false };
+        		}
+        		if (this.model != null) {
+        			this.model["value"] = canonical;
+        		}
+        		this.local.value = canonical;
+        		this.local.manualText = this.formatCanonicalDate(canonical, this.item?.config?.display_format);
+        		this.local.lastModelValue = canonical;
+        		this.local.lastDisplayFormat = this.item?.config?.display_format || "DD/MM/YYYY";
+        		this.local.manualTouched = false;
+        		this.setDateValidationError("");
+        		this.pageOwner?.ref?.detectChanges();
+        		return { notify: previousValue !== canonical, committed: true };
+        	}
+        
+        	public handleManualDateChange(input: any): any {
+        		const raw = input == null ? "" : "" + input;
+        		const previousValue = this.model != null && this.model["value"] != null ? "" + this.model["value"] : "";
+        		this.local.manualText = raw;
+        		this.local.manualTouched = true;
+        		if (raw.trim() === "") {
+        			if (this.model != null) {
+        				this.model["value"] = "";
+        			}
+        			this.local.value = "";
+        			this.local.lastModelValue = "";
+        			this.setDateValidationError("");
+        			this.pageOwner?.ref?.detectChanges();
+        			return { notify: previousValue !== "", committed: true };
+        		}
+        		const canonical = this.parseManualDate(raw, this.item?.config?.display_format);
+        		if (canonical == null) {
+        			if (this.model != null) {
+        				this.model["value"] = "";
+        			}
+        			this.local.value = "";
+        			this.local.lastModelValue = "";
+        			this.setDateValidationError("invalid_date");
+        			this.pageOwner?.ref?.detectChanges();
+        			return { notify: previousValue !== "", committed: false };
+        		}
+        		return this.commitDate(canonical);
+        	}
+        
+        	public syncDateFromModel(): void {
+        		if (this.model == null || this.item == null) {
+        			return;
+        		}
+        		const rawValue = this.model["value"] == null ? "" : "" + this.model["value"];
+        		const displayFormat = this.item?.config?.display_format || "DD/MM/YYYY";
+        		if (rawValue.trim() === "") {
+        			this.local.value = "";
+        			this.local.manualText = "";
+        			this.local.lastModelValue = "";
+        			this.local.lastDisplayFormat = displayFormat;
+        			this.setDateValidationError("");
+        			return;
+        		}
+        		const canonical = this.normalizeCanonicalDate(rawValue);
+        		if (canonical == null) {
+        			this.local.manualText = rawValue;
+        			this.model["value"] = "";
+        			this.local.value = "";
+        			this.local.lastModelValue = "";
+        			this.local.lastDisplayFormat = displayFormat;
+        			this.setDateValidationError("invalid_date");
+        			return;
+        		}
+        		this.model["value"] = canonical;
+        		this.local.value = canonical;
+        		this.local.manualText = this.formatCanonicalDate(canonical, displayFormat);
+        		this.local.lastModelValue = canonical;
+        		this.local.lastDisplayFormat = displayFormat;
+        		this.setDateValidationError(this.validateCanonicalDate(canonical, this.item?.config));
+        	}
+        
+        	public getInitialDateValue(): string {
+        		const canonical = this.normalizeCanonicalDate(this.model != null ? this.model["value"] : null);
+        		return canonical != null ? canonical : this.getTodayDateFomatted();
+        	}
+        
+        	public showDisplayValue(value: any): string {
+        		return this.formatCanonicalDate(value, this.item?.config?.display_format);
         	}
         	/*End_c8o_CompFunction*/
         '
-↓item [ngx.components.UICompVariable-1570455198495]: 
+↓item [ngx.components.UICompVariable-1789377726064]: 
   value: 
-↓model [ngx.components.UICompVariable-1570479019589]: 
+↓model [ngx.components.UICompVariable-1789377734060]: 
   comment: this.formsSubmit[item['name']]
   value: '{}'
-↓redList [ngx.components.UICompVariable-1570484666649]: 
+↓redList [ngx.components.UICompVariable-1789377740478]: 
   comment: this.redList[item['name']]
   value: null
-↓disabled [ngx.components.UICompVariable-1571135284173]: 
+↓disabled [ngx.components.UICompVariable-1789377746699]: 
   comment: this.formsSubmit[item['name']]
   value: false
-↓Tag [ngx.components.UIElement-1663834523971]: 
+↓Tag [ngx.components.UIElement-1789377754476]: 
   tagName: fieldset
-  ↓Tag1 [ngx.components.UIElement-1663834523974]: 
+  ↓Tag1 [ngx.components.UIElement-1789377756890]: 
     tagName: legend
-    ↓Text [ngx.components.UIText-1663834523977]: 
+    ↓Text [ngx.components.UIText-1789377756892]: 
       textValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
           - MobileSmartSourceType: script:this.pageOwner.removeHTML(this.item.config.html)
-  ↓Popover [ngx.components.UIDynamicElement-1657210118750]: 
+  ↓Popover [ngx.components.UIDynamicElement-1789377756894]: 
     beanData: |
       '{
        "ionBean": "InlinePopover",
@@ -103,7 +375,7 @@ scriptContent:
        "Trigger": "script:''date_'' + this.item.name"
       }'
     tagName: ion-popover
-    ↓DateTime1 [ngx.components.UIDynamicElement-1570476475379]: 
+    ↓DateTime1 [ngx.components.UIDynamicElement-1789377759286]: 
       beanData: |
         '{
          "ionBean": "DateTime",
@@ -117,48 +389,44 @@ scriptContent:
          "Size": "plain:cover"
         }'
       tagName: ion-datetime
-      ↓Attr [ngx.components.UIAttribute-1570476475382]: 
+      ↓Attr [ngx.components.UIAttribute-1789377759288]: 
         attrName: '[ngModel]'
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: script:this.local.value
-      ↓Attr4 [ngx.components.UIAttribute-1570476475394]: 
+      ↓Attr4 [ngx.components.UIAttribute-1789377759290]: 
         attrName: '[max]'
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: 'script:this.item.config.date_more_than_today == true ? this.getTodayDateFomatted() :  this.item.config.max_datetime'
-      ↓Attr5 [ngx.components.UIAttribute-1570476475397]: 
+      ↓Attr5 [ngx.components.UIAttribute-1789377759292]: 
         attrName: '[min]'
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: 'script:this.item.config.date_less_than_today == true ? this.getTodayDateFomatted() : this.item.config.min_datetime'
-      ↓Event [ngx.components.UIControlEvent-1570476475406]: 
+      ↓Event [ngx.components.UIControlEvent-1789377759294]: 
         attrName: (ionChange)
         eventName: (ionChange)
-        ↓AffectTempValue [ngx.components.UICustomAction-1570476475409]: 
+        ↓AffectTempValue [ngx.components.UICustomAction-1789377760092]: 
           actionValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  		if(event.detail.value != undefined){
-                    			page.local["value"] = event.detail.value.substring(0, 10)
-                    		}
-                    		else{
-                    			page.local["value"] = "";
-                    		}
+                  '		const value = event?.detail?.value;
+                  		page.local.value = value != null ? (page.normalizeCanonicalDate(value) || "") : "";
                   		resolve();
-                  
-      ↓Attr6 [ngx.components.UIAttribute-1571411405243]: 
+                  '
+      ↓Attr6 [ngx.components.UIAttribute-1789377760094]: 
         attrName: '[disabled]'
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: script:this.disabled
-    ↓Style [ngx.components.UIStyle-1658739701126]: 
+    ↓Style [ngx.components.UIStyle-1789377760096]: 
       styleContent: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -195,111 +463,98 @@ scriptContent:
               		max-height: 90vh !important;
               	}
               '
-    ↓Event [ngx.components.UIControlEvent-1760346630658]: 
+    ↓Event [ngx.components.UIControlEvent-1789377760098]: 
       attrName: (ionPopoverWillPresent)
       eventName: (ionPopoverWillPresent)
-      ↓setValue [ngx.components.UICustomAsyncAction-1760346642187]: 
+      ↓setValue [ngx.components.UICustomAsyncAction-1789377760100]: 
         actionValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
                 		try {
-                			page.local.value = "" + page.getInitialDateValue();
+                			page.syncDateFromModel();
+                			page.local.value = page.getInitialDateValue();
                 		} catch (e) {
-                		
                 		} finally {
                 			return;
                 		}
                 
-    ↓Event1 [ngx.components.UIControlEvent-1760348269304]: 
+    ↓Event1 [ngx.components.UIControlEvent-1789377760102]: 
       attrName: (ionPopoverWillDismiss)
       eventName: (ionPopoverWillDismiss)
-      ↓saveValue [ngx.components.UICustomAsyncAction-1760348269307]: 
+      ↓saveValue [ngx.components.UICustomAsyncAction-1789377760104]: 
         actionValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
             - com.twinsoft.convertigo.beans.common.FormatedContent: 
               →: |
-                		try {
-                			if(event.detail.role == "datetime-confirm"){
-                				if(page.local["value"] != undefined){
-                		  			page.model["value"] = page.local["value"].substring(0, 10)
-                		  		}
-                		  		else{
-                		  			page.model["value"] = "";
-                		  		}
+                '		try {
+                			if (event?.detail?.role === "datetime-confirm") {
+                				return page.commitDate(page.local.value);
                 			}
-                			if(page.item.config.mandatory == true){
-                	  		    if(page.model["value"] != "" && page.model["value"] != undefined){
-                	  		        page.redList[page.item.name] = false;
-                	  		    }
-                				else{
-                					page.redList[page.item.name] = true;
-                				}
-                	  		}
+                			page.updateMandatoryState(page.getDateValidationError() !== "");
+                			page.pageOwner?.ref?.detectChanges();
+                			return { notify: false, committed: false };
                 		} catch (e) {
-                		
-                		} finally {
-                			page.pageOwner.ref.detectChanges();	
-                			return;
+                			return { notify: false, committed: false };
                 		}
-                
-        ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1760348775476]: 
+                '
+        ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1789377760914]: 
           beanData: '{"ionBean":"InvokeAction"}'
           stack: C8Oforms.MobileApplication.Application.executeGoToPageIfCondition
-          ↓item [ngx.components.UIControlVariable-1760348775479]: 
+          ↓item [ngx.components.UIControlVariable-1789377761724]: 
             varValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.item
-          ↓line [ngx.components.UIControlVariable-1760348775482]: 
+          ↓line [ngx.components.UIControlVariable-1789377761726]: 
             varValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:null
-          ↓child [ngx.components.UIControlVariable-1760348775485]: 
+          ↓child [ngx.components.UIControlVariable-1789377761728]: 
             varValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:null
-          ↓canExec [ngx.components.UIControlVariable-1760348775488]: 
+          ↓canExec [ngx.components.UIControlVariable-1789377761730]: 
             varValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:true
-        ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1760348775491]: 
+        ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1789377761732]: 
           beanData: '{"ionBean":"InvokeAction"}'
           stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
-          ↓item [ngx.components.UIControlVariable-1760348775494]: 
+          ↓item [ngx.components.UIControlVariable-1789377761734]: 
             varValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.item
-  ↓Div [ngx.components.UIDynamicElement-1570476475337]: 
+  ↓Div [ngx.components.UIDynamicElement-1789377761736]: 
     beanData: '{"ionBean":"DivTag"}'
     identifier: divtext
     tagName: div
-    ↓UseSharedComponent [ngx.components.UIUseShared-1573676385661]: 
+    ↓UseSharedComponent [ngx.components.UIUseShared-1789377761738]: 
       sharedcomponent: C8Oforms.MobileApplication.Application.sharedLabelElem
-      ↓item [ngx.components.UIUseVariable-1573676385664]: 
+      ↓item [ngx.components.UIUseVariable-1789377764166]: 
         varValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
             - MobileSmartSourceType: script:this.item
-    ↓Attr11 [ngx.components.UIAttribute-1570476475445]: 
+    ↓Attr11 [ngx.components.UIAttribute-1789377764168]: 
       attrName: '[attr.id]'
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
           - MobileSmartSourceType: script:this.item.name
-    ↓Attr [ngx.components.UIAttribute-1571409409602]: 
+    ↓Attr [ngx.components.UIAttribute-1789377764170]: 
       attrName: '[ngClass]'
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
           - MobileSmartSourceType: 'script:this.redList != undefined ?  this.redList[this.item.name] == true ? (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryvpadding'', ''styledivred''] : ''styledivred'': (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryv'', ''styledivnormal''] : ''styledivnormal'': (this.item.config.mandatory && this.item.config.disabled == true) ? [''requiredgregoryv'', ''styledivnormal''] : ''styledivnormal'''
-    ↓Style [ngx.components.UIStyle-1574866425457]: 
+    ↓Style [ngx.components.UIStyle-1789377764172]: 
       styleContent: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -307,81 +562,75 @@ scriptContent:
             →: |
               position:relative;
               
-    ↓Directive [ngx.components.UIControlDirective-1662651166867]: 
+    ↓Directive [ngx.components.UIControlDirective-1789377764174]: 
       directiveName: If
       directiveSource: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: script:this.item.config.accessibility else ElseBlock_1662651178918
-      ↓GenericItem1 [ngx.components.UIDynamicElement-1662651258106]: 
+          - MobileSmartSourceType: script:this.isManualDateMode() else ElseBlock_1662651178918
+      ↓GenericItem1 [ngx.components.UIDynamicElement-1789377766566]: 
         beanData: '{"ionBean":"GenericItem","Lines":"plain:inset"}'
-        isEnabled: false
         tagName: ion-item
-        ↓AttrBoxPartStyle [ngx.components.UIAttribute-1782294300010]: 
+        ↓AttrBoxPartStyle [ngx.components.UIAttribute-1789377766568]: 
           attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: 'script:this.pageOwner?.getViewerItemPartBoxStyle != null ? this.pageOwner.getViewerItemPartBoxStyle(this.item, ''component'') : {}'
-        ↓Attr [ngx.components.UIAttribute-1662651258109]: 
+        ↓Attr [ngx.components.UIAttribute-1789377766570]: 
           attrName: 
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: plain:no-lines
-        ↓Attr1 [ngx.components.UIAttribute-1662651258112]: 
+        ↓Attr1 [ngx.components.UIAttribute-1789377766572]: 
           attrName: '[class.item-label-stacked]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: script:true
-        ↓Style [ngx.components.UIStyle-1662651258115]: 
+        ↓Style [ngx.components.UIStyle-1789377766574]: 
           styleContent: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  '	&:hover{
-                  		cursor:pointer;
-                  	}
-                  	ion-input:hover{
-                  		cursor:pointer;
-                  	}
-                  background-color: transparent;
+                  'background-color: transparent;
                   	.label{
                   		opacity:1 !important;
                   	}
-                  	.datetime{
-                  		opacity:1 !important;
+                  	ion-input{
+                  		cursor:text;
                   	}
-                  	.class1570476475379 {
-                  		opacity:1 !important;
+                  	ion-input:focus-within{
+                  		outline:2px solid var(--ion-color-primary);
+                  		outline-offset:2px;
                   	}
                   '
-        ↓Attr21 [ngx.components.UIAttribute-1662651258118]: 
+        ↓Attr21 [ngx.components.UIAttribute-1789377766576]: 
           attrName: '[ngClass]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: 'script:this.redList ? ''stylegenerictextred'': ''stylegenerictextnormal'''
-        ↓TextInput [ngx.components.UIDynamicElement-1662651258121]: 
+              - MobileSmartSourceType: 'script:this.hasDateError() ? ''stylegenerictextred'' : ''stylegenerictextnormal'''
+        ↓TextInput [ngx.components.UIDynamicElement-1789377766578]: 
           beanData: |
             '{
              "ionBean": "Input",
              "ControlName": "plain:name1657206422909",
+             "ClearInput": "plain:true",
              "Debounce": "plain:0",
-             "Type": "plain:date",
+             "InputMode": "plain:numeric",
              "Value": "plain"
             }'
           tagName: ion-input
-          ↓Attr [ngx.components.UIAttribute-1662651258124]: 
+          ↓Attr [ngx.components.UIAttribute-1789377766580]: 
             attrName: '[(ngModel)]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: script:this.model['value']
-            isEnabled: false
-          ↓Style [ngx.components.UIStyle-1662651258127]: 
+                - MobileSmartSourceType: script:this.local.manualText
+          ↓Style [ngx.components.UIStyle-1789377766582]: 
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -406,60 +655,238 @@ scriptContent:
                     //--placeholder-font-style	//Font style of the input placeholder text
                     //--placeholder-font-weight	//Font weight of the input placeholder text
                     //--placeholder-opacity	//Opacity of the input placeholder text
-                    max-width: 120px !important;
+                    //max-width: 180px !important;
+                    width: 100%;
+                    height: 100% !important;
                     &:hover{
                     	cursor:pointer;
                     }
                     '
-          ↓Attr3 [ngx.components.UIAttribute-1662651258130]: 
+          ↓Attr3 [ngx.components.UIAttribute-1789377766584]: 
             attrName: '[attr.aria-label]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.pageOwner.removeHTML(this.item.config.html)
-      ↓UseSharedComponent [ngx.components.UIUseShared-1662976050304]: 
+          ↓AttrManualId [ngx.components.UIAttribute-1789377766586]: 
+            attrName: '[attr.id]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.item.name
+          ↓AttrManualClass [ngx.components.UIAttribute-1789377766588]: 
+            attrName: class
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: plain:form-input--small
+          ↓AttrAriaInvalid [ngx.components.UIAttribute-1789377766590]: 
+            attrName: '[attr.aria-invalid]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.hasDateError()
+          ↓AttrAriaDescribedBy [ngx.components.UIAttribute-1789377766592]: 
+            attrName: '[attr.aria-describedby]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: 'script:this.hasDateError() ? this.getDateErrorId() : null'
+          ↓ManualChange [ngx.components.UIControlEvent-1789377766594]: 
+            attrName: (ionChange)
+            eventName: (ionChange)
+            ↓CommitManualDate [ngx.components.UICustomAsyncAction-1789377766596]: 
+              actionValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '		try {
+                      			const value = event?.detail?.value != null ? event.detail.value : page.local.manualText;
+                      			return page.handleManualDateChange(value);
+                      		} catch (e) {
+                      			return { notify: false, committed: false };
+                      		}
+                      '
+              ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1789377766598]: 
+                beanData: '{"ionBean":"InvokeAction"}'
+                stack: C8Oforms.MobileApplication.Application.executeGoToPageIfCondition
+                ↓item [ngx.components.UIControlVariable-1789377766600]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.item
+                ↓line [ngx.components.UIControlVariable-1789377766602]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:null
+                ↓child [ngx.components.UIControlVariable-1789377766604]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:null
+                ↓canExec [ngx.components.UIControlVariable-1789377766606]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:true
+              ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1789377766608]: 
+                beanData: '{"ionBean":"InvokeAction"}'
+                stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
+                ↓item [ngx.components.UIControlVariable-1789377766610]: 
+                  varValue: 
+                    - xmlizable: 
+                      - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                      - MobileSmartSourceType: script:this.item
+          ↓AttrDisabled [ngx.components.UIAttribute-1789378008647]: 
+            attrName: '[disabled]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.disabled
+        ↓CalendarButtonDirective [ngx.components.UIControlDirective-1789377766612]: 
+          directiveName: If
+          directiveSource: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.getDateEntryMode() === 'both'
+          ↓CalendarButton [ngx.components.UIDynamicElement-1789377766614]: 
+            beanData: |
+              '{
+               "ionBean": "Button",
+               "IonFill": "plain:clear",
+               "IonSize": "plain:default",
+               "IconSlot": "plain:end"
+              }'
+            tagName: ion-button
+            ↓Event [ngx.components.UIControlEvent-1789377766616]: 
+            ↓Icon [ngx.components.UIDynamicElement-1789377766618]: 
+              beanData: |
+                '{
+                 "ionBean": "Icon",
+                 "IonColor": "plain:primary",
+                 "IconName": "plain:calendar-outline",
+                 "IconSlot": "plain:icon-only"
+                }'
+              tagName: ion-icon
+              ↓Attr3 [ngx.components.UIAttribute-1789377766620]: 
+                attrName: '[attr.aria-label]'
+                attrValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.translate.instant('aria-button-calendar')
+            ↓FormatLayout [ngx.components.UIDynamicAttr-1789377766622]: 
+              beanData: '{"ionBean":"FormatLayout","FlexItemAlignment":"plain:ion-align-self-center"}'
+              selfClose: false
+            ↓Attr3 [ngx.components.UIAttribute-1789377766624]: 
+              attrName: '[attr.aria-label]'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.translate.instant('aria-button-calendar')
+            ↓Style [ngx.components.UIStyle-1789377766626]: 
+              styleContent: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+                  - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                    →: |
+                      '/**
+                       * Custom properties (sometimes referred to as CSS variables or cascading variables)
+                       * are entities defined by CSS authors that contain specific values to be reused throughout a document.
+                       * They are set using custom property notation, e.g.: --main-color: black;
+                       * and are accessed using the var() function, e.g.: color: var(--main-color);
+                       * You can find below your component''s properties you can customize within the page.
+                       * If you''d like to make some customizations for whole app, please see your app Style & Theme components.
+                       * For more informations see https://ionicframework.com/docs/theming.
+                      **/
+                      //--background	//Background of the button
+                      //--background-activated	//Background of the button when pressed. Note: setting this will interfere with the Material Design ripple
+                      //--background-activated-opacity	//Opacity of the button when pressed
+                      //--background-focused	//Background of the button when focused with the tab key
+                      //--background-focused-opacity	//Opacity of the button when focused with the tab key
+                      //--background-hover	//Background of the button on hover
+                      //--background-hover-opacity	//Opacity of the background on hover
+                      //--border-color	//Border color of the button
+                      //--border-radius	//Border radius of the button
+                      //--border-style	//Border style of the button
+                      //--border-width	//Border width of the button
+                      //--box-shadow	//Box shadow of the button
+                      --color: var(--ion-color-convertigo);	//Text color of the button
+                      //--color-activated	//Text color of the button when pressed
+                      //--color-focused	//Text color of the button when focused with the tab key
+                      //--color-hover	//Text color of the button when hover
+                      //--opacity	//Opacity of the button
+                      //--padding-bottom	//Bottom padding of the button
+                      //--padding-end	//Right padding if direction is left-to-right, and left padding if direction is right-to-left of the button
+                      //--padding-start	//Left padding if direction is left-to-right, and right padding if direction is right-to-left of the button
+                      //--padding-top	//Top padding of the button
+                      //--ripple-color	//Color of the button ripple effect
+                      //--transition	//Transition of the button
+                      margin: 0px;
+                      '
+            ↓Attr [ngx.components.UIAttribute-1789377766628]: 
+              attrName: '[attr.id]'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:'date_' + this.item.name
+            ↓Attr1 [ngx.components.UIAttribute-1789377766630]: 
+              attrName: class
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: plain:initial
+            ↓AttrDisabled [ngx.components.UIAttribute-1789378011039]: 
+              attrName: '[disabled]'
+              attrValue: 
+                - xmlizable: 
+                  - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                  - MobileSmartSourceType: script:this.disabled
+      ↓UseSharedComponent [ngx.components.UIUseShared-1789377766632]: 
+        isEnabled: false
         sharedcomponent: lib_ExtendedComponents_ui_ngx.MobileApplication.Application.materialDatePicker
-        ↓model [ngx.components.UIUseVariable-1662976150867]: 
+        ↓model [ngx.components.UIUseVariable-1789377766634]: 
           binding: twoWayBinding
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: script:this.model['value']
-        ↓inputAriaLabel [ngx.components.UIUseVariable-1662983286225]: 
+        ↓inputAriaLabel [ngx.components.UIUseVariable-1789377766636]: 
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: script:this.pageOwner.removeHTML(this.item.config.html)
-        ↓buttonAriaLabel [ngx.components.UIUseVariable-1662983286227]: 
+        ↓buttonAriaLabel [ngx.components.UIUseVariable-1789377766638]: 
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: script:this.translate.instant('aria-button-calendar')
-    ↓Tag [ngx.components.UIElement-1662651178918]: 
+    ↓Tag [ngx.components.UIElement-1789377766640]: 
       identifier: ElseBlock_1662651178918
       tagName: ng-template
-      ↓GenericItem1 [ngx.components.UIDynamicElement-1570476475340]: 
+      ↓GenericItem1 [ngx.components.UIDynamicElement-1789377766642]: 
         beanData: '{"ionBean":"GenericItem","Lines":"plain:none"}'
         tagName: ion-item
-        ↓AttrBoxPartStyle [ngx.components.UIAttribute-1782294300011]: 
+        ↓AttrBoxPartStyle [ngx.components.UIAttribute-1789377766644]: 
           attrName: '[ngStyle]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: 'script:this.pageOwner?.getViewerItemPartBoxStyle != null ? this.pageOwner.getViewerItemPartBoxStyle(this.item, ''component'') : {}'
-        ↓Attr [ngx.components.UIAttribute-1570476475370]: 
+        ↓Attr [ngx.components.UIAttribute-1789377766646]: 
           attrName: 
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: plain:no-lines
-        ↓Attr1 [ngx.components.UIAttribute-1570476475373]: 
+        ↓Attr1 [ngx.components.UIAttribute-1789377766648]: 
           attrName: '[class.item-label-stacked]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: script:true
-        ↓Style [ngx.components.UIStyle-1570476475376]: 
+        ↓Style [ngx.components.UIStyle-1789377766650]: 
           styleContent: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -482,13 +909,13 @@ scriptContent:
                   		opacity:1 !important;
                   	}
                   '
-        ↓Attr21 [ngx.components.UIAttribute-1570476475430]: 
+        ↓Attr21 [ngx.components.UIAttribute-1789377766652]: 
           attrName: '[ngClass]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: 'script:this.redList ? ''stylegenerictextred'': ''stylegenerictextnormal'''
-        ↓Button [ngx.components.UIDynamicElement-1657209963437]: 
+              - MobileSmartSourceType: 'script:this.hasDateError() ? ''stylegenerictextred'' : ''stylegenerictextnormal'''
+        ↓Button [ngx.components.UIDynamicElement-1789377766654]: 
           beanData: |
             '{
              "ionBean": "Button",
@@ -497,8 +924,8 @@ scriptContent:
              "IconSlot": "plain:end"
             }'
           tagName: ion-button
-          ↓Event [ngx.components.UIControlEvent-1657209963443]: 
-          ↓Icon [ngx.components.UIDynamicElement-1657206781396]: 
+          ↓Event [ngx.components.UIControlEvent-1789377766656]: 
+          ↓Icon [ngx.components.UIDynamicElement-1789377766658]: 
             beanData: |
               '{
                "ionBean": "Icon",
@@ -507,22 +934,22 @@ scriptContent:
                "IconSlot": "plain:icon-only"
               }'
             tagName: ion-icon
-            ↓Attr3 [ngx.components.UIAttribute-1662650712187]: 
+            ↓Attr3 [ngx.components.UIAttribute-1789377766660]: 
               attrName: '[attr.aria-label]'
               attrValue: 
                 - xmlizable: 
                   - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                   - MobileSmartSourceType: script:this.translate.instant('aria-button-calendar')
-          ↓FormatLayout [ngx.components.UIDynamicAttr-1657209915528]: 
+          ↓FormatLayout [ngx.components.UIDynamicAttr-1789377766662]: 
             beanData: '{"ionBean":"FormatLayout","FlexItemAlignment":"plain:ion-align-self-center"}'
             selfClose: false
-          ↓Attr3 [ngx.components.UIAttribute-1662650609288]: 
+          ↓Attr3 [ngx.components.UIAttribute-1789377766664]: 
             attrName: '[attr.aria-label]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.translate.instant('aria-button-calendar')
-          ↓Style [ngx.components.UIStyle-1663765244293]: 
+          ↓Style [ngx.components.UIStyle-1789377766666]: 
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -562,19 +989,25 @@ scriptContent:
                     //--transition	//Transition of the button
                     margin: 0px;
                     '
-          ↓Attr [ngx.components.UIAttribute-1663834749323]: 
+          ↓Attr [ngx.components.UIAttribute-1789377766668]: 
             attrName: '[attr.for]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.item.name
-          ↓Attr1 [ngx.components.UIAttribute-1773420550268]: 
+          ↓Attr1 [ngx.components.UIAttribute-1789377766670]: 
             attrName: class
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:initial
-        ↓TextInput [ngx.components.UIDynamicElement-1657206422909]: 
+          ↓AttrDisabled [ngx.components.UIAttribute-1789378013431]: 
+            attrName: '[disabled]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.disabled
+        ↓TextInput [ngx.components.UIDynamicElement-1789377766672]: 
           beanData: |
             '{
              "ionBean": "Input",
@@ -585,13 +1018,13 @@ scriptContent:
              "Type": "plain"
             }'
           tagName: ion-input
-          ↓Attr [ngx.components.UIAttribute-1657206422912]: 
+          ↓Attr [ngx.components.UIAttribute-1789377766674]: 
             attrName: '[ngModel]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.showDisplayValue(this.model['value'])
-          ↓Style [ngx.components.UIStyle-1657206907875]: 
+          ↓Style [ngx.components.UIStyle-1789377766676]: 
             styleContent: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
@@ -621,58 +1054,88 @@ scriptContent:
                     	cursor:pointer;
                     }
                     '
-          ↓Attr3 [ngx.components.UIAttribute-1662649709634]: 
+          ↓Attr3 [ngx.components.UIAttribute-1789377766678]: 
             attrName: '[attr.aria-label]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.pageOwner.removeHTML(this.item.config.html)
-          ↓Attr4 [ngx.components.UIAttribute-1662649936741]: 
+          ↓Attr4 [ngx.components.UIAttribute-1789377766680]: 
             attrName: '[attr.aria-readonly]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:true
-          ↓Attr1 [ngx.components.UIAttribute-1663834722183]: 
+          ↓Attr1 [ngx.components.UIAttribute-1789377766682]: 
             attrName: '[attr.id]'
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: script:this.item.name
-          ↓Attr2 [ngx.components.UIAttribute-1775201729088]: 
+          ↓Attr2 [ngx.components.UIAttribute-1789377766684]: 
             attrName: class
             attrValue: 
               - xmlizable: 
                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                 - MobileSmartSourceType: plain:form-input--small
-        ↓Attr2 [ngx.components.UIAttribute-1658743969605]: 
+          ↓AttrAriaInvalid [ngx.components.UIAttribute-1789377766686]: 
+            attrName: '[attr.aria-invalid]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: script:this.hasDateError()
+          ↓AttrAriaDescribedBy [ngx.components.UIAttribute-1789377766688]: 
+            attrName: '[attr.aria-describedby]'
+            attrValue: 
+              - xmlizable: 
+                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                - MobileSmartSourceType: 'script:this.hasDateError() ? this.getDateErrorId() : null'
+        ↓Attr2 [ngx.components.UIAttribute-1789377766690]: 
           attrName: '[id]'
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: 'script:''date_'' + (this.disabled ? '''' : this.item.name)'
-        ↓Attr5 [ngx.components.UIAttribute-1662650023785]: 
+        ↓Attr5 [ngx.components.UIAttribute-1789377766692]: 
           attrName: role
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: plain:button
-        ↓Attr3 [ngx.components.UIAttribute-1775201690793]: 
+        ↓Attr3 [ngx.components.UIAttribute-1789377766694]: 
           attrName: class
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
               - MobileSmartSourceType: plain:form-item--small
-    ↓Directive2 [ngx.components.UIControlDirective-1658849888063]: 
+    ↓Directive2 [ngx.components.UIControlDirective-1789377766696]: 
       directiveName: If
       directiveSource: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: 'script:this.redList != null ? this.redList[this.item.name] : false'
-      ↓UseSharedComponent [ngx.components.UIUseShared-1658849888066]: 
+          - MobileSmartSourceType: script:this.hasDateError()
+      ↓UseSharedComponent [ngx.components.UIUseShared-1789377766698]: 
         sharedcomponent: C8Oforms.MobileApplication.Application.labelFieldMustBeFilled
-        ↓text [ngx.components.UIUseVariable-1658849888069]: 
+        ↓text [ngx.components.UIUseVariable-1789377766700]: 
           varValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:'repMandartory'
+              - MobileSmartSourceType: script:this.getDateErrorKey()
+        ↓AttrErrorId [ngx.components.UIAttribute-1789377766702]: 
+          attrName: '[attr.id]'
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: script:this.getDateErrorId()
+        ↓AttrErrorRole [ngx.components.UIAttribute-1789377766704]: 
+          attrName: role
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:alert
+        ↓AttrErrorLive [ngx.components.UIAttribute-1789377766706]: 
+          attrName: aria-live
+          attrValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+              - MobileSmartSourceType: plain:polite
