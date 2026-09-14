@@ -1,0 +1,1195 @@
+accessibility: Private
+authenticatedContextRequired: true
+comment: Central immutable application-history engine. Owns the restorable-field allowlist, snapshot creation, listing, attachment capture, restore validation and optimistic concurrency.
+↓HistoryCore [steps.SimpleStep-1789390593592]: 
+  expression: |
+    'include("js/common.js");
+    
+    var HISTORY_DB = "c8oforms_fs";
+    var HISTORY_DDOC = "application_history";
+    var HISTORY_VIEW = "byApplicationAndCreatedAt";
+    var HISTORY_MARKER = "c8o_view_type_application_history";
+    var HISTORY_ACL = "_C8O_HIDDEN_application_history";
+    var RESTORABLE_FIELDS = [
+      "name", "descform", "formulaire", "pages", "flows", "actions", "config",
+      "navigation", "globalNavigationEnabled", "wallpaper", "thumbnail",
+      "loopToForm", "progressIndicator", "namePosition", "descformPosition",
+      "respNameRequired", "tag", "subTag", "chatSummary", "technicalVersion"
+    ];
+    var ALLOWED_ORIGINS = {
+      baseline: true,
+      save: true,
+      publish: true,
+      restore_backup: true,
+      restore: true,
+      import: true
+    };
+    
+    var IMPORT_FORMAT = "c8oforms-application";
+    var IMPORT_FORMAT_VERSION = 1;
+    var SUPPORTED_TECHNICAL_VERSION = "1.0.23";
+    var MAX_IMPORT_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+    var MAX_IMPORT_ATTACHMENTS_BYTES = 50 * 1024 * 1024;
+    
+    function cloneJson(value) {
+      return value == null ? value : JSON.parse(JSON.stringify(value));
+    }
+    
+    function stableStringify(value) {
+      var normalized = JSON.parse(JSON.stringify(value));
+      function visit(current) {
+        if (current === null || typeof current !== "object") {
+          return JSON.stringify(current);
+        }
+        if (Array.isArray(current)) {
+          return "[" + current.map(visit).join(",") + "]";
+        }
+        var keys = Object.keys(current).sort();
+        return "{" + keys.map(function(key) {
+          return JSON.stringify(key) + ":" + visit(current[key]);
+        }).join(",") + "}";
+      }
+      return visit(normalized);
+    }
+    
+    function readDoc(id, rev) {
+      try {
+        var value = getDoc(id, rev != null && rev !== "" ? "" + rev : null, HISTORY_DB);
+        return value && !value.error ? value : null;
+      }
+      catch (e) {
+        return null;
+      }
+    }
+    
+    function isDraft(doc, id) {
+      return doc != null && doc._deleted == null && doc._id == id &&
+        doc[HISTORY_MARKER] !== true &&
+        doc.c8o_view_type_published_form !== true &&
+        ("" + id).indexOf("published_") !== 0;
+    }
+    
+    function canEdit(doc, authenticatedUserID) {
+      var authGranted = false;
+      if (doc != null && doc._deleted == null &&
+          ((doc["~c8oAcl"] == null && doc.c8oGrp == null) ||
+           doc["~c8oAcl"] == authenticatedUserID)) {
+        authGranted = true;
+      }
+      var grpIsArray = doc != null && isArray(doc.c8oGrp);
+      var grpIsObject = doc != null && isObject(doc.c8oGrp);
+      if (!authGranted && doc != null && doc.c8oGrp != null &&
+          ((grpIsArray && doc.c8oGrp.length > 0) ||
+           (grpIsObject && Object.keys(doc.c8oGrp).length > 0))) {
+        try {
+          var query = new java.util.HashMap();
+          query.put("reduce", "false");
+          var keys = toJettison([authenticatedUserID]);
+          var rows = toJSON(fsclient.postView("c8ofullsyncgrp", "design", "get_groups_by_user", query, keys)).rows;
+          query = new java.util.HashMap();
+          query.put("reduce", "true");
+          query.put("group", "true");
+          var usedKeys = rows.map(function(row) { return row.value; });
+          var used = toJSON(fsclient.postView(HISTORY_DB, "authentication", "distinctGroups", query, toJettison(usedKeys)));
+          var usedGroups = used.rows.map(function(row) { return row.key; });
+          if (usedGroups.length > 0 &&
+              ((grpIsArray && doc.c8oGrp.some(function(value) {
+                  return usedGroups.indexOf(value) !== -1;
+                })) ||
+               (grpIsObject && usedGroups.some(function(group) {
+                  return doc.c8oGrp[group] == true || doc.c8oGrp[group] == "true";
+                })))) {
+            authGranted = true;
+          }
+        }
+        catch (e) {
+          authGranted = false;
+        }
+      }
+      return authGranted;
+    }
+    
+    function ensureHistoryView() {
+      var designId = "_design/" + HISTORY_DDOC;
+      var mapSource = "function(doc){if(doc.c8o_view_type_application_history===true&&doc.complete===true&&doc.applicationId&&doc.createdAt&&doc.versionId){emit([doc.applicationId,doc.createdAt,doc.versionId],{versionId:doc.versionId,createdAt:doc.createdAt,origin:doc.origin,author:doc.author,label:doc.label||null,comment:doc.comment||null,publicationVersion:doc.publicationVersion||null,publishedDocumentId:doc.publishedDocumentId||null,restoredFrom:doc.restoredFrom||null,preRestoreSnapshotId:doc.preRestoreSnapshotId||null,sourceDraftRev:doc.sourceDraftRev||null,sourceTechnicalVersion:doc.sourceTechnicalVersion||null,contentHash:doc.contentHash||null});}}";
+      var current = readDoc(designId, null);
+      var currentMap = current && current.views && current.views[HISTORY_VIEW] ?
+        current.views[HISTORY_VIEW].map : null;
+      if (currentMap !== mapSource) {
+        var design = {
+          _id: designId,
+          language: "javascript",
+          views: {}
+        };
+        design.views[HISTORY_VIEW] = { map: mapSource };
+        if (current && current._rev) {
+          design._rev = current._rev;
+        }
+        fsclient.postDocument(
+          java.lang.String(HISTORY_DB),
+          toJettison(design),
+          new HashMap(),
+          enums.CouchPostDocumentPolicy.none,
+          new HashMap(),
+          false
+        );
+      }
+    }
+    
+    function queryHistory(applicationIdValue, requestedLimit, requestedOffset) {
+      var query = new java.util.HashMap();
+      query.put("reduce", "false");
+      query.put("descending", "true");
+      query.put("include_docs", "false");
+      query.put("startkey", JSON.stringify([applicationIdValue, {}]));
+      query.put("endkey", JSON.stringify([applicationIdValue]));
+      if (requestedOffset > 0) {
+        query.put("skip", "" + requestedOffset);
+      }
+      query.put("limit", "" + requestedLimit);
+      var response = toJSON(fsclient.getView(HISTORY_DB, HISTORY_DDOC, HISTORY_VIEW, query));
+      return response && isArray(response.rows) ? response.rows : [];
+    }
+    
+    function latestHistory(applicationIdValue) {
+      var rows = queryHistory(applicationIdValue, 1, 0);
+      return rows.length > 0 ? rows[0].value : null;
+    }
+    
+    function safeVersionId(value) {
+      if (value == null || value === "") {
+        return "" + new Date().getTime() + "-" + java.util.UUID.randomUUID().toString();
+      }
+      var sanitized = ("" + value).replace(/[^A-Za-z0-9._-]/g, "_");
+      if (sanitized.length > 160) {
+        sanitized = sanitized.substring(0, 80) + "-" + sha256Base64(sanitized).replace(/[^A-Za-z0-9]/g, "").substring(0, 40);
+      }
+      return sanitized;
+    }
+    
+    function buildSnapshot(sourceDoc) {
+      var snapshot = {};
+      RESTORABLE_FIELDS.forEach(function(field) {
+        if (Object.prototype.hasOwnProperty.call(sourceDoc, field)) {
+          snapshot[field] = cloneJson(sourceDoc[field]);
+        }
+      });
+      return snapshot;
+    }
+    
+    function captureAttachments(documentId, revision, attachmentMetadata) {
+      var payload = {};
+      var manifest = [];
+      if (attachmentMetadata == null) {
+        return { payload: payload, manifest: manifest };
+      }
+      var names = Object.keys(attachmentMetadata).sort();
+      for (var i = 0; i < names.length; i++) {
+        var name = names[i];
+        var metadata = attachmentMetadata[name] || {};
+        var tempFile = null;
+        try {
+          var tempPath = "history_" + java.util.UUID.randomUUID().toString() + "_" + name.replace(/[^A-Za-z0-9._-]/g, "_");
+          tempPath = theApp.filePropertyManager.getFilepathFromProperty(tempPath, context.projectName);
+          tempFile = new java.io.File(tempPath);
+          var query = new HashMap();
+          if (revision != null && revision !== "") {
+            query.put(new java.lang.String("rev"), new java.lang.String("" + revision));
+          }
+          fsclient.getDocumentAttachment(HISTORY_DB, documentId, name, query, tempFile);
+          var data = encodeFileToBase64Binary(tempFile);
+          var contentType = metadata.content_type || metadata.contentType || "application/octet-stream";
+          payload[name] = {
+            content_type: "" + contentType,
+            data: "" + data
+          };
+          manifest.push({
+            name: name,
+            contentType: "" + contentType,
+            contentHash: sha256Base64("" + data)
+          });
+        }
+        finally {
+          try {
+            if (tempFile != null) {
+              tempFile.delete();
+            }
+          }
+          catch (ignore) {
+          }
+        }
+      }
+      return { payload: payload, manifest: manifest };
+    }
+    
+    function historyMetadata(doc) {
+      return {
+        versionId: doc.versionId,
+        createdAt: doc.createdAt,
+        origin: doc.origin,
+        author: doc.author,
+        label: doc.label || null,
+        comment: doc.comment || null,
+        publicationVersion: doc.publicationVersion || null,
+        publishedDocumentId: doc.publishedDocumentId || null,
+        restoredFrom: doc.restoredFrom || null,
+        preRestoreSnapshotId: doc.preRestoreSnapshotId || null,
+        sourceDraftRev: doc.sourceDraftRev || null,
+        sourceTechnicalVersion: doc.sourceTechnicalVersion || null,
+        contentHash: doc.contentHash || null
+      };
+    }
+    
+    function createHistoryEntry(sourceDoc, options) {
+      var createdAtValue = options.createdAt || new Date().getTime();
+      var versionIdValue = safeVersionId(options.versionId);
+      var historyId = "application_history::" + sourceDoc._id + "::" + versionIdValue;
+      var existing = readDoc(historyId, null);
+      if (existing != null && existing[HISTORY_MARKER] === true && existing.complete === true) {
+        return { created: false, deduplicated: true, id: existing._id, rev: existing._rev, entry: historyMetadata(existing) };
+      }
+    
+      var snapshot = options.snapshotOverride != null ?
+        cloneJson(options.snapshotOverride) : buildSnapshot(sourceDoc);
+      var attachments = options.attachmentsOverride != null ?
+        cloneJson(options.attachmentsOverride) :
+        captureAttachments(sourceDoc._id, sourceDoc._rev, sourceDoc._attachments);
+      var contentHashValue = sha256Base64(stableStringify({
+        snapshot: snapshot,
+        attachments: attachments.manifest
+      }));
+    
+      if (options.dedupeContent === true) {
+        var latest = latestHistory(sourceDoc._id);
+        if (latest != null && latest.contentHash == contentHashValue &&
+            (latest.origin == "baseline" || latest.origin == "save")) {
+          return { created: false, deduplicated: true, id: "application_history::" + sourceDoc._id + "::" + latest.versionId, entry: latest };
+        }
+      }
+    
+      var historyDoc = {
+        _id: historyId,
+        c8o_view_type_application_history: true,
+        applicationId: sourceDoc._id,
+        versionId: versionIdValue,
+        createdAt: createdAtValue,
+        origin: options.origin,
+        author: options.author,
+        sourceDraftRev: Object.prototype.hasOwnProperty.call(options, "sourceDraftRev") ?
+          options.sourceDraftRev : (sourceDoc._rev || null),
+        sourceTechnicalVersion: Object.prototype.hasOwnProperty.call(options, "sourceTechnicalVersion") ?
+          options.sourceTechnicalVersion : (sourceDoc.technicalVersion || null),
+        snapshotSchemaVersion: 1,
+        publicationVersion: options.publicationVersion || null,
+        publishedDocumentId: options.publishedDocumentId || null,
+        restoredFrom: options.restoredFrom || null,
+        preRestoreSnapshotId: options.preRestoreSnapshotId || null,
+        label: options.label || null,
+        comment: options.comment || null,
+        contentHash: contentHashValue,
+        attachmentManifest: attachments.manifest,
+        complete: true,
+        snapshot: snapshot,
+        "~c8oAcl": HISTORY_ACL
+      };
+      if (Object.keys(attachments.payload).length > 0) {
+        historyDoc._attachments = attachments.payload;
+      }
+    
+      var posted = toJSON(fsclient.postDocument(
+        java.lang.String(HISTORY_DB),
+        toJettison(historyDoc),
+        new HashMap(),
+        enums.CouchPostDocumentPolicy.none,
+        new HashMap(),
+        false
+      ));
+      historyDoc._rev = posted.rev;
+      return { created: true, deduplicated: false, id: historyId, rev: posted.rev, entry: historyMetadata(historyDoc) };
+    }
+    
+    function validateSnapshot(historyDoc, currentTarget) {
+      if (historyDoc == null || historyDoc[HISTORY_MARKER] !== true || historyDoc.complete !== true ||
+          historyDoc.snapshotSchemaVersion != 1 || historyDoc.snapshot == null ||
+          typeof historyDoc.snapshot !== "object" || Array.isArray(historyDoc.snapshot)) {
+        return { ok: false, error: "malformed_snapshot" };
+      }
+      var keys = Object.keys(historyDoc.snapshot);
+      for (var i = 0; i < keys.length; i++) {
+        if (RESTORABLE_FIELDS.indexOf(keys[i]) === -1) {
+          return { ok: false, error: "forbidden_snapshot_field", field: keys[i] };
+        }
+      }
+      if (!Array.isArray(historyDoc.snapshot.formulaire) || !Array.isArray(historyDoc.snapshot.pages)) {
+        return { ok: false, error: "malformed_snapshot" };
+      }
+      if (historyDoc.snapshot.flows != null && !Array.isArray(historyDoc.snapshot.flows)) {
+        return { ok: false, error: "malformed_snapshot" };
+      }
+      if (historyDoc.snapshot.actions != null && !Array.isArray(historyDoc.snapshot.actions)) {
+        return { ok: false, error: "malformed_snapshot" };
+      }
+      var sourceVersion = historyDoc.sourceTechnicalVersion || historyDoc.snapshot.technicalVersion || "";
+      var currentVersion = currentTarget.technicalVersion || "";
+      if (sourceVersion != currentVersion) {
+        return {
+          ok: false,
+          error: "migration_required",
+          sourceTechnicalVersion: sourceVersion,
+          currentTechnicalVersion: currentVersion
+        };
+      }
+      return { ok: true };
+    }
+    
+    function captureHistoryAttachments(historyDoc) {
+      var expected = historyDoc.attachmentManifest || [];
+      var metadata = historyDoc._attachments || {};
+      if (!Array.isArray(expected)) {
+        throw new Error("incomplete_history_attachment");
+      }
+      if (Object.keys(metadata).length !== expected.length) {
+        throw new Error("incomplete_history_attachment");
+      }
+      for (var i = 0; i < expected.length; i++) {
+        if (metadata[expected[i].name] == null) {
+          throw new Error("incomplete_history_attachment");
+        }
+      }
+      var captured = captureAttachments(historyDoc._id, historyDoc._rev, metadata);
+      if (captured.manifest.length !== expected.length) {
+        throw new Error("incomplete_history_attachment");
+      }
+      for (var j = 0; j < expected.length; j++) {
+        if (captured.manifest[j].name != expected[j].name ||
+            captured.manifest[j].contentHash != expected[j].contentHash) {
+          throw new Error("incomplete_history_attachment");
+        }
+      }
+      return captured;
+    }
+    
+    
+    function importFailure(code, extra) {
+      var value = {
+        status: code,
+        error: code
+      };
+      if (extra != null) {
+        Object.keys(extra).forEach(function(key) {
+          value[key] = extra[key];
+        });
+      }
+      return value;
+    }
+    
+    function throwImport(code) {
+      var error = new Error(code);
+      error.importCode = code;
+      throw error;
+    }
+    
+    function isPlainObject(value) {
+      return value != null && typeof value === "object" && !Array.isArray(value);
+    }
+    
+    function normalizeLocale(value) {
+      var normalized = value == null ? "en" : ("" + value).replace("_", "-").toLowerCase();
+      if (normalized.indexOf("zh") === 0) {
+        return "zh-CN";
+      }
+      if (normalized.indexOf("fr") === 0) {
+        return "fr";
+      }
+      if (normalized.indexOf("es") === 0) {
+        return "es";
+      }
+      if (normalized.indexOf("it") === 0) {
+        return "it";
+      }
+      return "en";
+    }
+    
+    function parseAttachmentDataUrl(name, value) {
+      if (typeof name !== "string" || name.length < 1 || name.length > 180 ||
+          name == "." || name == ".." || /[\/\\\u0000-\u001f\u007f]/.test(name)) {
+        throwImport("invalid_attachment");
+      }
+      if (typeof value !== "string" || value.length < 1) {
+        throwImport("invalid_attachment");
+      }
+      var match = /^data:([A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+);base64,([A-Za-z0-9+\/=\r\n]+)$/.exec(value);
+      if (match == null) {
+        throwImport("invalid_attachment");
+      }
+      var contentType = ("" + match[1]).toLowerCase();
+      if (contentType.length > 120 ||
+          contentType == "text/html" ||
+          contentType.indexOf("javascript") !== -1 ||
+          contentType.indexOf("x-msdownload") !== -1 ||
+          contentType.indexOf("x-executable") !== -1 ||
+          contentType.indexOf("x-sh") !== -1) {
+        throwImport("invalid_attachment");
+      }
+      var compact = ("" + match[2]).replace(/[\r\n]/g, "");
+      if (compact.length > Math.ceil(MAX_IMPORT_ATTACHMENT_BYTES * 4 / 3) + 8) {
+        throwImport("invalid_attachment");
+      }
+      var bytes;
+      try {
+        bytes = java.util.Base64.getDecoder().decode(java.lang.String(compact));
+      }
+      catch (decodeError) {
+        throwImport("invalid_attachment");
+      }
+      if (bytes.length > MAX_IMPORT_ATTACHMENT_BYTES) {
+        throwImport("invalid_attachment");
+      }
+      var canonical = "" + java.util.Base64.getEncoder().encodeToString(bytes);
+      return {
+        content_type: contentType,
+        data: canonical,
+        bytes: bytes.length
+      };
+    }
+    
+    function normalizeImportedApplication(rawPayload) {
+      var imported;
+      try {
+        if (rawPayload == null || ("" + rawPayload).trim() === "") {
+          throw new Error("empty_import_payload");
+        }
+        imported = JSON.parse("" + rawPayload);
+      }
+      catch (parseError) {
+        throwImport("invalid_file");
+      }
+      if (!isPlainObject(imported)) {
+        throwImport("invalid_file");
+      }
+    
+      var manifest = null;
+      if (Object.prototype.hasOwnProperty.call(imported, "__c8oformsExport")) {
+        manifest = imported.__c8oformsExport;
+        if (!isPlainObject(manifest) || manifest.format != IMPORT_FORMAT) {
+          throwImport("invalid_format");
+        }
+        if (manifest.formatVersion != IMPORT_FORMAT_VERSION) {
+          throwImport("unsupported_format_version");
+        }
+      }
+    
+      var snapshot = buildSnapshot(imported);
+      if (typeof snapshot.name !== "string" ||
+          !Array.isArray(snapshot.formulaire) ||
+          !Array.isArray(snapshot.pages) ||
+          (snapshot.flows != null && !Array.isArray(snapshot.flows)) ||
+          (snapshot.actions != null && !Array.isArray(snapshot.actions)) ||
+          (snapshot.config != null && !isPlainObject(snapshot.config)) ||
+          (snapshot.navigation != null && !isPlainObject(snapshot.navigation))) {
+        throwImport("malformed_application");
+      }
+      if (snapshot.technicalVersion == null || ("" + snapshot.technicalVersion).trim() === "") {
+        throwImport("migration_required");
+      }
+      if (manifest != null && manifest.sourceTechnicalVersion != null &&
+          ("" + manifest.sourceTechnicalVersion) != ("" + snapshot.technicalVersion)) {
+        throwImport("invalid_format");
+      }
+    
+      var payload = {};
+      var totalBytes = 0;
+      function addAttachment(name, dataUrl) {
+        if (dataUrl == null || dataUrl === "") {
+          return;
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, name)) {
+          throwImport("invalid_attachment");
+        }
+        var parsed = parseAttachmentDataUrl(name, dataUrl);
+        totalBytes += parsed.bytes;
+        if (totalBytes > MAX_IMPORT_ATTACHMENTS_BYTES) {
+          throwImport("invalid_attachment");
+        }
+        payload[name] = {
+          content_type: parsed.content_type,
+          data: parsed.data
+        };
+      }
+    
+      if (Object.prototype.hasOwnProperty.call(imported, "__importAttachments")) {
+        if (!isPlainObject(imported.__importAttachments)) {
+          throwImport("invalid_attachment");
+        }
+        Object.keys(imported.__importAttachments).sort().forEach(function(name) {
+          addAttachment(name, imported.__importAttachments[name]);
+        });
+      }
+      ["wallpaper", "thumbnail"].forEach(function(name) {
+        if (isPlainObject(imported[name]) && Object.prototype.hasOwnProperty.call(imported[name], "b64")) {
+          addAttachment(name, imported[name].b64);
+        }
+        if (isPlainObject(snapshot[name])) {
+          delete snapshot[name].b64;
+          if (snapshot[name].enabled === true && snapshot[name].type != null &&
+              snapshot[name].type != "color" && payload[name] == null) {
+            snapshot[name].enabled = false;
+          }
+        }
+      });
+    
+      var attachmentManifest = Object.keys(payload).sort().map(function(name) {
+        return {
+          name: name,
+          contentType: payload[name].content_type,
+          contentHash: sha256Base64(payload[name].data)
+        };
+      });
+    
+      return {
+        snapshot: snapshot,
+        attachments: {
+          payload: payload,
+          manifest: attachmentManifest
+        },
+        legacy: manifest == null,
+        manifest: manifest == null ? null : {
+          format: IMPORT_FORMAT,
+          formatVersion: IMPORT_FORMAT_VERSION,
+          sourceApplicationId: manifest.sourceApplicationId == null ? null : ("" + manifest.sourceApplicationId),
+          sourceTechnicalVersion: "" + snapshot.technicalVersion,
+          exportedAt: manifest.exportedAt == null ? null : manifest.exportedAt,
+          productVersion: manifest.productVersion == null ? null : ("" + manifest.productVersion)
+        }
+      };
+    }
+    
+    function rewriteFormsConfigId(snapshot, applicationIdValue) {
+      function rewriteVars(vars) {
+        if (!isPlainObject(vars) || !isPlainObject(vars.forms_config) ||
+            typeof vars.forms_config.str !== "string") {
+          return;
+        }
+        try {
+          var configValue = JSON.parse(vars.forms_config.str);
+          if (isPlainObject(configValue)) {
+            configValue.form_id = applicationIdValue;
+            vars.forms_config.str = JSON.stringify(configValue);
+          }
+        }
+        catch (ignore) {
+        }
+      }
+      function visitElements(elements) {
+        if (!Array.isArray(elements)) {
+          return;
+        }
+        for (var i = 0; i < elements.length; i++) {
+          var element = elements[i];
+          if (!isPlainObject(element)) {
+            continue;
+          }
+          if (isPlainObject(element.sources)) {
+            Object.keys(element.sources).forEach(function(key) {
+              var source = element.sources[key];
+              if (isPlainObject(source)) {
+                rewriteVars(source.vars);
+              }
+            });
+          }
+          if (isPlainObject(element.actions)) {
+            Object.keys(element.actions).forEach(function(key) {
+              var action = element.actions[key];
+              if (isPlainObject(action)) {
+                rewriteVars(action.vars);
+              }
+            });
+          }
+          rewriteVars(element.vars);
+          visitElements(element.children);
+        }
+      }
+      visitElements(snapshot.formulaire);
+      visitElements(snapshot.actions);
+      if (Array.isArray(snapshot.flows)) {
+        for (var f = 0; f < snapshot.flows.length; f++) {
+          if (isPlainObject(snapshot.flows[f])) {
+            visitElements(snapshot.flows[f].elements);
+          }
+        }
+      }
+    }
+    
+    function listWritableDrafts(authenticatedUserID) {
+      var query = {
+        selector: {
+          "$and": [
+            {
+              c8o_view_type_drafts_form: {
+                "$eq": true
+              }
+            },
+            {
+              "_deleted": {
+                "$exists": false
+              }
+            }
+          ]
+        },
+        fields: ["_id", "_rev", "name", "technicalVersion", "~c8oAcl", "c8oGrp"],
+        limit: 5000
+      };
+      var response = toJSON(fsclient.postFind(HISTORY_DB, toJettison(query)));
+      if (response == null || response.error) {
+        throwImport("import_failed");
+      }
+      var items = [];
+      var docs = response.docs || [];
+      for (var i = 0; i < docs.length; i++) {
+        var doc = docs[i];
+        if (doc != null && doc._id != null &&
+            isDraft(doc, "" + doc._id) && canEdit(doc, authenticatedUserID)) {
+          items.push({
+            applicationId: "" + doc._id,
+            name: doc.name == null ? "" + doc._id : "" + doc.name,
+            rev: doc._rev == null ? null : "" + doc._rev,
+            technicalVersion: doc.technicalVersion == null ? null : "" + doc.technicalVersion
+          });
+        }
+      }
+      items.sort(function(left, right) {
+        var leftName = (left.name || "").toLowerCase();
+        var rightName = (right.name || "").toLowerCase();
+        if (leftName < rightName) return -1;
+        if (leftName > rightName) return 1;
+        return left.applicationId < right.applicationId ? -1 : 1;
+      });
+      return items;
+    }
+    
+    function localizedCopyName(sourceName, localeValue, writableItems) {
+      var prefixes = {
+        en: "Copy of ",
+        fr: "Copie de ",
+        es: "Copia de ",
+        it: "Copia di ",
+        "zh-CN": "副本 - "
+      };
+      var base = prefixes[normalizeLocale(localeValue)] + (sourceName || "Application");
+      var names = {};
+      for (var i = 0; i < writableItems.length; i++) {
+        names[writableItems[i].name] = true;
+      }
+      if (!names[base]) {
+        return base;
+      }
+      var suffix = 2;
+      while (names[base + " (" + suffix + ")"]) {
+        suffix++;
+      }
+      return base + " (" + suffix + ")";
+    }
+    
+    function allocateDraftId() {
+      var candidate = new Date().getTime();
+      while (readDoc("" + candidate, null) != null) {
+        candidate++;
+      }
+      return "" + candidate;
+    }
+    
+    function restoreHistoryVersion(targetId, currentTarget, authenticatedUserID,
+                                   requestedVersionId, expectedRevValue, operationIdValue) {
+      var restoreOperationId = safeVersionId(operationIdValue);
+      var restoreEntryVersionId = restoreOperationId + "-restore";
+      var existingRestore = readDoc("application_history::" + targetId + "::" + restoreEntryVersionId, null);
+      if (existingRestore != null && existingRestore[HISTORY_MARKER] === true &&
+          existingRestore.complete === true && existingRestore.restoredFrom == requestedVersionId) {
+        return {
+          status: "ok",
+          idempotent: true,
+          applicationId: targetId,
+          rev: currentTarget._rev,
+          draft: currentTarget,
+          entry: historyMetadata(existingRestore)
+        };
+      }
+    
+      var selected = readDoc("application_history::" + targetId + "::" + requestedVersionId, null);
+      if (selected == null) {
+        return { status: "not_found", error: "history_snapshot_missing" };
+      }
+      if (selected.applicationId != targetId) {
+        return { status: "forbidden", error: "cross_application_version" };
+      }
+      if (expectedRevValue == null || expectedRevValue === "" || currentTarget._rev != expectedRevValue) {
+        return {
+          status: "conflict",
+          error: "revision_conflict",
+          expectedRev: expectedRevValue || null,
+          currentRev: currentTarget._rev
+        };
+      }
+    
+      var validation = validateSnapshot(selected, currentTarget);
+      if (!validation.ok) {
+        return {
+          status: "invalid",
+          error: validation.error,
+          field: validation.field || null,
+          sourceTechnicalVersion: validation.sourceTechnicalVersion || null,
+          currentTechnicalVersion: validation.currentTechnicalVersion || null
+        };
+      }
+    
+      var selectedAttachments = captureHistoryAttachments(selected);
+      var verifiedContentHash = sha256Base64(stableStringify({
+        snapshot: selected.snapshot,
+        attachments: selectedAttachments.manifest
+      }));
+      if (selected.contentHash == null || selected.contentHash != verifiedContentHash) {
+        return { status: "invalid", error: "malformed_snapshot" };
+      }
+    
+      var backup = createHistoryEntry(currentTarget, {
+        origin: "restore_backup",
+        author: authenticatedUserID,
+        restoredFrom: requestedVersionId,
+        versionId: restoreOperationId + "-backup",
+        dedupeContent: false
+      });
+    
+      var head = readDoc(targetId, null);
+      if (head == null || head._rev != expectedRevValue) {
+        return {
+          status: "conflict",
+          error: "revision_conflict",
+          expectedRev: expectedRevValue,
+          currentRev: head ? head._rev : null,
+          backupVersionId: backup.entry.versionId
+        };
+      }
+    
+      var restored = cloneJson(head);
+      RESTORABLE_FIELDS.forEach(function(field) {
+        delete restored[field];
+        if (Object.prototype.hasOwnProperty.call(selected.snapshot, field)) {
+          restored[field] = cloneJson(selected.snapshot[field]);
+        }
+      });
+      if (head.technicalVersion != null && head.technicalVersion !== "") {
+        restored.technicalVersion = head.technicalVersion;
+      }
+      restored._id = head._id;
+      restored._rev = head._rev;
+      restored.lastMofification = "" + new Date().getTime();
+      delete restored._c8oMeta;
+      delete restored._revisions;
+      delete restored._conflicts;
+      restored._attachments = selectedAttachments.payload;
+    
+      var writeResult;
+      try {
+        writeResult = toJSON(fsclient.postDocument(
+          java.lang.String(HISTORY_DB),
+          toJettison(restored),
+          new HashMap(),
+          enums.CouchPostDocumentPolicy.none,
+          new HashMap(),
+          false
+        ));
+      }
+      catch (writeError) {
+        writeResult = null;
+      }
+      if (writeResult == null || !writeResult.rev) {
+        var conflictHead = readDoc(targetId, null);
+        return {
+          status: "conflict",
+          error: "revision_conflict",
+          expectedRev: expectedRevValue,
+          currentRev: conflictHead ? conflictHead._rev : null,
+          backupVersionId: backup.entry.versionId
+        };
+      }
+    
+      var updated = readDoc(targetId, writeResult.rev);
+      var restoreEntry = createHistoryEntry(updated, {
+        origin: "restore",
+        author: authenticatedUserID,
+        restoredFrom: requestedVersionId,
+        preRestoreSnapshotId: backup.entry.versionId,
+        versionId: restoreEntryVersionId,
+        dedupeContent: false
+      });
+      return {
+        status: "ok",
+        applicationId: targetId,
+        rev: writeResult.rev,
+        draft: updated,
+        backupVersionId: backup.entry.versionId,
+        entry: restoreEntry.entry
+      };
+    }
+    
+    function handleImportOperation(operationValue, rawPayload, targetApplicationId,
+                                   expectedRevValue, operationIdValue, localeValue,
+                                   authenticatedUserID) {
+      var importStage = "start";
+      try {
+        if (operationValue == "import_list") {
+          importStage = "list_targets";
+          return {
+            status: "ok",
+            operation: "list",
+            items: listWritableDrafts(authenticatedUserID)
+          };
+        }
+    
+        importStage = "normalize";
+        var normalized = normalizeImportedApplication(rawPayload);
+        var sourceVersion = "" + normalized.snapshot.technicalVersion;
+        if (sourceVersion != SUPPORTED_TECHNICAL_VERSION) {
+          return importFailure("migration_required", {
+            sourceTechnicalVersion: sourceVersion,
+            currentTechnicalVersion: SUPPORTED_TECHNICAL_VERSION
+          });
+        }
+    
+        if (operationValue == "import_validate") {
+          return {
+            status: "ok",
+            operation: "validate",
+            legacy: normalized.legacy,
+            sourceApplicationId: normalized.manifest == null ? null : normalized.manifest.sourceApplicationId,
+            sourceApplicationName: normalized.snapshot.name,
+            sourceTechnicalVersion: sourceVersion,
+            formatVersion: normalized.manifest == null ? null : normalized.manifest.formatVersion,
+            attachmentCount: normalized.attachments.manifest.length
+          };
+        }
+    
+        if (operationValue == "import_copy") {
+          importStage = "copy_list_names";
+          var writableItems = listWritableDrafts(authenticatedUserID);
+          var newId = allocateDraftId();
+          var snapshot = cloneJson(normalized.snapshot);
+          snapshot.name = localizedCopyName(snapshot.name, localeValue, writableItems);
+          rewriteFormsConfigId(snapshot, newId);
+    
+          var now = "" + new Date().getTime();
+          var draft = cloneJson(snapshot);
+          draft._id = newId;
+          draft.creator = authenticatedUserID;
+          draft["~c8oAcl"] = authenticatedUserID;
+          draft.c8oGrp = {};
+          draft.c8oGrp[authenticatedUserID] = true;
+          draft.collabs = [];
+          draft.collabsResponse = [];
+          draft.shared = [];
+          draft.c8o_view_type_drafts_form = true;
+          draft.creationDate = now;
+          draft.lastMofification = now;
+          if (Object.keys(normalized.attachments.payload).length > 0) {
+            draft._attachments = cloneJson(normalized.attachments.payload);
+          }
+    
+          importStage = "copy_write_draft";
+          var posted = toJSON(fsclient.postDocument(
+            java.lang.String(HISTORY_DB),
+            toJettison(draft),
+            new HashMap(),
+            enums.CouchPostDocumentPolicy.none,
+            new HashMap(),
+            false
+          ));
+          if (posted == null || posted.error || !posted.rev) {
+            return importFailure("import_failed");
+          }
+          importStage = "copy_read_draft";
+          var createdDraft = readDoc(newId, posted.rev);
+          if (createdDraft == null) {
+            createdDraft = cloneJson(draft);
+            createdDraft._rev = posted.rev;
+          }
+          importStage = "copy_create_history";
+          var importEntry = createHistoryEntry(createdDraft, {
+            origin: "import",
+            author: authenticatedUserID,
+            versionId: safeVersionId(operationIdValue) + "-import",
+            dedupeContent: false,
+            snapshotOverride: snapshot,
+            attachmentsOverride: normalized.attachments,
+            sourceDraftRev: posted.rev,
+            sourceTechnicalVersion: sourceVersion
+          });
+          return {
+            status: "ok",
+            operation: "copy",
+            applicationId: newId,
+            rev: posted.rev,
+            name: snapshot.name,
+            draft: createdDraft,
+            entry: importEntry.entry
+          };
+        }
+    
+        if (operationValue == "import_restore") {
+          var targetIdValue = targetApplicationId == null ? "" : "" + targetApplicationId;
+          var target = readDoc(targetIdValue, null);
+          if (!isDraft(target, targetIdValue)) {
+            return importFailure("target_not_found");
+          }
+          if (!canEdit(target, authenticatedUserID)) {
+            return importFailure("unauthorized");
+          }
+          if (expectedRevValue == null || expectedRevValue === "" || target._rev != expectedRevValue) {
+            return importFailure("revision_conflict", {
+              expectedRev: expectedRevValue || null,
+              currentRev: target._rev
+            });
+          }
+          if (("" + target.technicalVersion) != sourceVersion) {
+            return importFailure("migration_required", {
+              sourceTechnicalVersion: sourceVersion,
+              currentTechnicalVersion: target.technicalVersion == null ? null : "" + target.technicalVersion
+            });
+          }
+    
+          var importedSnapshot = cloneJson(normalized.snapshot);
+          rewriteFormsConfigId(importedSnapshot, targetIdValue);
+          var operationRoot = safeVersionId(operationIdValue);
+          var importVersionId = operationRoot + "-import";
+          var syntheticSource = cloneJson(importedSnapshot);
+          syntheticSource._id = targetIdValue;
+          syntheticSource._rev = target._rev;
+          var importedEntry = createHistoryEntry(syntheticSource, {
+            origin: "import",
+            author: authenticatedUserID,
+            versionId: importVersionId,
+            dedupeContent: false,
+            snapshotOverride: importedSnapshot,
+            attachmentsOverride: normalized.attachments,
+            sourceDraftRev: null,
+            sourceTechnicalVersion: sourceVersion
+          });
+    
+          var restoredResult = restoreHistoryVersion(
+            targetIdValue,
+            target,
+            authenticatedUserID,
+            importVersionId,
+            expectedRevValue,
+            operationRoot
+          );
+          if (restoredResult.status != "ok") {
+            if (restoredResult.error == "revision_conflict") {
+              return importFailure("revision_conflict", {
+                expectedRev: restoredResult.expectedRev || null,
+                currentRev: restoredResult.currentRev || null,
+                importVersionId: importVersionId
+              });
+            }
+            if (restoredResult.error == "migration_required") {
+              return importFailure("migration_required", {
+                sourceTechnicalVersion: restoredResult.sourceTechnicalVersion || sourceVersion,
+                currentTechnicalVersion: restoredResult.currentTechnicalVersion || null,
+                importVersionId: importVersionId
+              });
+            }
+            return importFailure("restore_failed", {
+              importVersionId: importVersionId,
+              cause: restoredResult.error || restoredResult.status
+            });
+          }
+          restoredResult.operation = "restore";
+          restoredResult.importEntry = importedEntry.entry;
+          restoredResult.importVersionId = importVersionId;
+          return restoredResult;
+        }
+    
+        return importFailure("invalid_file");
+      }
+      catch (importError) {
+        var importCode = importError && importError.importCode ?
+          importError.importCode : "import_failed";
+        try {
+          log.error("[APIV2_ApplicationHistoryCore] import " + importCode + ": " +
+            (importError && importError.message ? importError.message : importError));
+        }
+        catch (ignoreImportLog) {
+        }
+        return importFailure(importCode, {stage: importStage});
+      }
+    }
+    
+    var res = { status: "error" };
+    try {
+      ensureHistoryView();
+    
+      var authenticatedUserID = context.getAuthenticatedUser();
+      var targetId = "" + applicationId;
+      var currentTarget = readDoc(targetId, null);
+      if (("" + operation).indexOf("import_") === 0) {
+        res = handleImportOperation(
+          "" + operation,
+          importPayload,
+          targetId,
+          expectedRev,
+          operationId,
+          locale,
+          authenticatedUserID
+        );
+      }
+      else if (!isDraft(currentTarget, targetId)) {
+        res = { status: "not_found", error: "application_not_found" };
+      }
+      else if (!canEdit(currentTarget, authenticatedUserID)) {
+        res = { status: "forbidden", error: "forbidden" };
+      }
+      else if (operation == "list") {
+        var listLimit = parseInt(limit, 10);
+        if (isNaN(listLimit) || listLimit < 1) {
+          listLimit = 20;
+        }
+        if (listLimit > 100) {
+          listLimit = 100;
+        }
+        var listOffset = parseInt(offset, 10);
+        if (isNaN(listOffset) || listOffset < 0) {
+          listOffset = 0;
+        }
+        var rows = queryHistory(targetId, listLimit + 1, listOffset);
+        var hasMore = rows.length > listLimit;
+        if (hasMore) {
+          rows = rows.slice(0, listLimit);
+        }
+        var items = rows.map(function(row) {
+          var item = cloneJson(row.value);
+          item.isCurrent = item.sourceDraftRev == currentTarget._rev;
+          return item;
+        });
+        res = {
+          status: "ok",
+          applicationId: targetId,
+          currentRev: currentTarget._rev,
+          items: items,
+          hasMore: hasMore,
+          nextOffset: hasMore ? listOffset + listLimit : null
+        };
+      }
+      else if (operation == "create") {
+        var requestedOrigin = "" + origin;
+        if (!ALLOWED_ORIGINS[requestedOrigin]) {
+          res = { status: "invalid", error: "invalid_origin" };
+        }
+        else {
+          var latest = latestHistory(targetId);
+          if (requestedOrigin == "baseline" && latest != null) {
+            res = { status: "ok", created: false, baselineSkipped: true, entry: latest, currentRev: currentTarget._rev };
+          }
+          else {
+            var effectiveOrigin = requestedOrigin == "save" && latest == null ? "baseline" : requestedOrigin;
+            var sourceDocument = sourceRev != null && sourceRev !== "" ? readDoc(targetId, "" + sourceRev) : currentTarget;
+            if (sourceDocument == null) {
+              res = { status: "not_found", error: "source_revision_not_found" };
+            }
+            else {
+              var created = createHistoryEntry(sourceDocument, {
+                origin: effectiveOrigin,
+                author: authenticatedUserID,
+                label: label,
+                comment: comment,
+                publicationVersion: publicationVersion,
+                publishedDocumentId: publishedDocumentId,
+                restoredFrom: restoredFrom,
+                preRestoreSnapshotId: preRestoreSnapshotId,
+                versionId: operationId,
+                dedupeContent: effectiveOrigin == "save" || effectiveOrigin == "baseline"
+              });
+              res = {
+                status: "ok",
+                created: created.created,
+                deduplicated: created.deduplicated,
+                entry: created.entry,
+                currentRev: currentTarget._rev
+              };
+            }
+          }
+        }
+      }
+      else if (operation == "restore") {
+        res = restoreHistoryVersion(
+          targetId,
+          currentTarget,
+          authenticatedUserID,
+          "" + versionId,
+          expectedRev,
+          operationId
+        );
+      }
+      else {
+        res = { status: "invalid", error: "invalid_operation" };
+      }
+    }
+    catch (e) {
+      var message = "" + (e && e.message ? e.message : e);
+      res = {
+        status: message.indexOf("incomplete_history_attachment") !== -1 ? "invalid" : "error",
+        error: message.indexOf("incomplete_history_attachment") !== -1 ? "incomplete_history_attachment" : "history_operation_failed"
+      };
+      log.error("[APIV2_ApplicationHistoryCore] " + message);
+    }'
+↓Result [steps.JsonToXmlStep-1789390593639]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓operation [variables.RequestableVariable-1789390593658]: 
+  comment: 'Application history core input: operation'
+  required: true
+↓applicationId [variables.RequestableVariable-1789390593672]: 
+  comment: 'Application history core input: applicationId'
+  required: true
+↓origin [variables.RequestableVariable-1789390593686]: 
+  comment: 'Application history core input: origin'
+  value: save
+↓sourceRev [variables.RequestableVariable-1789390593695]: 
+  comment: 'Application history core input: sourceRev'
+↓label [variables.RequestableVariable-1789390593705]: 
+  comment: 'Application history core input: label'
+↓comment [variables.RequestableVariable-1789390593722]: 
+  comment: 'Application history core input: comment'
+↓publicationVersion [variables.RequestableVariable-1789390593735]: 
+  comment: 'Application history core input: publicationVersion'
+↓publishedDocumentId [variables.RequestableVariable-1789390593744]: 
+  comment: 'Application history core input: publishedDocumentId'
+↓restoredFrom [variables.RequestableVariable-1789390593754]: 
+  comment: 'Application history core input: restoredFrom'
+↓preRestoreSnapshotId [variables.RequestableVariable-1789390593765]: 
+  comment: 'Application history core input: preRestoreSnapshotId'
+↓operationId [variables.RequestableVariable-1789390593779]: 
+  comment: 'Application history core input: operationId'
+↓limit [variables.RequestableVariable-1789390593787]: 
+  comment: 'Application history core input: limit'
+  value: 20
+↓offset [variables.RequestableVariable-1789390593805]: 
+  comment: 'Application history core input: offset'
+  value: 0
+↓versionId [variables.RequestableVariable-1789390593812]: 
+  comment: 'Application history core input: versionId'
+↓expectedRev [variables.RequestableVariable-1789390593839]: 
+  comment: 'Application history core input: expectedRev'
+↓importPayload [variables.RequestableVariable-1789396622665]: 
+  comment: Untrusted .c8oforms JSON payload; normalized only by the history core import contract.
+↓locale [variables.RequestableVariable-1789396622686]: 
+  comment: Locale used only to generate the imported copy display name.
+  value: en
