@@ -403,7 +403,7 @@ componentScriptContent:
         			payload = payload && typeof payload === "object" ? payload : {};
         			const formId = String(payload.formId || "");
         			const current = this.getAgentAssistantContext();
-        			if (formId === "" || String(current.formId || current.currentFormId || "") !== formId) {
+        			if (formId === "" || !this.isAgentAssistantAllowed()) {
         				return;
         			}
         			const mutationKey = String(payload.mutationKey || ((payload.runid || "") + ":" + formId + ":" + (payload.completedAt || "")));
@@ -412,7 +412,7 @@ componentScriptContent:
         			}
         			if (!this.global) { this.global = {}; }
         			this.global.agentAssistantLastMutationKey = mutationKey;
-        			this.events.publish("AgentAssistantFormUpdated", payload, true);
+        			this.events.publish("AgentAssistantFocusForm", payload, true);
         			try { window.dispatchEvent(new CustomEvent("c8oforms:assistant-form-updated", { detail: payload })); } catch (eEvent) {}
         		} catch (e) {}
         	}
@@ -9510,7 +9510,7 @@ useClickForTap: true
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
           'ion-split-pane {
-            --agent-drawer-width: clamp(360px, 42vw, 960px);
+            --agent-drawer-width: clamp(380px, 34vw, 560px);
           }
           ion-split-pane.split-pane-visible ion-menu[menu-id="MenuSelector"]:not(.menu-selector-open),
           ion-split-pane.split-pane-visible ion-menu[menu-id="AgentMenu"]:not(.agent-drawer-open) {
@@ -9649,4 +9649,74 @@ useClickForTap: true
             height: 100%;
             min-height: 100%;
             width: 100%;
+          }
+          /* Forms assistant: compact, theme-aware host shell. */
+          ion-menu[menu-id="AgentMenu"].agent-drawer-expanded { --agent-drawer-width: clamp(440px, 58vw, 960px); }
+          .agent-drawer-header { height: 48px; padding: 0 12px; background: var(--sidebar, #fff); border-bottom: 1px solid var(--border, #e3e8ef); color: var(--foreground, #24334b); gap: 6px; }
+          .agent-drawer-title { flex: 1; font-size: 15px; gap: 8px; color: inherit; }
+          .agent-drawer-title img[src$="tigo-assistant.png"] { width: 32px; height: 32px; flex-basis: 32px; filter: none; }
+          .agent-drawer-close, .agent-drawer-collapse { width: 36px; height: 36px; color: inherit; --border-radius: 10px; }
+          .agent-drawer-collapse .agent-collapse-icon-expand { display: none; }
+          .agent-drawer-expanded .agent-drawer-collapse .agent-collapse-icon-expand { display: inline-block; }
+          .agent-drawer-expanded .agent-drawer-collapse .agent-collapse-icon-collapse { display: none; }
+          @media (max-width: 700px) {
+            ion-menu[menu-id="AgentMenu"], ion-menu[menu-id="AgentMenu"].agent-drawer-expanded { --agent-drawer-width: 100vw; }
+            .agent-drawer-collapse { display: none; }
+          }
+          '
+↓AgentAssistantFocusForm [ngx.components.UIEventSubscriber-1789130612607]: 
+  comment: Open and select the authenticated form identified by a successful assistant tool result.
+  topic: AgentAssistantFocusForm
+  ↓ReadSubjectForm [ngx.components.UIDynamicAction-1789130614145]: 
+    beanData: |
+      '{
+       "ionBean": "CallSequenceAction",
+       "requestable": "plain:C8Oforms.APIV2_getDocument",
+       "noLoading": "plain:true"
+      }'
+    ↓id [ngx.components.UIControlVariable-1789130615703]: 
+      varValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:stack['root'].out.formId
+    ↓AccessibleForm [ngx.components.UIDynamicIf-1789130615705]: 
+      beanData: '{"ionBean":"IfElseAction","condition":"script:parent.out && parent.out.res && String(parent.out.res._id) === String(stack[''root''].out.formId) && this.isAgentAssistantAllowed()"}'
+      ↓SelectSubjectForm [ngx.components.UIDynamicAction-1789130617283]: 
+        beanData: |
+          '{
+           "ionBean": "SetGlobalAction",
+           "Property": "plain:formSelected",
+           "Value": "script:stack[''ReadSubjectForm''].out.res"
           }'
+      ↓RememberPendingFocus [ngx.components.UIDynamicAction-1789130617285]: 
+        beanData: |
+          '{
+           "ionBean": "SetGlobalAction",
+           "Property": "plain:agentAssistantPendingFocus",
+           "Value": "script:stack[''root''].out"
+          }'
+      ↓AlreadyInEditor [ngx.components.UIDynamicIf-1789130617287]: 
+        beanData: '{"ionBean":"IfElseAction","condition":"script:String(this.getAgentAssistantContext().formId || '''') === String(stack[''root''].out.formId) && \/\\\/editor\\\/\/.test(window.location.pathname)"}'
+        ↓RefreshFocusedForm [ngx.components.UIDynamicAction-1789130617289]: 
+          beanData: |
+            '{
+             "ionBean": "PublishEventAction",
+             "topic": "plain:AgentAssistantFormUpdated",
+             "data": "script:stack[''root''].out",
+             "async": "plain:false"
+            }'
+        ↓ClearPendingFocus [ngx.components.UIDynamicAction-1789130617291]: 
+          beanData: |
+            '{
+             "ionBean": "SetGlobalAction",
+             "Property": "plain:agentAssistantPendingFocus",
+             "Value": "script:null"
+            }'
+        ↓Else_Handler [ngx.components.UIActionElseEvent-1789130617293]: 
+          ↓OpenSubjectForm [ngx.components.UIDynamicAction-1789130618791]: 
+            beanData: |
+              '{
+               "ionBean": "RootPageAction",
+               "page": "plain:C8Oforms.MobileApplication.Application.editorPage",
+               "data": "script:({formId: stack[''root''].out.formId})"
+              }'
