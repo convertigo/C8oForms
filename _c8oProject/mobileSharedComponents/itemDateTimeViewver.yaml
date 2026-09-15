@@ -55,6 +55,13 @@ scriptContent:
         		return mode === "calendar" || mode === "both";
         	}
         
+        	public getDateInputPlaceholder(): string {
+        		const displayFormat = this.item?.config?.display_format;
+        		return ["MM/DD/YY", "DD/MM/YY", "MM/DD/YYYY", "DD/MM/YYYY", "YYYY/MM/DD"].indexOf(displayFormat) !== -1
+        			? displayFormat
+        			: "DD/MM/YYYY";
+        	}
+        
         	public getDateFieldKey(): string {
         		const value = this.item?.id != null && this.item.id !== "" ? this.item.id : this.item?.name;
         		return value == null ? "" : "" + value;
@@ -238,9 +245,23 @@ scriptContent:
         		this.redList[this.item.name] = hasDateValidationError || (this.item?.config?.mandatory === true && empty);
         	}
         
-        	public commitDate(canonicalValue: any): any {
-        		const canonical = this.normalizeCanonicalDate(canonicalValue);
+        	public commitDate(canonicalValue: any, allowEmpty: boolean = false): any {
+        		const raw = canonicalValue == null ? "" : ("" + canonicalValue).trim();
         		const previousValue = this.model != null && this.model["value"] != null ? "" + this.model["value"] : "";
+        		if (allowEmpty && raw === "") {
+        			if (this.model != null) {
+        				this.model["value"] = "";
+        			}
+        			this.local.value = "";
+        			this.local.manualText = "";
+        			this.local.lastModelValue = "";
+        			this.local.lastDisplayFormat = this.item?.config?.display_format || "DD/MM/YYYY";
+        			this.local.manualTouched = false;
+        			this.setDateValidationError("");
+        			this.pageOwner?.ref?.detectChanges();
+        			return { notify: previousValue !== "", committed: true };
+        		}
+        		const canonical = this.normalizeCanonicalDate(raw);
         		if (canonical == null) {
         			if (this.model != null) {
         				this.model["value"] = "";
@@ -277,19 +298,12 @@ scriptContent:
         
         	public handleManualDateChange(input: any): any {
         		const raw = input == null ? "" : "" + input;
-        		const previousValue = this.model != null && this.model["value"] != null ? "" + this.model["value"] : "";
         		this.local.manualText = raw;
         		this.local.manualTouched = true;
         		if (raw.trim() === "") {
-        			if (this.model != null) {
-        				this.model["value"] = "";
-        			}
-        			this.local.value = "";
-        			this.local.lastModelValue = "";
-        			this.setDateValidationError("");
-        			this.pageOwner?.ref?.detectChanges();
-        			return { notify: previousValue !== "", committed: true };
+        			return this.commitDate("", true);
         		}
+        		const previousValue = this.model != null && this.model["value"] != null ? "" + this.model["value"] : "";
         		const canonical = this.parseManualDate(raw, this.item?.config?.display_format);
         		if (canonical == null) {
         			if (this.model != null) {
@@ -417,9 +431,46 @@ scriptContent:
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
                   '		const value = event?.detail?.value;
-                  		page.local.value = value != null ? (page.normalizeCanonicalDate(value) || "") : "";
-                  		resolve();
+                  		if (value == null || value === "") {
+                  			resolve(page.commitDate("", true));
+                  			return;
+                  		}
+                  		page.local.value = page.normalizeCanonicalDate(value) || "";
+                  		resolve({ notify: false, committed: false });
                   '
+          ↓IfClearCommitted [ngx.components.UIDynamicAction-1789461273962]: 
+            beanData: '{"ionBean":"IfAction","condition":"script:parent.out?.notify === true && parent.out?.committed === true"}'
+            ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1789461274780]: 
+              beanData: '{"ionBean":"InvokeAction"}'
+              stack: C8Oforms.MobileApplication.Application.executeGoToPageIfCondition
+              ↓item [ngx.components.UIControlVariable-1789461275598]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.item
+              ↓line [ngx.components.UIControlVariable-1789461275600]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:null
+              ↓child [ngx.components.UIControlVariable-1789461275602]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:null
+              ↓canExec [ngx.components.UIControlVariable-1789461275604]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:true
+            ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1789461276422]: 
+              beanData: '{"ionBean":"InvokeAction"}'
+              stack: C8Oforms.MobileApplication.Application.UpdateFunctionsToBeCalledToDataSource
+              ↓item [ngx.components.UIControlVariable-1789461277240]: 
+                varValue: 
+                  - xmlizable: 
+                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                    - MobileSmartSourceType: script:this.item
       ↓Attr6 [ngx.components.UIAttribute-1789377760094]: 
         attrName: '[disabled]'
         attrValue: 
@@ -491,7 +542,9 @@ scriptContent:
               →: |
                 '		try {
                 			if (event?.detail?.role === "datetime-confirm") {
-                				return page.commitDate(page.local.value);
+                				const value = page.local.value;
+                				const allowEmpty = value == null || ("" + value).trim() === "";
+                				return page.commitDate(value, allowEmpty);
                 			}
                 			page.updateMandatoryState(page.getDateValidationError() !== "");
                 			page.pageOwner?.ref?.detectChanges();
@@ -621,6 +674,7 @@ scriptContent:
              "ClearInput": "plain:true",
              "Debounce": "plain:0",
              "InputMode": "plain:numeric",
+             "Placeholder": "script:this.getDateInputPlaceholder()",
              "Value": "plain"
             }'
           tagName: ion-input
