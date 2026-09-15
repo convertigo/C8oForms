@@ -6159,7 +6159,14 @@ scriptContent:
         					let sha = sources.sha;
         					let variables = {};
         					this.functionsById[sha] = async (init = false) => {
+        						// Opt-in initial defaults must not become reactive overwrites.
+        						const initialDefault = item.config?.contextValueMode === "initial";
+        						const previousValue = formSubmit[item.name]?.value;
+        						if (initialDefault && (!init || page.local.fromResponse || page.local.urlParams?.has(item.name))) { return; }
+        						if (initialDefault && previousValue !== undefined && previousValue !== null && previousValue !== "" && !(item.type === "slider" && previousValue === item.config.defaultvalue)) { return; }
         						await page["computeVariable"](findVars, variables, item);
+        						// An asynchronous expression must not replace a value entered while it ran.
+        						if (initialDefault && formSubmit[item.name]?.value !== previousValue) { return; }
         						let sourceValue = item.type == "time" ? page.normalizeTimeDefaultValue(variables["selfVar"]) : item.type == "text" ? page.normalizeTextSourceValue(variables["selfVar"], item) : variables["selfVar"];
         						// if value has changed update it and call functions
         						if ((!init || (init && !page.local.fromResponse)) && formSubmit[item["name"]]?.value !== sourceValue && sourceValue !== undefined && sourceValue !== null && (item.type != "slider" || (item.type == "slider" && sourceValue != "") )) {
@@ -11872,12 +11879,12 @@ scriptContent:
         		});
         		Object.defineProperty(window["api"]["user"], ''name'', {
         			get: function() {
-        				return this.global.settings.displayName;
+        				return this.global.settings?.displayName;
         			}.bind(this)
         		});
         		Object.defineProperty(window["api"]["user"], ''email'', {
         			get: function() {
-        				return this.global.settings.mail;
+        				return this.global.settings?.mail;
         			}.bind(this)
         		});
         		Object.defineProperty(window["api"]["user"], ''sessionId'', {
