@@ -163,6 +163,7 @@ For more technical informations : [documentation](./project.md)
     - [Ping](#ping)
     - [RemoveNewUserSharing](#removenewusersharing)
     - [RemoveUserFromGroup](#removeuserfromgroup)
+    - [SanitizeEmailHtml](#sanitizeemailhtml)
     - [SetLanguage](#setlanguage)
     - [SetUserInGroup](#setuseringroup)
     - [submitResponseAnonymous](#submitresponseanonymous)
@@ -1260,6 +1261,12 @@ Builds a CSV stream for responses while respecting header order and privacy.
 <td>p</td><td>privacy</td>
 </tr>
 <tr>
+<td>qs</td><td>Question/column sort: current, id, or label</td>
+</tr>
+<tr>
+<td>rs</td><td>Response/row sort: current, date_asc, or date_desc</td>
+</tr>
+<tr>
 <td>s</td><td>separator</td>
 </tr>
 <tr>
@@ -1267,6 +1274,9 @@ Builds a CSV stream for responses while respecting header order and privacy.
 </tr>
 <tr>
 <td>sk</td><td>formId</td>
+</tr>
+<tr>
+<td>tz</td><td>Browser IANA timezone</td>
 </tr>
 <tr>
 <td>v</td><td>version</td>
@@ -2254,6 +2264,9 @@ Generates a reset token and emails the password recovery link.
 <td>emailSubject</td><td>Email subject template.</td>
 </tr>
 <tr>
+<td>lang</td><td>Canonical email locale: en, fr, es, it or zh-CN; other values fall back to en.</td>
+</tr>
+<tr>
 <td>newPassword</td><td>New password to be set</td>
 </tr>
 <tr>
@@ -2893,6 +2906,20 @@ Removes a user from a group and updates ACLs.
 </tr>
 <tr>
 <td>user</td><td>User identifier concerned by the request.</td>
+</tr>
+</table>
+### SanitizeEmailHtml
+
+Sanitizes administrator-authored email HTML before it reaches the trusted tableBody XSL boundary. Uses a server-side jsoup allowlist; callers must never create tableBody from unsanitized HTML.
+
+**variables**
+
+<table
+<tr>
+<th>name</th><th>comment</th>
+</tr>
+<tr>
+<td>body</td><td>Serialized HTML to sanitize before trusted email rendering.</td>
 </tr>
 </table>
 ### SetLanguage
