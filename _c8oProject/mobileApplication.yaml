@@ -20,6 +20,12 @@ componentScriptContent:
         	public chunkRecoveryListenerBound = false;
         	public pwaControllerRefreshing = false;
         	public pwaControllerChangeListenerBound = false;
+        	public agentResourceUrlSanitizer: DomSanitizer;
+        	public agentAssistantSafeUrlValue = '''';
+        	public agentAssistantSafeUrl: any = null;
+        	public agentAssistantContextTimer: any = null;
+        	public agentAssistantLastPostedContext = '''';
+        	public agentAssistantLastPostedUrl = '''';
         	/*End_c8o_AppDeclaration*/
         /*Begin_c8o_AppSettings*/
         		// get preference log level from local storage
@@ -52,6 +58,7 @@ componentScriptContent:
         		}
         		/*End_c8o_AppSettings*/
         /*Begin_c8o_AppConstructor*/
+        		this.agentResourceUrlSanitizer = sanitizer;
         		this.bindChunkRecoveryHandlers();
         		this.getOriginImg();
         		/*End_c8o_AppConstructor*/
@@ -78,6 +85,463 @@ componentScriptContent:
         				this.monitorDEVPwaUpdates();
         				/*End_c8o_AppInitialization*/
         /*Begin_c8o_AppFunction*/
+        	public getConvertigoServerEndpoint(): string {
+        		const normalizeServerEndpoint = (candidate: any): string => {
+        			const value = String(candidate == null ? '''' : candidate).replace(/\/$/, '''');
+        			if (value === '''') {
+        				return '''';
+        			}
+        			if (!environment.production && value.startsWith(window.location.origin)) {
+        				return '''';
+        			}
+        			return value;
+        		};
+        
+        		const endpointConvertigo = normalizeServerEndpoint(this.c8o?.endpointConvertigo);
+        		if (endpointConvertigo !== '''') {
+        			return endpointConvertigo;
+        		}
+        
+        		const endpoint = this.c8o?.endpoint;
+        		if (endpoint != undefined && endpoint !== '''') {
+        			const endpointValue = String(endpoint).replace(/\/$/, '''');
+        			const projectsIndex = endpointValue.indexOf(''/projects/'');
+        			const serverEndpoint = normalizeServerEndpoint(projectsIndex !== -1 ? endpointValue.substring(0, projectsIndex) : endpointValue);
+        			if (serverEndpoint !== '''') {
+        				return serverEndpoint;
+        			}
+        		}
+        
+        		const currentUrl = window.location.href;
+        		const projectsMarker = ''/convertigo/projects/'';
+        		const projectsMarkerIndex = currentUrl.indexOf(projectsMarker);
+        		if (projectsMarkerIndex !== -1) {
+        			return currentUrl.substring(0, projectsMarkerIndex + ''/convertigo''.length).replace(/\/$/, '''');
+        		}
+        
+        		if (!environment.production && window.location.hostname === ''localhost'') {
+        			return ''http://localhost:18082/convertigo'';
+        		}
+        
+        		return '''';
+        	}
+        
+        	public getAgentAssistantUserId(): string {
+        		const normalizeUserValue = (candidate: any): string => {
+        			const value = String(candidate == null ? '''' : candidate).trim();
+        			const lower = value.toLowerCase();
+        			return value !== '''' && lower !== ''unknown user'' && lower !== ''anonymous'' && lower !== ''undefined'' && lower !== ''null'' ? value : '''';
+        		};
+        
+        		const candidates = [
+        			this.global?.settings?.mail,
+        			this.global?.settings?.email,
+        			this.global?.settings?.login,
+        			this.global?.settings?.[''~c8oAcl''],
+        			this.c8o?.session?.user?.name,
+        			(this.c8o?.session?.user as any)?.authenticatedUserID,
+        			(this.c8o?.session?.user as any)?.email,
+        			(this.c8o?.session?.user as any)?.mail,
+        			(this.c8o?.session?.user as any)?.login,
+        			(this.c8o?.session?.user as any)?.id,
+        			this.c8o?.session?.user?.hash,
+        			this.global?.authenticatedUser,
+        			this.global?.authenticatedUserID,
+        			this.global?.userId,
+        			this.global?.mail,
+        			this.global?.email,
+        			this.global?.login,
+        			this.global?.user
+        		];
+        		for (const candidate of candidates) {
+        			const value = normalizeUserValue(candidate);
+        			if (value !== '''') {
+        				return value;
+        			}
+        		}
+        
+        		try {
+        			const sessionInfo = window.sessionStorage.getItem(''loggedInOffline'');
+        			if (sessionInfo != null) {
+        				const parsed = JSON.parse(sessionInfo);
+        				const value = normalizeUserValue(parsed?.email || parsed?.user || parsed?.login);
+        				if (value !== '''') {
+        					return value;
+        				}
+        			}
+        		} catch (e) {}
+        
+        		return ''anonymous'';
+        	}
+        
+        	public getAgentAssistantCurrentUrl(): string {
+        		try {
+        			return window.location.href || '''';
+        		} catch (e) {
+        			return '''';
+        		}
+        	}
+        
+        	public getAgentAssistantCurrentRoute(): string {
+        		try {
+        			return (window.location.pathname || '''') + (window.location.search || '''') + (window.location.hash || '''');
+        		} catch (e) {
+        			return '''';
+        		}
+        	}
+        
+        	public getAgentAssistantCurrentFormId(): string {
+        		try {
+        			const pathParts = (window.location.pathname || '''').split(''/'').filter((part) => part !== '''');
+        			const editorIndex = pathParts.indexOf(''editor'');
+        			const viewerIndex = pathParts.indexOf(''viewer'');
+        			const formRouteIndex = editorIndex !== -1 ? editorIndex : viewerIndex;
+        			if (formRouteIndex !== -1 && pathParts[formRouteIndex + 1] && pathParts[formRouteIndex + 1].indexOf('':'') !== 0) {
+        				return decodeURIComponent(pathParts[formRouteIndex + 1]);
+        			}
+        
+        			const candidates = [''formId'', ''documentId'', ''docid'', ''applicationId'', ''id''];
+        			const searchParams = new URLSearchParams(window.location.search || '''');
+        			for (const key of candidates) {
+        				const value = searchParams.get(key);
+        				if (value != null && value !== '''' && value.indexOf('':'') !== 0) {
+        					return value;
+        				}
+        			}
+        
+        			const hash = window.location.hash || '''';
+        			const hashQueryIndex = hash.indexOf(''?'');
+        			if (hashQueryIndex !== -1) {
+        				const hashParams = new URLSearchParams(hash.substring(hashQueryIndex + 1));
+        				for (const key of candidates) {
+        					const value = hashParams.get(key);
+        					if (value != null && value !== '''' && value.indexOf('':'') !== 0) {
+        						return value;
+        					}
+        				}
+        			}
+        		} catch (e) {}
+        		return '''';
+        	}
+        
+        	public getAgentAssistantCurrentPage(): string {
+        		try {
+        			const params = new URLSearchParams(window.location.search || '''');
+        			const page = params.get(''page'');
+        			return page != null && page.indexOf('':'') !== 0 ? page : '''';
+        		} catch (e) {
+        			return '''';
+        		}
+        	}
+        
+        	public getAgentAssistantLanguage(): string {
+        		const normalizeLanguage = (candidate: any): string => {
+        			const value = String(candidate == null ? '''' : candidate).trim().toLowerCase();
+        			if (value === '''') { return ''''; }
+        			if (value.indexOf(''fr'') === 0 || value === ''french'' || value === ''français'' || value === ''francais'') { return ''fr''; }
+        			if (value.indexOf(''it'') === 0 || value === ''italian'' || value === ''italiano'') { return ''it''; }
+        			if (value.indexOf(''es'') === 0 || value === ''spanish'' || value === ''español'' || value === ''espanol'') { return ''es''; }
+        			if (value.indexOf(''en'') === 0 || value === ''english'') { return ''en''; }
+        			return '''';
+        		};
+        
+        		const readStorage = (key: string): string => {
+        			try { return window.localStorage.getItem(key) || window.sessionStorage.getItem(key) || ''''; } catch (e) { return ''''; }
+        		};
+        
+        		const candidates = [
+        			this.translate?.currentLang,
+        			(window as any).__c8o__translate?.currentLang,
+        			this.global?.settings?.language,
+        			this.global?.settings?.lang,
+        			this.global?.language,
+        			this.global?.lang,
+        			document.documentElement?.lang,
+        			readStorage(''c8oforms_language''),
+        			readStorage(''c8oforms_lang''),
+        			readStorage(''language''),
+        			readStorage(''lang''),
+        			navigator.language
+        		];
+        		for (const candidate of candidates) {
+        			const language = normalizeLanguage(candidate);
+        			if (language !== '''') {
+        				return language;
+        			}
+        		}
+        		return ''en'';
+        	}
+        
+        	public getAgentAssistantTheme(): string {
+        		try {
+        			const globalTheme = this.global?.themeDark === true || this.global?.darkTheme === true || this.global?.dark === true;
+        			const domTheme = document.documentElement?.classList?.contains(''dark'') || document.body?.classList?.contains(''dark'');
+        			return globalTheme || domTheme ? ''dark'' : ''light'';
+        		} catch (e) {
+        			return ''light'';
+        		}
+        	}
+        
+        	public getAgentAssistantContext(): any {
+        		const currentUrl = this.getAgentAssistantCurrentUrl();
+        		const currentRoute = this.getAgentAssistantCurrentRoute();
+        		const routeFormId = this.getAgentAssistantCurrentFormId();
+        		const selected: any = this.global?.agentAssistantSelectionContext || {};
+        		const selectedFormId = String(selected.currentFormId || selected.formId || '''');
+        		const selectionMatchesRoute = routeFormId !== '''' && (selectedFormId === '''' || routeFormId === selectedFormId);
+        		const selection: any = selectionMatchesRoute ? selected : {};
+        		const currentFormId = String(selection.currentFormId || selection.formId || routeFormId || '''');
+        		const currentPage = String(selection.currentPage || selection.pageId || this.getAgentAssistantCurrentPage() || '''');
+        		const language = this.getAgentAssistantLanguage();
+        		const theme = this.getAgentAssistantTheme();
+        		return {
+        			contextVersion: ''1'',
+        			embedMode: ''c8oforms'',
+        			hostOrigin: window.location.origin,
+        			assistantSurface: ''nocode'',
+        			assistantContext: ''nocode'',
+        			agentProfile: ''nocode'',
+        			skillProfile: ''nocode'',
+        			projectContext: ''optional'',
+        			defaultProject: ''none'',
+        			projectScope: ''conversation'',
+        			userId: this.getAgentAssistantUserId(),
+        			codexHomeScope: ''user'',
+        			vibeHomeScope: ''user'',
+        			homeScope: ''user'',
+        			language: language,
+        			locale: language,
+        			assistantLanguage: language,
+        			theme: theme,
+        			darkTheme: theme === ''dark'',
+        			currentUrl: currentUrl,
+        			nocodeCurrentUrl: currentUrl,
+        			currentRoute: currentRoute,
+        			nocodeCurrentRoute: currentRoute,
+        			currentFormId: currentFormId,
+        			nocodeCurrentFormId: currentFormId,
+        			formId: currentFormId,
+        			currentFormName: String(selection.currentFormName || selection.formName || ''''),
+        			formName: String(selection.formName || selection.currentFormName || ''''),
+        			currentFormRevision: String(selection.currentFormRevision || selection.formRevision || ''''),
+        			formRevision: String(selection.formRevision || selection.currentFormRevision || ''''),
+        			currentPage: currentPage,
+        			pageId: currentPage,
+        			pageName: String(selection.pageName || ''''),
+        			elementId: String(selection.elementId || ''''),
+        			elementName: String(selection.elementName || ''''),
+        			elementType: String(selection.elementType || ''''),
+        			parentElementId: String(selection.parentElementId || ''''),
+        			selectionKind: String(selection.selectionKind || (currentFormId !== '''' ? ''form'' : ''''))
+        		};
+        	}
+        
+        	public getAgentAssistantTargetOrigin(url?: string): string {
+        		try {
+        			const value = url || this.agentAssistantSafeUrlValue || this.getAgentAssistantUrl();
+        			return value !== '''' ? new URL(value, window.location.href).origin : window.location.origin;
+        		} catch (e) {
+        			return window.location.origin || ''*'';
+        		}
+        	}
+        
+        	public postAgentAssistantContext(force: boolean = false): void {
+        		try {
+        			if (this.global?.isAgentMenuOpen !== true) {
+        				return;
+        			}
+        			const frame = document.querySelector(''iframe.agent-assistant-frame'') as HTMLIFrameElement;
+        			if (!frame || !frame.contentWindow) {
+        				return;
+        			}
+        			const context = this.getAgentAssistantContext();
+        			const serialized = JSON.stringify(context);
+        			if (!force && serialized === this.agentAssistantLastPostedContext && this.agentAssistantLastPostedUrl === this.agentAssistantSafeUrlValue) {
+        				return;
+        			}
+        			const targetOrigin = this.getAgentAssistantTargetOrigin();
+        			frame.contentWindow.postMessage({ type: ''ConvertigoAssistant.context'', payload: context }, targetOrigin);
+        			this.agentAssistantLastPostedContext = serialized;
+        			this.agentAssistantLastPostedUrl = this.agentAssistantSafeUrlValue;
+        		} catch (e) {}
+        	}
+        
+        	public bindAgentAssistantContextPublisher(): void {
+        		try {
+        			if (this.agentAssistantContextTimer != null) {
+        				return;
+        			}
+        			this.agentAssistantContextTimer = setInterval(() => {
+        				if (this.global?.isAgentMenuOpen === true) {
+        					this.postAgentAssistantContext(false);
+        				}
+        			}, 1500);
+        			const publish = () => this.postAgentAssistantContext(true);
+        			window.addEventListener(''popstate'', publish);
+        			window.addEventListener(''hashchange'', publish);
+        			window.addEventListener(''c8oforms:assistant-context-change'', publish as EventListener);
+        			window.addEventListener(''message'', (event) => {
+        				try {
+        					const data = event && event.data ? event.data : null;
+        					const frame = document.querySelector(''iframe.agent-assistant-frame'') as HTMLIFrameElement;
+        					const targetOrigin = this.getAgentAssistantTargetOrigin();
+        					if (!data || !frame || event.source !== frame.contentWindow || event.origin !== targetOrigin) {
+        						return;
+        					}
+        					if (data.type === ''ConvertigoAssistant.context.request'') {
+        						this.postAgentAssistantContext(true);
+        						return;
+        					}
+        					if (data.type === ''ConvertigoAssistant.form-updated'') {
+        						this.handleAgentAssistantFormUpdated(data.payload || data.context || {});
+        					}
+        				} catch (e) {}
+        			});
+        		} catch (e) {}
+        	}
+        
+        	public handleAgentAssistantFormUpdated(payload: any): void {
+        		try {
+        			payload = payload && typeof payload === "object" ? payload : {};
+        			const formId = String(payload.formId || "");
+        			const current = this.getAgentAssistantContext();
+        			if (formId === "" || !this.isAgentAssistantAllowed()) {
+        				return;
+        			}
+        			const mutationKey = String(payload.mutationKey || ((payload.runid || "") + ":" + formId + ":" + (payload.completedAt || "")));
+        			if (mutationKey !== "" && this.global?.agentAssistantLastMutationKey === mutationKey) {
+        				return;
+        			}
+        			if (!this.global) { this.global = {}; }
+        			this.global.agentAssistantLastMutationKey = mutationKey;
+        			this.events.publish("AgentAssistantFocusForm", payload, true);
+        			try { window.dispatchEvent(new CustomEvent("c8oforms:assistant-form-updated", { detail: payload })); } catch (eEvent) {}
+        		} catch (e) {}
+        	}
+        
+        	public getAgentAssistantUrl(): string {
+        		const endpoint = this.getConvertigoServerEndpoint();
+        		if (endpoint === '''') {
+        			return '''';
+        		}
+        		const params = new URLSearchParams();
+        		params.set(''agentBridge'', ''1'');
+        		params.set(''assistantMode'', ''agent'');
+        		params.set(''embedMode'', ''c8oforms'');
+        		params.set(''contextVersion'', ''1'');
+        		params.set(''hostOrigin'', window.location.origin);
+        		params.set(''assistantSurface'', ''nocode'');
+        		params.set(''assistantContext'', ''nocode'');
+        		params.set(''agentProfile'', ''nocode'');
+        		params.set(''skillProfile'', ''nocode'');
+        		params.set(''projectContext'', ''optional'');
+        		params.set(''defaultProject'', ''none'');
+        		params.set(''projectScope'', ''conversation'');
+        		params.set(''userId'', this.getAgentAssistantUserId());
+        		params.set(''codexHomeScope'', ''user'');
+        		params.set(''vibeHomeScope'', ''user'');
+        		params.set(''homeScope'', ''user'');
+        		return endpoint + ''/projects/lib_ConvertigoAssistant/DisplayObjects/mobile/path-to-agent/%3Athreadid?'' + params.toString();
+        	}
+        
+        	public isAgentAssistantAllowed(): boolean {
+        		try {
+        			const route = String(window.location.pathname || '''') + '' '' + String((this as any).router?.url || '''');
+        			if (/login/i.test(route)) {
+        				return false;
+        			}
+        			const userId = this.getAgentAssistantUserId();
+        			if (userId === '''' || userId === ''anonymous'') {
+        				return false;
+        			}
+        			try {
+        				const status = this.c8o?.session?.status;
+        				if (status != null && status !== C8oSessionStatus.Connected && status !== C8oSessionStatus.HasBeenConnected) {
+        					return false;
+        				}
+        			} catch (e) {}
+        			return true;
+        		} catch (e) {
+        			return false;
+        		}
+        	}
+        
+        	public getAgentAssistantSafeUrl(): any {
+        		this.bindAgentDrawerBrevoOffset();
+        		this.bindAgentAssistantContextPublisher();
+        		if (!this.isAgentAssistantAllowed()) {
+        			if (this.global) {
+        				this.global.isAgentMenuOpen = false;
+        				this.global.agentDrawerCollapsed = true;
+        			}
+        			this.agentAssistantSafeUrl = null;
+        			this.agentAssistantSafeUrlValue = '''';
+        			this.agentAssistantLastPostedContext = '''';
+        			this.updateBrevoOffsetForAgentDrawer(false);
+        			try {
+        				const menu = document.querySelector(''ion-menu[menu-id="AgentMenu"]'') as any;
+        				if (menu && typeof menu.close === ''function'') { menu.close(); }
+        			} catch (e) {}
+        			return null;
+        		}
+        		if (this.global?.isAgentMenuOpen !== true || this.agentResourceUrlSanitizer == undefined) {
+        			this.updateBrevoOffsetForAgentDrawer(false);
+        			return null;
+        		}
+        		this.updateBrevoOffsetForAgentDrawer(true);
+        		const url = this.getAgentAssistantUrl();
+        		if (url === '''') {
+        			return null;
+        		}
+        		if (this.agentAssistantSafeUrl == null || this.agentAssistantSafeUrlValue !== url) {
+        			this.agentAssistantSafeUrlValue = url;
+        			this.agentAssistantSafeUrl = this.agentResourceUrlSanitizer.bypassSecurityTrustResourceUrl(url);
+        			setTimeout(() => this.postAgentAssistantContext(true), 250);
+        			setTimeout(() => this.postAgentAssistantContext(true), 1000);
+        		}
+        		this.postAgentAssistantContext(false);
+        		return this.agentAssistantSafeUrl;
+        	}
+        
+        	public bindAgentDrawerBrevoOffset(): void {
+        		try {
+        			const menu: any = document.querySelector(''ion-menu[menu-id="AgentMenu"]'');
+        			if (menu == null || menu.__c8oBrevoAgentOffsetBound === true) {
+        				return;
+        			}
+        			menu.__c8oBrevoAgentOffsetBound = true;
+        			menu.addEventListener(''ionWillOpen'', () => this.updateBrevoOffsetForAgentDrawer(true));
+        			menu.addEventListener(''ionDidOpen'', () => this.updateBrevoOffsetForAgentDrawer(true));
+        			menu.addEventListener(''ionWillClose'', () => this.updateBrevoOffsetForAgentDrawer(false));
+        			menu.addEventListener(''ionDidClose'', () => this.updateBrevoOffsetForAgentDrawer(false));
+        		} catch (e) {}
+        	}
+        
+        	public updateBrevoOffsetForAgentDrawer(open?: boolean): void {
+        		try {
+        			const brevo = document.getElementById("brevo-conversations") as HTMLElement;
+        			if (brevo == null) {
+        				return;
+        			}
+        			const isOpen = open == null ? this.global?.isAgentMenuOpen === true : open === true;
+        			if (!isOpen) {
+        				brevo.style.right = "10px";
+        				brevo.style.transform = "";
+        				return;
+        			}
+        			const menu = document.querySelector(''ion-menu[menu-id="AgentMenu"]'') as HTMLElement;
+        			let width = 420;
+        			if (menu != null) {
+        				const rect = menu.getBoundingClientRect();
+        				if (rect && rect.width > 0) {
+        					width = Math.round(rect.width);
+        				}
+        			}
+        			brevo.style.right = (width + 16) + "px";
+        			brevo.style.transform = "";
+        		} catch (e) {}
+        	}
+        
         	public getStandalonePwaId(): string {
         		const pathParts = window.location.pathname.split("/");
         		const pwasIndex = pathParts.indexOf("pwas");
@@ -1869,6 +2333,8 @@ componentScriptContent:
         				let showBrevo = ()=>{
         					try{
         						document.getElementById("brevo-conversations").style.display = "block";
+        						page.bindAgentDrawerBrevoOffset();
+        						page.updateBrevoOffsetForAgentDrawer();
         					}
         					catch (e) {
         
@@ -1937,12 +2403,13 @@ componentScriptContent:
         		/*End_c8o_function:CTS1765360727798*/
         '
 isPWA: true
-splitPaneLayout: 'this.global?.pwa === true ? (this.global?.__pwaMenuUserOpened === true && this.global?.isMenuOpen === true) : this.global?.isMenuOpen'
+splitPaneLayout: 'this.global?.pwa === true ? (this.global?.__pwaMenuUserOpened === true && this.global?.isMenuOpen === true) : (this.global?.isMenuOpen === true || (this.global?.isAgentMenuOpen === true && this.isAgentAssistantAllowed()))'
 tplProjectName: C8Oforms
 useClickForTap: true
 ↓Menu [ngx.components.UIDynamicMenu-1500890597895]: 🗏 mobileMenus/Menu.yaml
 ↓MenuLogin [ngx.components.UIDynamicMenu-1543518219237]: 🗏 mobileMenus/MenuLogin.yaml
 ↓MenuSelector [ngx.components.UIDynamicMenu-1543518260629]: 🗏 mobileMenus/MenuSelector.yaml
+↓AgentMenu [ngx.components.UIDynamicMenu-1782381046498]: 🗏 mobileMenus/AgentMenu.yaml
 ↓updateState [ngx.components.UIActionStack-1554989913269]: 🗏 mobileSharedActions/updateState.yaml
 ↓getTranslate [ngx.components.UIActionStack-1554994860699]: 🗏 mobileSharedActions/getTranslate.yaml
 ↓tickAction [ngx.components.UIActionStack-1554994873907]: 🗏 mobileSharedActions/tickAction.yaml
@@ -3244,6 +3711,40 @@ useClickForTap: true
        "Property": "plain:isMenuOpen",
        "Value": "script:false"
       }'
+  ↓CloseAgentMenuFlag [ngx.components.UIDynamicAction-1782817226764]: 
+    beanData: |
+      '{
+       "ionBean": "SetGlobalAction",
+       "Property": "plain:isAgentMenuOpen",
+       "Value": "script:false"
+      }'
+  ↓CloseAgentMenuDom [ngx.components.UICustomAction-1782817310423]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		try {
+            			if (page.global) {
+            				page.global.isAgentMenuOpen = false;
+            				page.global.agentDrawerCollapsed = true;
+            			}
+            			try { if (page.updateBrevoOffsetForAgentDrawer) { page.updateBrevoOffsetForAgentDrawer(false); } } catch (eOffset) {}
+            			try {
+            				var menu = document.querySelector('ion-menu[menu-id="AgentMenu"]') as any;
+            				if (menu && typeof menu.close === 'function') {
+            					menu.close();
+            				}
+            			} catch (eMenu) {}
+            			try {
+            				page.agentAssistantSafeUrl = null;
+            				page.agentAssistantSafeUrlValue = '';
+            				page.agentAssistantLastPostedContext = '';
+            			} catch (eFrame) {}
+            			try { if (page.ref && page.ref.detectChanges) { page.ref.detectChanges(); } } catch (eDetect) {}
+            		} catch (e) {}
+            		resolve();
+            
 ↓StyleRemoveScrollBarOnMobileDevices [ngx.components.UIStyle-1600364375227]: 
   styleContent: 
     - xmlizable: 
@@ -4973,6 +5474,8 @@ useClickForTap: true
                               let showBrevo = ()=>{
                                   try{
                                       document.getElementById("brevo-conversations").style.display = "block";
+                                      page.bindAgentDrawerBrevoOffset();
+                                      page.updateBrevoOffsetForAgentDrawer();
                                   }
                                   catch (e) {
               
@@ -5143,6 +5646,179 @@ useClickForTap: true
        "Property": "plain:viewerHome",
        "Value": "script:true"
       }'
+  ↓AgentAssistantContextPatch [ngx.components.UICustomAction-1782817373426]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '		try {
+            			var app = page as any;
+            			if (app.__agentAssistantContextPatchApplied !== true) {
+            				app.__agentAssistantContextPatchApplied = true;
+            
+            				var normalizeLanguage = function(value) {
+            					var lang = ('''' + (value == null ? '''' : value)).replace(/^\s+|\s+$/g, '''').toLowerCase();
+            					if (lang.indexOf(''fr'') === 0 || lang === ''french'' || lang === ''français'' || lang === ''francais'') { return ''fr''; }
+            					if (lang.indexOf(''it'') === 0 || lang === ''italian'' || lang === ''italiano'') { return ''it''; }
+            					if (lang.indexOf(''es'') === 0 || lang === ''spanish'' || lang === ''espanol'' || lang === ''español'') { return ''es''; }
+            					if (lang.indexOf(''en'') === 0 || lang === ''english'') { return ''en''; }
+            					return '''';
+            				};
+            
+            				app.getAgentAssistantLanguage = function() {
+            					var candidates = [];
+            					try { candidates.push(page.global && page.global.settings && page.global.settings.language); } catch (e1) {}
+            					try { candidates.push(page.global && page.global.language); } catch (e2) {}
+            					try { candidates.push(page.translate && page.translate.currentLang); } catch (e3) {}
+            					try { candidates.push(window[''__c8o__translate''] && window[''__c8o__translate''].currentLang); } catch (e4) {}
+            					try { candidates.push(document.documentElement && document.documentElement.lang); } catch (e5) {}
+            					try { candidates.push(window.localStorage && (window.localStorage.getItem(''c8oforms_language'') || window.localStorage.getItem(''c8oforms_lang'') || window.localStorage.getItem(''language'') || window.localStorage.getItem(''lang''))); } catch (e6) {}
+            					try { candidates.push(navigator.language); } catch (e7) {}
+            					for (var i = 0; i < candidates.length; i++) {
+            						var normalized = normalizeLanguage(candidates[i]);
+            						if (normalized.length) {
+            							return normalized;
+            						}
+            					}
+            					return ''en'';
+            				};
+            
+            				var refreshAgentSafeUrl = function(force) {
+            					try {
+            						var nextUrl = app.getAgentAssistantUrl ? String(app.getAgentAssistantUrl() || '''') : '''';
+            						if (!nextUrl.length) {
+            							return;
+            						}
+            						if (force === true || app.agentAssistantSafeUrlValue !== nextUrl) {
+            							app.agentAssistantSafeUrl = null;
+            							app.agentAssistantSafeUrlValue = '''';
+            							app.agentAssistantLastPostedContext = '''';
+            							try { if (page.ref && page.ref.detectChanges) { page.ref.detectChanges(); } } catch (eDetect1) {}
+            							try { if (app.ref && app.ref.detectChanges) { app.ref.detectChanges(); } } catch (eDetect2) {}
+            						}
+            					} catch (eRefresh) {}
+            				};
+            
+            				var originalContext = page.getAgentAssistantContext;
+            				app.getAgentAssistantContext = function() {
+            					var context: any = {};
+            					try { context = originalContext ? originalContext.call(page) : {}; } catch (eContext) { context = {}; }
+            					var language = app.getAgentAssistantLanguage ? app.getAgentAssistantLanguage() : ''en'';
+            					var theme = app.getAgentAssistantTheme ? app.getAgentAssistantTheme() : ''light'';
+            					context.language = language;
+            					context.locale = language;
+            					context.assistantLanguage = language;
+            					context.theme = theme;
+            					context.darkTheme = theme === ''dark'';
+            					return context;
+            				};
+            
+            				var originalUrl = page.getAgentAssistantUrl;
+            				app.getAgentAssistantUrl = function() {
+            					try { return originalUrl ? String(originalUrl.call(page) || '''') : ''''; } catch (eUrl) {}
+            					return '''';
+            				};
+            
+            				app.closeAgentAssistantIfLoggedOut = function() {
+            					try {
+            						var session = page.c8o && page.c8o.session ? page.c8o.session : null;
+            						var connected = false;
+            						try { connected = !!(session && (session.status == C8oSessionStatus.Connected || session.status == C8oSessionStatus.HasBeenConnected)); } catch (eConnected) {}
+            						var user = '''';
+            						try { user = '''' + ((page.global && page.global.settings && (page.global.settings.mail || page.global.settings.email || page.global.settings.login)) || (session && session.user && session.user.name) || ''''); } catch (eUser) {}
+            						var userLower = user.replace(/^\s+|\s+$/g, '''').toLowerCase();
+            						var loginPath = '''';
+            						try { loginPath = String(window.location.pathname || '''') + '' '' + String((app.router && app.router.url) || ''''); } catch (ePath) {}
+            						var onLogin = /login/i.test(loginPath);
+            						var invalidUser = !userLower.length || userLower === ''unknown user'' || userLower === ''anonymous'' || userLower === ''undefined'' || userLower === ''null'';
+            						if (onLogin || !connected || invalidUser) {
+            							if (page.global) {
+            								page.global.isAgentMenuOpen = false;
+            								page.global.agentDrawerCollapsed = true;
+            							}
+            							try { if (page.updateBrevoOffsetForAgentDrawer) { page.updateBrevoOffsetForAgentDrawer(false); } } catch (eOffset) {}
+            							try {
+            								var menu = document.querySelector(''ion-menu[menu-id="AgentMenu"]'') as any;
+            								if (menu && typeof menu.close === ''function'') { menu.close(); }
+            							} catch (eMenu) {}
+            							try {
+            								app.agentAssistantSafeUrl = null;
+            								app.agentAssistantSafeUrlValue = '''';
+            								app.agentAssistantLastPostedContext = '''';
+            							} catch (eFrame) {}
+            							try { if (page.ref && page.ref.detectChanges) { page.ref.detectChanges(); } } catch (eDetect) {}
+            						} else if (page.global && page.global.isAgentMenuOpen === true) {
+            							refreshAgentSafeUrl(false);
+            						}
+            					} catch (eClose) {}
+            				};
+            
+            				refreshAgentSafeUrl(true);
+            				setInterval(function() { try { app.closeAgentAssistantIfLoggedOut(); } catch (eInterval) {} }, 1000);
+            				setTimeout(function() { try { app.closeAgentAssistantIfLoggedOut(); } catch (eTimeout) {} }, 100);
+            				setTimeout(function() { try { refreshAgentSafeUrl(true); } catch (eRefreshTimeout) {} }, 1500);
+            			}
+            		} catch (e) {}
+            		resolve();
+            '
+  ↓AgentAssistantLogoutGuard [ngx.components.UICustomAction-1782828384209]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            		try {
+            			var app = page as any;
+            			if (app.__agentAssistantLogoutGuardBound !== true) {
+            				app.__agentAssistantLogoutGuardBound = true;
+            				var cleanupAgentDrawer = function() {
+            					try {
+            						var route = '';
+            						try { route = String(window.location.pathname || '') + ' ' + String(window.location.hash || '') + ' ' + String((app.router && app.router.url) || ''); } catch (eRoute) {}
+            						var onLogin = /login/i.test(route);
+            						if (!onLogin) {
+            							return;
+            						}
+            						if (page.global) {
+            							page.global.isAgentMenuOpen = false;
+            							page.global.agentDrawerCollapsed = true;
+            						}
+            						try { if (page.updateBrevoOffsetForAgentDrawer) { page.updateBrevoOffsetForAgentDrawer(false); } } catch (eOffset) {}
+            						try {
+            							app.agentAssistantSafeUrl = null;
+            							app.agentAssistantSafeUrlValue = '';
+            							app.agentAssistantLastPostedContext = '';
+            						} catch (eState) {}
+            						try {
+            							var frames = document.querySelectorAll('iframe.agent-assistant-frame, iframe[src*="ConvertigoAssistant"]');
+            							for (var i = 0; i < frames.length; i++) {
+            								var frame = frames[i] as any;
+            								try { frame.removeAttribute('src'); } catch (eRemove) {}
+            								try { frame.src = 'about:blank'; } catch (eBlank) {}
+            							}
+            						} catch (eFrames) {}
+            						try {
+            							var menu = document.querySelector('ion-menu[menu-id="AgentMenu"]') as any;
+            							if (menu && typeof menu.close === 'function') { menu.close(); }
+            						} catch (eMenu) {}
+            						try { if (page.ref && page.ref.detectChanges) { page.ref.detectChanges(); } } catch (eDetect1) {}
+            						try { if (app.ref && app.ref.detectChanges) { app.ref.detectChanges(); } } catch (eDetect2) {}
+            					} catch (eCleanup) {}
+            				};
+            				var previousClose = app.closeAgentAssistantIfLoggedOut;
+            				app.closeAgentAssistantIfLoggedOut = function() {
+            					try { if (previousClose) { previousClose.call(app); } } catch (ePrevious) {}
+            					cleanupAgentDrawer();
+            				};
+            				cleanupAgentDrawer();
+            				setInterval(cleanupAgentDrawer, 500);
+            				window.addEventListener('popstate', cleanupAgentDrawer);
+            				window.addEventListener('hashchange', cleanupAgentDrawer);
+            			}
+            		} catch (e) {}
+            		resolve();
+            
 ↓StyleAlerts [ngx.components.UIStyle-1729787739205]: 
   styleContent: 
     - xmlizable: 
@@ -8828,3 +9504,221 @@ useClickForTap: true
           .monaco-editor .codicon {
           font-family: codicon !important;
           }'
+↓AgentDrawerStyle [ngx.components.UIStyle-1782381120600]: 
+  comment: Right drawer reserved for the integrated AI agent.
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          'ion-split-pane {
+            --agent-drawer-width: clamp(380px, 34vw, 560px);
+          }
+          ion-split-pane.split-pane-visible ion-menu[menu-id="MenuSelector"]:not(.menu-selector-open),
+          ion-split-pane.split-pane-visible ion-menu[menu-id="AgentMenu"]:not(.agent-drawer-open) {
+            --width: 0px !important;
+            --min-width: 0px !important;
+            --max-width: 0px !important;
+            --side-width: 0px !important;
+            --side-min-width: 0px !important;
+            --side-max-width: 0px !important;
+            display: none !important;
+            min-width: 0 !important;
+            width: 0 !important;
+          }
+          
+          ion-menu#agentMenu,
+          ion-menu[menu-id="AgentMenu"] {
+            --width: var(--agent-drawer-width) !important;
+            --min-width: var(--agent-drawer-width) !important;
+            --max-width: var(--agent-drawer-width) !important;
+            --side-width: var(--agent-drawer-width) !important;
+            --side-min-width: var(--agent-drawer-width) !important;
+            --side-max-width: var(--agent-drawer-width) !important;
+            width: var(--agent-drawer-width) !important;
+            min-width: var(--agent-drawer-width) !important;
+            max-width: var(--agent-drawer-width) !important;
+            box-sizing: border-box;
+            --background: var(--sidebar, #ffffff);
+            --box-shadow: -12px 0 32px rgba(1, 14, 35, 0.14);
+            border-left: 1px solid rgba(2, 214, 253, 0.32);
+          }
+          
+          @media (max-width: 700px) {
+            ion-split-pane {
+              --agent-drawer-width: 100vw;
+            }
+            ion-menu#agentMenu,
+            ion-menu[menu-id="AgentMenu"] {
+              --width: var(--agent-drawer-width) !important;
+              --min-width: var(--agent-drawer-width) !important;
+              --max-width: var(--agent-drawer-width) !important;
+              --side-width: var(--agent-drawer-width) !important;
+              --side-min-width: var(--agent-drawer-width) !important;
+              --side-max-width: var(--agent-drawer-width) !important;
+              width: var(--agent-drawer-width) !important;
+              min-width: var(--agent-drawer-width) !important;
+              max-width: var(--agent-drawer-width) !important;
+              box-sizing: border-box;
+              border-left: 0;
+            }
+          }
+          
+          .agent-drawer-header {
+            align-items: center;
+            background: linear-gradient(180deg, rgba(2, 214, 253, 0.09) 0%, var(--sidebar, #ffffff) 78%);
+            border-bottom: 1px solid rgba(2, 214, 253, 0.38);
+            color: #010e23;
+            display: flex;
+            height: 56px;
+            justify-content: space-between;
+            padding: 0 16px;
+          }
+          
+          .agent-drawer-title {
+            align-items: center;
+            color: #010e23;
+            display: flex;
+            font-size: 17px;
+            font-weight: 700;
+            gap: 12px;
+            letter-spacing: -0.01em;
+          }
+          
+          .agent-drawer-title img[src$="tigo-assistant.png"] {
+            display: block;
+            flex: 0 0 44px;
+            height: 44px;
+            object-fit: contain;
+            width: 44px;
+            filter: drop-shadow(0 2px 6px rgba(1, 14, 35, 0.15));
+          }
+          
+          .agent-drawer-close {
+            --border-radius: 999px;
+            --padding-start: 8px;
+            --padding-end: 8px;
+            --background-hover: rgba(2, 214, 253, 0.16);
+            --background-activated: rgba(2, 214, 253, 0.24);
+            color: #010e23;
+            height: 36px;
+            width: 36px;
+          }
+          
+          .agent-drawer-toggle {
+            --border-radius: 999px;
+            --padding-start: 0;
+            --padding-end: 0;
+            --padding-top: 0;
+            --padding-bottom: 0;
+            --background: rgba(2, 214, 253, 0.12);
+            --background-hover: rgba(2, 214, 253, 0.22);
+            --background-activated: rgba(2, 214, 253, 0.30);
+            color: #010e23;
+            height: 44px;
+            width: 44px;
+          }
+          
+          .agent-drawer-toggle > ion-icon[name="sparkles-outline"] {
+            color: #010e23;
+            font-size: 24px;
+            height: 24px;
+            width: 24px;
+          }
+          
+          .agent-drawer-close ion-icon {
+            font-size: 20px;
+          }
+          
+          ion-menu[menu-id="AgentMenu"] ion-content {
+            --padding-bottom: 0;
+            --padding-end: 0;
+            --padding-start: 0;
+            --padding-top: 0;
+          }
+          
+          .agent-drawer-shell {
+            background: var(--sidebar, #ffffff);
+            color: var(--sidebar-foreground, #1f2937);
+            height: 100%;
+            padding: 0;
+          }
+          
+          .agent-assistant-frame {
+            background: var(--sidebar, #ffffff);
+            border: 0;
+            display: block;
+            height: 100%;
+            min-height: 100%;
+            width: 100%;
+          }
+          /* Forms assistant: compact, theme-aware host shell. */
+          ion-menu[menu-id="AgentMenu"].agent-drawer-expanded { --agent-drawer-width: clamp(440px, 58vw, 960px); }
+          .agent-drawer-header { height: 48px; padding: 0 12px; background: var(--sidebar, #fff); border-bottom: 1px solid var(--border, #e3e8ef); color: var(--foreground, #24334b); gap: 6px; }
+          .agent-drawer-title { flex: 1; font-size: 15px; gap: 8px; color: inherit; }
+          .agent-drawer-title img[src$="tigo-assistant.png"] { width: 32px; height: 32px; flex-basis: 32px; filter: none; }
+          .agent-drawer-close, .agent-drawer-collapse { width: 36px; height: 36px; color: inherit; --border-radius: 10px; }
+          .agent-drawer-collapse .agent-collapse-icon-expand { display: none; }
+          .agent-drawer-expanded .agent-drawer-collapse .agent-collapse-icon-expand { display: inline-block; }
+          .agent-drawer-expanded .agent-drawer-collapse .agent-collapse-icon-collapse { display: none; }
+          @media (max-width: 700px) {
+            ion-menu[menu-id="AgentMenu"], ion-menu[menu-id="AgentMenu"].agent-drawer-expanded { --agent-drawer-width: 100vw; }
+            .agent-drawer-collapse { display: none; }
+          }
+          '
+↓AgentAssistantFocusForm [ngx.components.UIEventSubscriber-1789130612607]: 
+  comment: Open and select the authenticated form identified by a successful assistant tool result.
+  topic: AgentAssistantFocusForm
+  ↓ReadSubjectForm [ngx.components.UIDynamicAction-1789130614145]: 
+    beanData: |
+      '{
+       "ionBean": "CallSequenceAction",
+       "requestable": "plain:C8Oforms.APIV2_getDocument",
+       "noLoading": "plain:true"
+      }'
+    ↓id [ngx.components.UIControlVariable-1789130615703]: 
+      varValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:stack['root'].out.formId
+    ↓AccessibleForm [ngx.components.UIDynamicIf-1789130615705]: 
+      beanData: '{"ionBean":"IfElseAction","condition":"script:parent.out && parent.out.res && String(parent.out.res._id) === String(stack[''root''].out.formId) && this.isAgentAssistantAllowed()"}'
+      ↓SelectSubjectForm [ngx.components.UIDynamicAction-1789130617283]: 
+        beanData: |
+          '{
+           "ionBean": "SetGlobalAction",
+           "Property": "plain:formSelected",
+           "Value": "script:stack[''ReadSubjectForm''].out.res"
+          }'
+      ↓RememberPendingFocus [ngx.components.UIDynamicAction-1789130617285]: 
+        beanData: |
+          '{
+           "ionBean": "SetGlobalAction",
+           "Property": "plain:agentAssistantPendingFocus",
+           "Value": "script:stack[''root''].out"
+          }'
+      ↓AlreadyInEditor [ngx.components.UIDynamicIf-1789130617287]: 
+        beanData: '{"ionBean":"IfElseAction","condition":"script:String(this.getAgentAssistantContext().formId || '''') === String(stack[''root''].out.formId) && \/\\\/editor\\\/\/.test(window.location.pathname)"}'
+        ↓RefreshFocusedForm [ngx.components.UIDynamicAction-1789130617289]: 
+          beanData: |
+            '{
+             "ionBean": "PublishEventAction",
+             "topic": "plain:AgentAssistantFormUpdated",
+             "data": "script:stack[''root''].out",
+             "async": "plain:false"
+            }'
+        ↓ClearPendingFocus [ngx.components.UIDynamicAction-1789130617291]: 
+          beanData: |
+            '{
+             "ionBean": "SetGlobalAction",
+             "Property": "plain:agentAssistantPendingFocus",
+             "Value": "script:null"
+            }'
+        ↓Else_Handler [ngx.components.UIActionElseEvent-1789130617293]: 
+          ↓OpenSubjectForm [ngx.components.UIDynamicAction-1789130618791]: 
+            beanData: |
+              '{
+               "ionBean": "RootPageAction",
+               "page": "plain:C8Oforms.MobileApplication.Application.editorPage",
+               "data": "script:({formId: stack[''root''].out.formId})"
+              }'

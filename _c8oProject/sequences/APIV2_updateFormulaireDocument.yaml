@@ -177,6 +177,11 @@ comment: |
     	collectIds(importedMeta.formulaire, remainingIds);
     	cleanupRefs(importedMeta.formulaire, remainingIds);
     };
+    include("js/form_write_guard.js");
+    var formWriteGuard = c8oFormWriteGuard.prepare(meta, function (id) { return getDoc(id, null, "c8oforms_fs"); });
+    if (formWriteGuard.error) {
+    	doc = formWriteGuard.error;
+    } else {
     // if we are creating a new form from a template
     if (meta.template) {
     	let tag = meta["tag"];
@@ -237,7 +242,7 @@ comment: |
     	}
     }
     else {
-    	let existing_doc = meta._id != undefined ? getDoc(meta._id, null, "c8oforms_fs") : false;
+    	let existing_doc = formWriteGuard.enabled ? formWriteGuard.document : (meta._id != undefined ? getDoc(meta._id, null, "c8oforms_fs") : false);
     	//check if new doc
     	if (!existing_doc) {
     		new_doc = true;
@@ -445,8 +450,10 @@ comment: |
     		mergeRules.put(java.util.Arrays.asList(new java.lang.String("flows")), new java.lang.String("override"));
     	}
     	// post doc 
-    	doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(meta), new HashMap(), enums.CouchPostDocumentPolicy.merge, mergeRules, false));
+    	doc = toJSON(fsclient.postDocument(java.lang.String("c8oforms_fs"), toJettison(meta), new HashMap(), formWriteGuard.enabled ? enums.CouchPostDocumentPolicy.none : enums.CouchPostDocumentPolicy.merge, mergeRules, false));
     
+    	// A revision conflict must not upload or delete any attachment.
+    	if (!doc.error) {
     	if (_up_thumbnail) {
     		attfile = new java.io.File(file);
     		fsclient.putDocumentAttachment("c8oforms_fs", meta._id, "thumbnail", new HashMap(), attfile, _up_content_type);
@@ -469,9 +476,9 @@ comment: |
     		attfile = new java.io.File(file);
     		fsclient.putDocumentAttachment("c8oforms_fs", meta._id, _up_name, new HashMap(), attfile, _up_content_type);
     	}
-    
+    	}
     }
-    
+    }
     '
 ↓object2 [steps.JsonToXmlStep-1696261644250]: 
   jsonObject: 
