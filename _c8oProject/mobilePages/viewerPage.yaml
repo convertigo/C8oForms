@@ -11455,6 +11455,373 @@ scriptContent:
         
         
         	/**
+        	 * Resolves a subtle opaque track derived from the header and a theme-aware
+        	 * progress color with at least 4.5:1 contrast against that track.
+        	 *
+        	 * WCAG 1.4.11 requires 3:1 for meaningful non-text graphics.
+        	 * C8oForms deliberately targets 4.5:1 because this indicator is only 4 px high.
+        	 *
+        	 * The track itself only needs a subtle visual distinction from the header.
+        	 */
+        	public resolveProgressIndicatorColors(
+        		headerColor: any,
+        		preferred: any
+        	): {
+        		track: string,
+        		progress: string,
+        		contrast: number
+        	} {
+        		const targetProgressContrast = 4.5;
+        		const targetTrackContrast = 1.2;
+        
+        		const parseColor = (value: any): any => {
+        			try {
+        				if (value == null || value === "") {
+        					return null;
+        				}
+        
+        				const color = new TinyColor(value);
+        				return color.isValid ? color : null;
+        			} catch (e) {
+        				return null;
+        			}
+        		};
+        
+        		const compositeOver = (
+        			foreground: any,
+        			opaqueBackground: any
+        		): any => {
+        			const fg = foreground.toRgb();
+        			const bg = opaqueBackground.toRgb();
+        
+        			const alpha =
+        				typeof fg.a === "number"
+        					? Math.max(0, Math.min(1, fg.a))
+        					: 1;
+        
+        			return new TinyColor({
+        				r: Math.round(
+        					(fg.r * alpha) +
+        					(bg.r * (1 - alpha))
+        				),
+        				g: Math.round(
+        					(fg.g * alpha) +
+        					(bg.g * (1 - alpha))
+        				),
+        				b: Math.round(
+        					(fg.b * alpha) +
+        					(bg.b * (1 - alpha))
+        				),
+        				a: 1
+        			});
+        		};
+        
+        		const white = new TinyColor("#ffffff");
+        		const black = new TinyColor("#000000");
+        
+        		const parsedHeader = parseColor(headerColor);
+        
+        		const effectiveHeader =
+        			parsedHeader == null
+        				? white
+        				: compositeOver(parsedHeader, white);
+        
+        		const headerString = effectiveHeader.toRgbString();
+        
+        		const preferredColor = parseColor(preferred);
+        
+        		/**
+        		 * Resolve the best progress color for a given track.
+        		 *
+        		 * Priority:
+        		 * 1. Exact preferred color.
+        		 * 2. Smallest theme-derived shade/tint reaching 4.5:1.
+        		 * 3. Black/white fallback.
+        		 */
+        		const resolveProgressForTrack = (
+        			trackColor: any
+        		): {
+        			color: any,
+        			contrast: number,
+        			adjustment: number,
+        			fallback: boolean
+        		} => {
+        			const trackString = trackColor.toRgbString();
+        
+        			const candidateContrast = (
+        				candidate: any
+        			): number => {
+        				const parsedCandidate = parseColor(candidate);
+        
+        				if (parsedCandidate == null) {
+        					return 0;
+        				}
+        
+        				const effectiveCandidate = compositeOver(
+        					parsedCandidate,
+        					trackColor
+        				);
+        
+        				return readability(
+        					trackString,
+        					effectiveCandidate.toRgbString()
+        				);
+        			};
+        
+        			if (preferredColor != null) {
+        				const preferredContrast =
+        					candidateContrast(preferredColor);
+        
+        				if (
+        					preferredContrast >=
+        					targetProgressContrast
+        				) {
+        					return {
+        						color: preferredColor,
+        						contrast: preferredContrast,
+        						adjustment: 0,
+        						fallback: false
+        					};
+        				}
+        
+        				for (
+        					let amount = 10;
+        					amount <= 90;
+        					amount += 10
+        				) {
+        					const variants = [
+        						preferredColor
+        							.clone()
+        							.shade(amount),
+        						preferredColor
+        							.clone()
+        							.tint(amount)
+        					];
+        
+        					const passingVariants =
+        						variants
+        							.map((candidate) => ({
+        								color: candidate,
+        								contrast:
+        									candidateContrast(
+        										candidate
+        									)
+        							}))
+        							.filter(
+        								(candidate) =>
+        									candidate.contrast >=
+        									targetProgressContrast
+        							);
+        
+        					if (
+        						passingVariants.length > 0
+        					) {
+        						passingVariants.sort(
+        							(left, right) =>
+        								right.contrast -
+        								left.contrast
+        						);
+        
+        						return {
+        							color:
+        								passingVariants[0]
+        									.color,
+        							contrast:
+        								passingVariants[0]
+        									.contrast,
+        							adjustment: amount,
+        							fallback: false
+        						};
+        					}
+        				}
+        			}
+        
+        			const blackContrast =
+        				candidateContrast(black);
+        
+        			const whiteContrast =
+        				candidateContrast(white);
+        
+        			if (blackContrast >= whiteContrast) {
+        				return {
+        					color: black,
+        					contrast: blackContrast,
+        					adjustment: 100,
+        					fallback: true
+        				};
+        			}
+        
+        			return {
+        				color: white,
+        				contrast: whiteContrast,
+        				adjustment: 100,
+        				fallback: true
+        			};
+        		};
+        
+        		/**
+        		 * Build subtle track candidates around the header.
+        		 *
+        		 * We do not simply select the first shade/tint because the track choice
+        		 * also affects whether the preferred progress color can remain
+        		 * theme-related instead of falling back to pure black/white.
+        		 */
+        		const trackCandidates: Array<{
+        			color: any,
+        			amount: number,
+        			headerContrast: number
+        		}> = [];
+        
+        		for (
+        			let amount = 5;
+        			amount <= 20;
+        			amount += 5
+        		) {
+        			const variants = [
+        				effectiveHeader
+        					.clone()
+        					.shade(amount),
+        				effectiveHeader
+        					.clone()
+        					.tint(amount)
+        			];
+        
+        			for (const candidate of variants) {
+        				const headerContrast = readability(
+        					headerString,
+        					candidate.toRgbString()
+        				);
+        
+        				if (
+        					headerContrast >=
+        					targetTrackContrast
+        				) {
+        					trackCandidates.push({
+        						color: candidate,
+        						amount: amount,
+        						headerContrast:
+        							headerContrast
+        					});
+        				}
+        			}
+        		}
+        
+        		/**
+        		 * Safety fallback: if no subtle track variation can reach the desired
+        		 * distinction, retain the opaque effective header itself.
+        		 */
+        		if (trackCandidates.length === 0) {
+        			trackCandidates.push({
+        				color: effectiveHeader,
+        				amount: 0,
+        				headerContrast: 1
+        			});
+        		}
+        
+        		/**
+        		 * Evaluate track/progress pairs together.
+        		 *
+        		 * Selection priorities:
+        		 * 1. Avoid black/white fallback when a theme-derived progress works.
+        		 * 2. Minimize modification of the preferred progress color.
+        		 * 3. Keep the track as subtle/close to the header as possible.
+        		 * 4. Prefer higher progress contrast as final tie-breaker.
+        		 */
+        		const resolvedCandidates =
+        			trackCandidates.map((trackCandidate) => {
+        				const progress =
+        					resolveProgressForTrack(
+        						trackCandidate.color
+        					);
+        
+        				return {
+        					track: trackCandidate.color,
+        					trackAmount:
+        						trackCandidate.amount,
+        					headerContrast:
+        						trackCandidate
+        							.headerContrast,
+        					progress: progress.color,
+        					progressContrast:
+        						progress.contrast,
+        					progressAdjustment:
+        						progress.adjustment,
+        					fallback: progress.fallback
+        				};
+        			});
+        
+        		resolvedCandidates.sort(
+        			(left, right) => {
+        				if (
+        					left.fallback !==
+        					right.fallback
+        				) {
+        					return left.fallback
+        						? 1
+        						: -1;
+        				}
+        
+        				if (
+        					left.progressAdjustment !==
+        					right.progressAdjustment
+        				) {
+        					return (
+        						left.progressAdjustment -
+        						right.progressAdjustment
+        					);
+        				}
+        
+        				const leftTrackDistance =
+        					Math.abs(
+        						left.headerContrast -
+        						targetTrackContrast
+        					);
+        
+        				const rightTrackDistance =
+        					Math.abs(
+        						right.headerContrast -
+        						targetTrackContrast
+        					);
+        
+        				if (
+        					leftTrackDistance !==
+        					rightTrackDistance
+        				) {
+        					return (
+        						leftTrackDistance -
+        						rightTrackDistance
+        					);
+        				}
+        
+        				if (
+        					left.trackAmount !==
+        					right.trackAmount
+        				) {
+        					return (
+        						left.trackAmount -
+        						right.trackAmount
+        					);
+        				}
+        
+        				return (
+        					right.progressContrast -
+        					left.progressContrast
+        				);
+        			}
+        		);
+        
+        		const best = resolvedCandidates[0];
+        
+        		return {
+        			track: best.track.toRgbString(),
+        			progress:
+        				best.progress.toRgbString(),
+        			contrast:
+        				best.progressContrast
+        		};
+        	}
+        
+        	/**
         	 * Define colors for the header.
         	 */
         	public defineColorsForHeader(): void {
@@ -11470,6 +11837,10 @@ scriptContent:
         		this.local.policySecondaryColor = "secondary";
         		this.local.policyDangerColor = "danger";
         		document.documentElement.style.setProperty(''--policy-color'', this.local.policyColor);
+        		this.local.progressIndicatorColors = this.resolveProgressIndicatorColors(
+        			this.local.headerColor,
+        			this.local.policyColor
+        		);
         		this.local.pwaThemeReady = true;
         
         		const applyHeaderTheme = (themeColor) => {
@@ -11489,6 +11860,10 @@ scriptContent:
         			} else {
         				this.local.hooverPolicyColor = new TinyColor(visibleColor).shade(50).toString();
         			}
+        			this.local.progressIndicatorColors = this.resolveProgressIndicatorColors(
+        				this.local.headerColor,
+        				this.local.hooverPolicyColor || this.local.policyColor
+        			);
         			try {
         				document.documentElement.style.setProperty(''--policy-color'', this.local.policyColor);
         			} catch (e) {
@@ -12170,7 +12545,6 @@ scriptContent:
         	    }
         	}
             /*End_c8o_PageFunction*/
-        
         '
 segment: viewer/:formId/:edit/:i
 startMenu: C8Oforms.MobileApplication.Application.MenuSelector
@@ -13503,7 +13877,23 @@ title: Visualisateur
         attrValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: script:this.local.hooverPolicyColor || this.local.policyColor
+            - MobileSmartSourceType: script:this.local.progressIndicatorColors?.progress
+      ↓AttrProgressTrackBackground [ngx.components.UIAttribute-1789464119868]: 
+        attrName: '[style.--background]'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:this.local.progressIndicatorColors?.track
+      ↓AttrProgressTrackBackground1 [ngx.components.UIAttribute-1789466245528]: 
+        attrName: '[ngClass]'
+        attrValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: |
+                'script:{
+                ''progress--completed'': ((this.local.currentIndex / (this.local.pages?.length -1)) == 1),
+                ''progress'': ((this.local.currentIndex / (this.local.pages?.length -1)) < 1)
+                }'
   ↓ToolBar2 [ngx.components.UIDynamicElement-1664292410958]: 
     beanData: '{"ionBean":"ToolBar"}'
     tagName: ion-toolbar
@@ -16673,3 +17063,24 @@ title: Visualisateur
       - xmlizable: 
         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
         - MobileSmartSourceType: plain:this.local.canRespond && this.isBottomNavigationEnabled()
+↓progressStyle [ngx.components.UIStyle-1789466430844]: 
+  styleContent: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '.progress--completed {
+          	height: 6px;
+          	&::part(progress) {
+          		border-top-right-radius: 0px;
+          		border-bottom-right-radius: 0px;
+          	}	
+          }
+          
+          .progress {
+          	height: 6px;
+          	&::part(progress) {
+          		border-top-right-radius: 6px;
+          		border-bottom-right-radius: 6px;
+          	}
+          }'
