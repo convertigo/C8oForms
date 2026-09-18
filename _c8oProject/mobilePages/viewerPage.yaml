@@ -155,6 +155,7 @@ scriptContent:
         		}
         	};
         	public willDestroyEvent: any = new Subject();
+        	private tabsClassMapCache: any = null;
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         //		console.log(this.c8oforms_toolbarcomponentui)
@@ -12440,6 +12441,40 @@ scriptContent:
         	   */
         	  return defaultValue;
         	}
+        	/**
+        	 * #nav-memo: the class map the three SharedTabs [ngClass] bindings used to
+        	 * inline. One call site instead of five inline expressions per bound element:
+        	 * 3 navigation resolutions per component instead of 9 per element. The reference
+        	 * is kept stable while the five classes are unchanged.
+        	 * Comparing the three independent inputs is a complete check, because the other
+        	 * two classes are a total function of them:
+        	 *   c8o-tabs-vertical-left  = vertical && !right
+        	 *   c8o-tabs-buttons-scroll = !vertical && !wrap
+        	 * KEEP THIS METHOD IDENTICAL in editorPage / viewerPage / responseCompleted:
+        	 * SharedTabs reaches it through pageOwner, which is typed any, so a missing or
+        	 * drifted copy is a runtime error, not a compile error.
+        	 */
+        	public getTabsClassMap(): any {
+        		const vertical = this.getTabsOrientation() === "vertical";
+        		const right = vertical && this.getTabsVerticalPosition() === "right";
+        		const wrap = !vertical && this.getNavigationValue<string>("buttonsBehavior", "scroll", -1, false) === "wrap";
+        		const cached: any = this.tabsClassMapCache;
+        		if (cached != null
+        			&& cached["c8o-tabs-orientation-vertical"] === vertical
+        			&& cached["c8o-tabs-vertical-right"] === right
+        			&& cached["c8o-tabs-buttons-wrap"] === wrap) {
+        			return cached;
+        		}
+        		this.tabsClassMapCache = {
+        			"c8o-tabs-orientation-vertical": vertical,
+        			"c8o-tabs-vertical-right": right,
+        			"c8o-tabs-vertical-left": vertical && !right,
+        			"c8o-tabs-buttons-wrap": wrap,
+        			"c8o-tabs-buttons-scroll": !vertical && !wrap
+        		};
+        		return this.tabsClassMapCache;
+        	}
+        
           public getTabsOrientation(index = -1): "horizontal" | "vertical" {
             const orientation = this.getNavigationValue<string>("buttonsOrientation", "horizontal", index);
             return orientation === "vertical" ? "vertical" : "horizontal";
