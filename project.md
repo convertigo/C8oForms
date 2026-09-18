@@ -50,33 +50,6 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/mast
 see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
 </p></blockquote></details>
 
-<details><summary><b>lib_ConvertigoAgentBridge</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ConvertigoAgentBridge
-
-
-see [readme](https://github.com/convertigo/c8oprj-convertigo-agent-bridge/tree/main#readme)
-</p></blockquote></details>
-
-<details><summary><b>lib_ConvertigoAssistant</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ConvertigoAssistant
-
-
-see [readme](https://github.com/convertigo/c8oprj-convertigo-assistant/tree/master#readme)
-</p></blockquote></details>
-
-<details><summary><b>lib_ConvertigoMCP</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ConvertigoMCP
-
-
-see [readme](https://github.com/convertigo/c8oprj-c8o-mcp/tree/main#readme)
-</p></blockquote></details>
-
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
 
 

@@ -83,6 +83,8 @@ componentScriptContent:
         				//this.monitorSessions();
         				/** In dev mode only set version from i18n */
         				this.monitorDEVPwaUpdates();
+        				// the assistant libraries are optional: probe this server once
+        				this.detectAgentAssistant();
         				/*End_c8o_AppInitialization*/
         /*Begin_c8o_AppFunction*/
         	public getConvertigoServerEndpoint(): string {
@@ -444,8 +446,34 @@ componentScriptContent:
         		return endpoint + ''/projects/lib_ConvertigoAssistant/DisplayObjects/mobile/path-to-agent/%3Athreadid?'' + params.toString();
         	}
         
+        	public detectAgentAssistant(): void {
+        		try {
+        			if (this.global == null) {
+        				this.global = {};
+        			}
+        			// lib_ConvertigoAssistant is an optional library: this project declares
+        			// no reference to it, so its presence can only be resolved against the
+        			// server currently serving the application. Stay hidden until it answers.
+        			if (this.global.agentAssistantInstalled !== true) {
+        				this.global.agentAssistantInstalled = false;
+        			}
+        			this.c8o.callJson("C8Oforms.HasProject", "projectName", "lib_ConvertigoAssistant")
+        			.then((res: any, params: any) => {
+        				this.global.agentAssistantInstalled = String(res == null ? "" : res.has) === "true";
+        				return null;
+        			})
+        			.fail((err: any) => {
+        				this.global.agentAssistantInstalled = false;
+        				this.c8o.log.debug("Convertigo Assistant presence check failed, assistant UI stays hidden");
+        			});
+        		} catch (e) {}
+        	}
+        
         	public isAgentAssistantAllowed(): boolean {
         		try {
+        			if (this.global?.agentAssistantInstalled !== true) {
+        				return false;
+        			}
         			const route = String(window.location.pathname || '''') + '' '' + String((this as any).router?.url || '''');
         			if (/login/i.test(route)) {
         				return false;
