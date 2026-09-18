@@ -56,7 +56,15 @@ export const SEL = {
   publishedToolbarReloadButton:
     'page-viewerpage c8oforms-toolbarcomponentui div.right-section ion-button.class1777889913268, c8oforms-toolbarcomponentui div.right-section ion-button.class1777889913268, c8oforms-toolbarcomponentui div.right-section ion-button:has(ion-icon[src$="refresh-ccw.svg"])',
   responseCompletedPage: 'page-responsecompleted',
-  responseCompletedLogo: 'page-responsecompleted img.class1684922008750',
+  // The responseCompleted header moved to the shared ToolbarComponentUi in commit
+  // c9637499: the legacy header bean that owned img.class1684922008750 now carries
+  // `isEnabled: false` (responseCompleted.yaml), so that element is never emitted.
+  // The toolbar renders the custom logo as an <img> for raster sources and as an
+  // <ion-icon> for SVG ones (c8oforms-toolbarcomponentui.html:19 and :22); cover both.
+  // If neither matches, the logo genuinely is not on the completion screen and the
+  // failure is a product regression, not a stale selector.
+  responseCompletedLogo:
+    'page-responsecompleted c8oforms-toolbarcomponentui img.class1772621540845, page-responsecompleted c8oforms-toolbarcomponentui ion-icon.class1772621540854',
   // editor canvas wrapper of a map component
   mapComponent: 'c8oforms-itemmapviewer',
   textComponent: 'c8oforms-itemtextviewer',
@@ -160,8 +168,6 @@ export const SEL = {
   checkboxOptionDeleteButton: 'ion-button.class1588839628212',
   choiceOptionDeleteButton:
     'ion-button.class1571404352384, ion-button.class1778925100133, ion-button.class1773855179324, ion-button.class1588840079704, ion-button.class1588839628212, ion-button.class1588839628362',
-  // per-option "selected by default" checkbox in a Checkbox component's config
-  checkboxOptionDefaultToggle: 'ion-checkbox.class1588839628095',
   // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
   sourcePalette: '.class1775922875303',
   sourcePaletteCollapseAllButton: 'ion-button.class1780921035700',
@@ -215,6 +221,12 @@ export const SEL = {
     'c8oforms-textinputsetting.class1779965325160 input, .class1779965325160 input, ion-input.class1762190514117 input, .class1762190514117 input',
   shareBodyEditorFrame:
     '.tox-tinymce iframe, .tox-edit-area iframe, iframe.tox-edit-area__iframe, iframe[title="Rich Text Area"], iframe[title*="Rich"], iframe[aria-label*="Rich"], iframe',
+  // HugeRTE edit-area iframe. Never key on `title`: HugeRTE builds it with
+  // editor.translate('Rich Text Area') (DisplayObjects/mobile/hugerte/hugerte.js:29842)
+  // while the class is added unconditionally (hugerte.js:29823). Every CI account is
+  // provisioned in French (tests/ci/ensure-test-users.mjs:12), so the title reads
+  // "Zone de Texte Riche" there and a title-based selector matches nothing.
+  richTextEditorFrame: 'iframe.tox-edit-area__iframe',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
   pwaAccessToggle: '.class1779878486939:visible',
   pwaAccessToggleButton: 'button.class1775840591959',
@@ -8483,14 +8495,21 @@ export async function expectComponentHeaderDefaultValueIndicator(
 
 /**
  * Mark a Checkbox component option as selected by default (so it carries a value
- * at runtime in the viewer), by toggling its per-option "selected" checkbox.
- * Call after setCheckboxLocalOptions, with the option's 0-based index.
+ * at runtime in the viewer). Call after setCheckboxLocalOptions, with the option
+ * LABEL.
+ *
+ * ref #1466 (commit 93d409d2f) removed the per-option "selected by default"
+ * ion-checkbox from the Checkbox options editor - DivCheckbox now carries
+ * `isEnabled: false` in itemCheckboxEditor.yaml and the generated template has no
+ * ion-checkbox left. The Default value tab is the supported way to pre-select an
+ * option, and it is the same flow #1109 exercises for Checkbox components.
+ *
+ * The parameter is a label rather than an index on purpose: the Default value
+ * grid is keyed by label, and reading the label back out of the options inputs
+ * would re-introduce an index the editor no longer guarantees.
  */
-export async function setCheckboxDefaultSelected(page: Page, optionIndex: number): Promise<void> {
-  const toggle = page.locator(SEL.checkboxOptionDefaultToggle).nth(optionIndex);
-  await toggle.waitFor({ state: 'visible', timeout: 10_000 });
-  await toggle.click();
-  await page.waitForTimeout(300);
+export async function setCheckboxDefaultSelected(page: Page, optionLabel: string): Promise<void> {
+  await setChoiceDefaultValueVisual(page, [optionLabel]);
 }
 
 export async function createFormWithCheckboxAndDescription(

@@ -920,7 +920,7 @@ async function createCheckboxVisibilitySource(
   await setTechnicalId(page, technicalId);
   await setCheckboxLocalOptions(page, options);
   if (defaultSelectedIndex != null) {
-    await setCheckboxDefaultSelected(page, defaultSelectedIndex);
+    await setCheckboxDefaultSelected(page, options[defaultSelectedIndex]);
   }
   await closeComponentConfig(page);
 }

@@ -27,8 +27,11 @@ type LogoMetrics = {
   src: string;
   width: number;
   height: number;
-  naturalWidth: number;
-  naturalHeight: number;
+  // null when the toolbar renders the logo as an <ion-icon> (SVG sources): an
+  // ion-icon exposes no intrinsic size. The `src` assertion still pins the exact
+  // fixture bytes, which carry width="200" height="200".
+  naturalWidth: number | null;
+  naturalHeight: number | null;
   maxHeight: string;
 };
 
@@ -60,8 +63,12 @@ test('#1426 - custom header logo keeps its constrained height after submitting a
   await test.step('Assert the responseCompleted logo remains header-sized', async () => {
     const metrics = await responseCompletedLogoMetrics(page);
     expect(metrics.src, 'responseCompleted should render the configured custom header logo').toBe(CUSTOM_HEADER_LOGO);
-    expect(metrics.naturalWidth, 'the guard logo should be the square test image').toBe(200);
-    expect(metrics.naturalHeight, 'the guard logo should be the square test image').toBe(200);
+    if (metrics.naturalWidth !== null) {
+      // <img> branch only. On the <ion-icon> branch the src equality above already
+      // pins the fixture, whose SVG source declares width="200" height="200".
+      expect(metrics.naturalWidth, 'the guard logo should be the square test image').toBe(200);
+      expect(metrics.naturalHeight, 'the guard logo should be the square test image').toBe(200);
+    }
     expect(metrics.height, `responseCompleted custom logo height should be constrained; metrics=${JSON.stringify(metrics)}`).toBeLessThanOrEqual(60);
   });
 });
@@ -73,7 +80,12 @@ async function responseCompletedLogoMetrics(page: Page): Promise<LogoMetrics> {
     .poll(
       () =>
         logo.evaluate((node) => {
-          const image = node as HTMLImageElement;
+          const element = node as HTMLElement;
+          if (element.tagName.toLowerCase() !== 'img') {
+            // ion-icon fetches and injects the SVG; it is painted once it has a box.
+            return element.getBoundingClientRect().height > 0;
+          }
+          const image = element as HTMLImageElement;
           return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
         }),
       {
@@ -84,15 +96,17 @@ async function responseCompletedLogoMetrics(page: Page): Promise<LogoMetrics> {
     .toBe(true);
 
   return logo.evaluate((node) => {
-    const image = node as HTMLImageElement;
-    const box = image.getBoundingClientRect();
+    const element = node as HTMLElement;
+    const box = element.getBoundingClientRect();
+    const isImg = element.tagName.toLowerCase() === 'img';
+    const image = element as HTMLImageElement;
     return {
-      src: image.src,
+      src: isImg ? image.src : element.getAttribute('src') ?? '',
       width: box.width,
       height: box.height,
-      naturalWidth: image.naturalWidth,
-      naturalHeight: image.naturalHeight,
-      maxHeight: getComputedStyle(image).maxHeight,
+      naturalWidth: isImg ? image.naturalWidth : null,
+      naturalHeight: isImg ? image.naturalHeight : null,
+      maxHeight: getComputedStyle(element).maxHeight,
     };
   });
 }
