@@ -8014,6 +8014,36 @@ Email address targeted by the sequence.
 
 </p></blockquote></details>
 
+<details><summary><b>GetOdtTemplateDirectory</b></summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") GetOdtTemplateDirectory
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;template_name
+</td>
+<td>
+Template name targeted by the sequence.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>GetSequences</b> : List sequences</summary><blockquote><p>
 
 
@@ -10382,10 +10412,80 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>ExportGridDataAsXlsx</b></summary><blockquote><p>
+<details><summary><b>ExportGridDataAsOdt</b> : Exports the current AG Grid state to an ODT file using lib_fill_odt_pdf</summary><blockquote><p>
 
 
-### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") ExportGridDataAsXlsx
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") ExportGridDataAsOdt
+
+Exports the current AG Grid state to an ODT file using lib_fill_odt_pdf.u_fill_odt through the .bin requester.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;ag_grid
+</td>
+<td>
+AG Grid component instance exposing the api property.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;bin_url
+</td>
+<td>
+Optional explicit URL of the lib_fill_odt_pdf .bin requester. Leave empty for automatic resolution.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;component
+</td>
+<td>
+Calling component used to expose the odtExporting loading flag.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;file_prefix
+</td>
+<td>
+Readable prefix used to generate the downloaded ODT filename.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;input_filename
+</td>
+<td>
+ODT template path expected by lib_fill_odt_pdf.u_fill_odt, for example .//templates/odf/grid_export.odt.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;marker
+</td>
+<td>
+Text marker present in the ODT template and replaced by the generated table. Defaults to __c8o_grid.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>ExportGridDataAsXlsxOrOds</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") ExportGridDataAsXlsxOrOds
 
 
 
@@ -10403,6 +10503,14 @@ comment
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;ag_grid
+</td>
+<td>
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;book_type
 </td>
 <td>
 
@@ -17494,6 +17602,14 @@ this.formsSubmit[item['name']]
 </td>
 <td>
 this.formsSubmit[item['name']]
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;ods_button
+</td>
+<td>
+
 </td>
 </tr>
 <tr>

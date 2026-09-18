@@ -1,0 +1,378 @@
+comment: Exports the current AG Grid state to an ODT file using lib_fill_odt_pdf.u_fill_odt through the .bin requester.
+↓CallSequence [ngx.components.UIDynamicAction-1789723338602]: 
+  beanData: '{"ionBean":"CallSequenceAction","requestable":"plain:C8Oforms.GetOdtTemplateDirectory"}'
+  ↓PrepareAndDownload [ngx.components.UICustomAction-1789664100530]: 
+    actionValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+        - com.twinsoft.convertigo.beans.common.FormatedContent: 
+          →: |
+            '
+            		function prepareGridExport(agGrid: any, filePrefix?: string): any {
+            			const api = agGrid?.api;
+            
+            			if (
+            				api == null ||
+            				typeof api.getAllDisplayedColumns !== "function" ||
+            				typeof api.forEachNodeAfterFilterAndSort !== "function"
+            			) {
+            				throw new Error("Grid export is unavailable");
+            			}
+            
+            			const columns: any[] = (api.getAllDisplayedColumns() || []).filter((column: any) => {
+            				const colDef = column.getColDef?.() || {};
+            
+            				const displayedName =
+            					api.getDisplayNameForColumn?.(column, "csv") ||
+            					colDef.headerName ||
+            					"";
+            
+            				return String(displayedName).trim() !== "";
+            			});
+            
+            			if (columns.length === 0) {
+            				throw new Error("Grid has no visible columns");
+            			}
+            
+            			const headers: string[] = columns.map((column: any) => {
+            				const colDef = column.getColDef?.() || {};
+            
+            				return String(
+            					api.getDisplayNameForColumn?.(column, "csv") ||
+            					colDef.headerName ||
+            					colDef.field ||
+            					column.getColId?.() ||
+            					"Column"
+            				);
+            			});
+            
+            			const normalizeGridExportValue = (column: any, value: any): any => {
+            				const colDef = column.getColDef?.() || {};
+            
+            				if (colDef.cellDataType === "object" && value) {
+            					return (
+            						value.displayValue ??
+            						value.value?.value ??
+            						value.value?.[0]?.value ??
+            						value.value ??
+            						value
+            					);
+            				}
+            
+            				return value;
+            			};
+            
+            			const rows: string[][] = [];
+            
+            			api.forEachNodeAfterFilterAndSort((node: any) => {
+            				const row: string[] = [];
+            
+            				columns.forEach((column: any) => {
+            					const colDef = column.getColDef?.() || {};
+            
+            					let value: any;
+            
+            					if (colDef.cellDataType === "object") {
+            						value = api.getValue?.(
+            							column.getColId?.(),
+            							node
+            						);
+            
+            						value = normalizeGridExportValue(
+            							column,
+            							value
+            						);
+            					}
+            					else {
+            						if (typeof api.getCellValue === "function") {
+            							try {
+            								value = api.getCellValue({
+            									rowNode: node,
+            									colKey: column,
+            									useFormatter: true
+            								});
+            							}
+            							catch (e) {
+            								value = undefined;
+            							}
+            						}
+            
+            						if (value === undefined) {
+            							value = api.getValue?.(
+            								column.getColId?.(),
+            								node
+            							);
+            
+            							if (typeof colDef.valueFormatter === "function") {
+            								try {
+            									value = colDef.valueFormatter({
+            										value: value,
+            										data: node.data,
+            										node: node,
+            										colDef: colDef,
+            										column: column,
+            										api: api,
+            										context: api.getGridOption?.("context")
+            									});
+            								}
+            								catch (e) {
+            								}
+            							}
+            						}
+            					}
+            
+            					row.push(
+            						value == null
+            							? ""
+            							: String(value)
+            					);
+            				});
+            
+            				rows.push(row);
+            			});
+            
+            			const now = new Date();
+            
+            			const stamp = [
+            				now.getFullYear(),
+            				String(now.getMonth() + 1).padStart(2, "0"),
+            				String(now.getDate()).padStart(2, "0"),
+            				"_",
+            				String(now.getHours()).padStart(2, "0"),
+            				String(now.getMinutes()).padStart(2, "0"),
+            				String(now.getSeconds()).padStart(2, "0")
+            			].join("");
+            
+            			const safePrefix =
+            				String(filePrefix || "grid")
+            					.normalize("NFD")
+            					.replace(/[\u0300-\u036f]/g, "")
+            					.replace(/[^A-Za-z0-9_-]+/g, "_")
+            					.replace(/^_+|_+$/g, "")
+            					.slice(0, 64) || "grid";
+            
+            			const unique = Math.random()
+            				.toString(36)
+            				.slice(2, 8);
+            
+            			const fileName =
+            				safePrefix +
+            				"_" +
+            				stamp +
+            				"_" +
+            				unique +
+            				".odt";
+            
+            			return {
+            				fileName: fileName,
+            				outputFilename:
+            					".//outputs/" +
+            					fileName,
+            				table: [
+            					headers,
+            					...rows
+            				]
+            			};
+            		}
+            
+            
+            		function resolveBinUrl(explicitUrl?: any): string {
+            			if (
+            				explicitUrl != null &&
+            				String(explicitUrl).trim() !== ""
+            			) {
+            				return String(explicitUrl).trim();
+            			}
+            
+            			const currentUrl = window.location.href;
+            			const projectsMarker = "/projects/";
+            			const projectsIndex =
+            				currentUrl.indexOf(projectsMarker);
+            
+            			if (projectsIndex >= 0) {
+            				return (
+            					currentUrl.substring(
+            						0,
+            						projectsIndex
+            					) +
+            					"/projects/lib_fill_odt_pdf/.bin"
+            				);
+            			}
+            
+            			return (
+            				window.location.origin +
+            				"/convertigo/projects/lib_fill_odt_pdf/.bin"
+            			);
+            		}
+            
+            
+            		try {
+            			
+            
+            			if (vars.component) {
+            				vars.component.odtExporting = true;
+            			}
+            			
+            			
+            			const prepared = prepareGridExport(
+            				vars.ag_grid,
+            				vars.file_prefix
+            			);
+            
+            			const marker =
+            				vars.marker != null &&
+            				String(vars.marker).trim() !== ""
+            					? String(vars.marker)
+            					: "__c8o_grid";
+            //
+            			const inputFilename =
+            				vars.input_filename != null
+            					? String(vars.input_filename).trim()
+            					: "";
+            
+            			if (inputFilename === "") {
+            				throw new Error(
+            					"ODT input template is required"
+            				);
+            			}
+            //
+            			const markers = JSON.stringify([
+            				{
+            					tag: marker,
+            					type: "tableh",
+            					value: prepared.table
+            				}
+            			]);
+            
+            			const binUrl =
+            				resolveBinUrl(vars.bin_url);
+            
+            			const form =
+            				document.createElement("form");
+            
+            			form.method = "POST";
+            			form.action = binUrl;
+            			form.target = "_self";
+            			form.style.display = "none";
+            			form.acceptCharset = "UTF-8";
+            
+            			const appendField = (
+            				name: string,
+            				value: any
+            			) => {
+            				const input =
+            					document.createElement("input");
+            
+            				input.type = "hidden";
+            				input.name = name;
+            				input.value =
+            					value == null
+            						? ""
+            						: String(value);
+            
+            				form.appendChild(input);
+            			};
+            
+            			appendField(
+            				"__sequence",
+            				"u_fill_odt"
+            			);
+            
+            //			appendField(
+            //				"input_filename",
+            //				inputFilename
+            //			);
+            			appendField(
+            				"input_filename",
+            				vars.directory
+            			);
+            
+            			appendField(
+            				"output_filename",
+            				prepared.outputFilename
+            			);
+            
+            			appendField(
+            				"markers",
+            				markers
+            			);
+            
+            			/*
+            			 * Avoid the default "page" break used by u_fill_odt
+            			 * for generated tables.
+            			 */
+            			appendField(
+            				"break_before",
+            				"auto"
+            			);
+            
+            			document.body.appendChild(form);
+            
+            			/*
+            			 * .bin directly returns the attachment generated by
+            			 * u_fill_odt, so the browser starts the ODT download.
+            			 */
+            			form.submit();
+            
+            			setTimeout(() => {
+            				try {
+            					document.body.removeChild(form);
+            				}
+            				catch (e) {
+            				}
+            
+            				if (vars.component) {
+            					vars.component.odtExporting = false;
+            				}
+            			}, 2000);
+            			
+            			if (vars.component) {
+            				vars.component.odtExporting = false;
+            			}
+            
+            			resolve({
+            				fileName:
+            					prepared.fileName,
+            				outputFilename:
+            					prepared.outputFilename,
+            				markers: markers
+            			});
+            		}
+            		catch (error) {
+            			if (vars.component) {
+            				vars.component.odtExporting = false;
+            			}
+            
+            			reject(error);
+            		}
+            '
+    comment: Builds a tableh marker from the current AG Grid state and posts it to lib_fill_odt_pdf.u_fill_odt through the .bin requester.
+    ↓directory [ngx.components.UIControlVariable-1789723376085]: 
+      varValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:parent.out?.directory
+  ↓template_name [ngx.components.UIControlVariable-1789733613063]: 
+    comment: Email address targeted by the sequence.
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:vars.input_filename
+↓ag_grid [ngx.components.UIStackVariable-1789664100533]: 
+  comment: AG Grid component instance exposing the api property.
+  value: null
+↓file_prefix [ngx.components.UIStackVariable-1789664100536]: 
+  comment: Readable prefix used to generate the downloaded ODT filename.
+  value: null
+↓component [ngx.components.UIStackVariable-1789664100539]: 
+  comment: Calling component used to expose the odtExporting loading flag.
+  value: null
+↓input_filename [ngx.components.UIStackVariable-1789664100542]: 
+  comment: ODT template path expected by lib_fill_odt_pdf.u_fill_odt, for example .//templates/odf/grid_export.odt.
+  value: null
+↓marker [ngx.components.UIStackVariable-1789664100545]: 
+  comment: Text marker present in the ODT template and replaced by the generated table. Defaults to __c8o_grid.
+  value: '''__c8o_grid'''
+↓bin_url [ngx.components.UIStackVariable-1789664100548]: 
+  comment: Optional explicit URL of the lib_fill_odt_pdf .bin requester. Leave empty for automatic resolution.
+  value: null
