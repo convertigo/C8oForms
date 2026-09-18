@@ -149,9 +149,16 @@ async function callMcp(tool: string, args: Json, token?: string): Promise<Json> 
 
 async function callMcpOnce(tool: string, args: Json, token?: string): Promise<Json> {
   const url = mcpUrl();
+  // The engine now enforces the MCP bearer token on the transport itself:
+  // `initialize` answers HTTP 401 `missing_token` when the Authorization header
+  // is missing, before any tool argument is read. The token stays in the
+  // tools/call arguments as well for engines that predate the header check and
+  // still read it from there; those simply ignore the extra header.
+  const bearer = token ?? mcpToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json, text/event-stream',
+    Authorization: `Bearer ${bearer}`,
   };
 
   const post = async (body: Json, sessionId?: string) => {
@@ -202,7 +209,7 @@ async function callMcpOnce(tool: string, args: Json, token?: string): Promise<Js
   await post({ jsonrpc: '2.0', method: 'notifications/initialized' }, sessionId).catch(() => undefined);
 
   const out = await post(
-    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: { token: token ?? mcpToken(), ...args } } },
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: { token: bearer, ...args } } },
     sessionId,
   );
 
