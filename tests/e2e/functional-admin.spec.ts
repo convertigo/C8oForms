@@ -17,7 +17,11 @@ test.describe('No-Code Studio functional admin contract', () => {
   });
 
   test('ADM-001 - admin group can be created and cleaned through the UI', async ({ page }) => {
-    test.setTimeout(240_000);
+    // Measured on CI run 35616797087 (shared server, admin calls 12-33s each): login 61s, and
+    // 156s to reach the Add-user-to-group step, which is 4 of 6. The last two steps chain
+    // several more admin calls, so 240s could not fit the whole journey. Plus the stale-group
+    // sweep: seconds in steady state, capped at 90s.
+    test.setTimeout(480_000);
     await loginAsAdminWithUsernamePassword(page);
     await verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page);
   });
