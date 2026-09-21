@@ -35,6 +35,9 @@ const ADMIN_SEL = {
   editGroupSubmitButton:
     'ion-button.class1759764039348, ion-button.send-button--linear, ion-button:has-text("Save"), ion-button:has-text("Enregistrer"), ion-button:has-text("Sauvegarder")',
   addGroupInput: 'ion-input input, input',
+  // adminDashboardUsersWithinGroups.html:308 - the Groups panel's own search box,
+  // wired through (ionChange) to agGrid.api.setQuickFilter.
+  groupsQuickFilter: 'page-admindashboarduserswithingroups ion-input.class1759575794337',
 } as const;
 
 export async function loginAsAdminWithUsernamePassword(page: Page): Promise<void> {
@@ -358,6 +361,7 @@ async function selectVisibleAdminUser(page: Page, userLabel: string): Promise<vo
 }
 
 async function selectVisibleAdminGroup(page: Page, groupName: string): Promise<void> {
+  await applyAdminGroupsQuickFilter(page, groupName);
   const row = page
     .locator(`${ADMIN_SEL.groupsPage} [role="row"]`)
     .filter({ hasText: groupName })
@@ -385,7 +389,35 @@ async function adminGroupExists(page: Page, groupName: string): Promise<boolean>
   return groupNames(response).includes(groupName);
 }
 
+// The Admin Groups ag-grid renders only the rows inside its virtualisation band (15 of 194
+// rows on the shared CI server). domLayout 'autoHeight' does NOT disable that: ag-grid 31.3.4
+// only bypasses virtualisation for printLayout or suppressRowVirtualisation. A freshly created
+// group collates past the band, so it is absent from the DOM even though the listing has been
+// refreshed and its rowData does contain it. Drive the page's own group search box first,
+// exactly as a user would, then walk the DOM.
+async function applyAdminGroupsQuickFilter(page: Page, query: string): Promise<void> {
+  const search = page.locator(ADMIN_SEL.groupsQuickFilter).first();
+  if ((await search.count()) === 0) {
+    return;
+  }
+  await search.evaluate((element, value) => {
+    const host = element as HTMLElement & { value?: string; shadowRoot?: ShadowRoot | null };
+    const root = host.shadowRoot ?? host;
+    const input = root.querySelector('input') as HTMLInputElement | null;
+    host.value = value;
+    if (input) {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    }
+    host.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, composed: true, detail: { value } }));
+    host.dispatchEvent(new CustomEvent('ionChange', { bubbles: true, composed: true, detail: { value } }));
+  }, query);
+  await page.waitForTimeout(300);
+}
+
 async function visibleAdminGroupNameInPage(page: Page, groupName: string): Promise<boolean> {
+  await applyAdminGroupsQuickFilter(page, groupName);
   return page.evaluate((expected) => {
     const visible = (el: Element): el is HTMLElement => {
       const box = (el as HTMLElement).getBoundingClientRect();
@@ -414,6 +446,7 @@ async function adminGroupContainsVisibleUserAfterSelection(page: Page, groupName
 }
 
 async function visibleAdminGroupTexts(page: Page, groupName: string): Promise<string[]> {
+  await applyAdminGroupsQuickFilter(page, groupName);
   return page.evaluate((expected) => {
     const visible = (el: Element): el is HTMLElement => {
       const box = (el as HTMLElement).getBoundingClientRect();

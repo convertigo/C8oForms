@@ -24,6 +24,9 @@ const CUSTOM_HEADER_LOGO = `data:image/svg+xml;base64,${Buffer.from(
 ).toString('base64')}`;
 
 type LogoMetrics = {
+  // 'img' or 'ion-icon' - reported in assertion messages so a failure says which
+  // branch of the toolbar rendered the logo.
+  tag: string;
   src: string;
   width: number;
   height: number;
@@ -62,7 +65,10 @@ test('#1426 - custom header logo keeps its constrained height after submitting a
 
   await test.step('Assert the responseCompleted logo remains header-sized', async () => {
     const metrics = await responseCompletedLogoMetrics(page);
-    expect(metrics.src, 'responseCompleted should render the configured custom header logo').toBe(CUSTOM_HEADER_LOGO);
+    expect(
+      metrics.src,
+      `responseCompleted should render the configured custom header logo; metrics=${JSON.stringify(metrics)}`,
+    ).toBe(CUSTOM_HEADER_LOGO);
     if (metrics.naturalWidth !== null) {
       // <img> branch only. On the <ion-icon> branch the src equality above already
       // pins the fixture, whose SVG source declares width="200" height="200".
@@ -82,8 +88,10 @@ async function responseCompletedLogoMetrics(page: Page): Promise<LogoMetrics> {
         logo.evaluate((node) => {
           const element = node as HTMLElement;
           if (element.tagName.toLowerCase() !== 'img') {
-            // ion-icon fetches and injects the SVG; it is painted once it has a box.
-            return element.getBoundingClientRect().height > 0;
+            // ion-icon fetches and injects the SVG; it is ready once Angular has set
+            // the src property and it has been painted.
+            const src = (element as unknown as { src?: unknown }).src;
+            return typeof src === 'string' && src !== '' && element.getBoundingClientRect().height > 0;
           }
           const image = element as HTMLImageElement;
           return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
@@ -100,8 +108,15 @@ async function responseCompletedLogoMetrics(page: Page): Promise<LogoMetrics> {
     const box = element.getBoundingClientRect();
     const isImg = element.tagName.toLowerCase() === 'img';
     const image = element as HTMLImageElement;
+    // Both branches receive the logo through an Angular PROPERTY binding - the
+    // compiled consts read [1,"class1772621540854",3,"src"], where 3 is
+    // AttributeMarker.Bindings. <img> reflects that property to the content
+    // attribute, <ion-icon> (a Stencil custom element) does not, so there the
+    // attribute is absent and only the property carries the value.
+    const propertySrc = (element as unknown as { src?: unknown }).src;
     return {
-      src: isImg ? image.src : element.getAttribute('src') ?? '',
+      tag: element.tagName.toLowerCase(),
+      src: typeof propertySrc === 'string' && propertySrc !== '' ? propertySrc : element.getAttribute('src') ?? '',
       width: box.width,
       height: box.height,
       naturalWidth: isImg ? image.naturalWidth : null,
