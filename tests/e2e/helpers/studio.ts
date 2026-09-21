@@ -56,7 +56,15 @@ export const SEL = {
   publishedToolbarReloadButton:
     'page-viewerpage c8oforms-toolbarcomponentui div.right-section ion-button.class1777889913268, c8oforms-toolbarcomponentui div.right-section ion-button.class1777889913268, c8oforms-toolbarcomponentui div.right-section ion-button:has(ion-icon[src$="refresh-ccw.svg"])',
   responseCompletedPage: 'page-responsecompleted',
-  responseCompletedLogo: 'page-responsecompleted img.class1684922008750',
+  // The responseCompleted header moved to the shared ToolbarComponentUi in commit
+  // c9637499: the legacy header bean that owned img.class1684922008750 now carries
+  // `isEnabled: false` (responseCompleted.yaml), so that element is never emitted.
+  // The toolbar renders the custom logo as an <img> for raster sources and as an
+  // <ion-icon> for SVG ones (c8oforms-toolbarcomponentui.html:19 and :22); cover both.
+  // If neither matches, the logo genuinely is not on the completion screen and the
+  // failure is a product regression, not a stale selector.
+  responseCompletedLogo:
+    'page-responsecompleted c8oforms-toolbarcomponentui img.class1772621540845, page-responsecompleted c8oforms-toolbarcomponentui ion-icon.class1772621540854',
   // editor canvas wrapper of a map component
   mapComponent: 'c8oforms-itemmapviewer',
   textComponent: 'c8oforms-itemtextviewer',
@@ -160,8 +168,6 @@ export const SEL = {
   checkboxOptionDeleteButton: 'ion-button.class1588839628212',
   choiceOptionDeleteButton:
     'ion-button.class1571404352384, ion-button.class1778925100133, ion-button.class1773855179324, ion-button.class1588840079704, ion-button.class1588839628212, ion-button.class1588839628362',
-  // per-option "selected by default" checkbox in a Checkbox component's config
-  checkboxOptionDefaultToggle: 'ion-checkbox.class1588839628095',
   // sharedQuestionElem.yaml -> dataSourceEditor_GridRow_GridColSourcePicker_Group
   sourcePalette: '.class1775922875303',
   sourcePaletteCollapseAllButton: 'ion-button.class1780921035700',
@@ -215,6 +221,12 @@ export const SEL = {
     'c8oforms-textinputsetting.class1779965325160 input, .class1779965325160 input, ion-input.class1762190514117 input, .class1762190514117 input',
   shareBodyEditorFrame:
     '.tox-tinymce iframe, .tox-edit-area iframe, iframe.tox-edit-area__iframe, iframe[title="Rich Text Area"], iframe[title*="Rich"], iframe[aria-label*="Rich"], iframe',
+  // HugeRTE edit-area iframe. Never key on `title`: HugeRTE builds it with
+  // editor.translate('Rich Text Area') (DisplayObjects/mobile/hugerte/hugerte.js:29842)
+  // while the class is added unconditionally (hugerte.js:29823). Every CI account is
+  // provisioned in French (tests/ci/ensure-test-users.mjs:12), so the title reads
+  // "Zone de Texte Riche" there and a title-based selector matches nothing.
+  richTextEditorFrame: 'iframe.tox-edit-area__iframe',
   pwaEditModal: 'ion-modal.modal-pwa-edition.show-modal, ion-modal.modalCSV.show-modal',
   pwaAccessToggle: '.class1779878486939:visible',
   pwaAccessToggleButton: 'button.class1775840591959',
@@ -6415,32 +6427,58 @@ async function clickVisiblePwaAccessButton(modal: Locator, mode: PwaAccessMode):
   }, pwaAccessButtonIndex(mode));
 }
 
+// Switching selector tab is not a local UI toggle. In
+// _c8oProject/mobileSharedActions/changeTabIntoSelectorPage.yaml the `If` and its nested
+// `CustomAsyncAction` both carry `isEnabled: false`, so the only live path is
+// CreateArgsForSelectorPage -> RootPage [UIDynamicAction-1733931052943]: the click RE-ROOTS
+// page-selectorpage. The new instance re-runs `__sequence=getCurrentUserSettings` (~100 KB)
+// and the previous tab keeps rendering until that response lands, with no ion-loading overlay
+// to synchronise on. On the shared CI server one such round trip measured 1.5-8.8s, but the
+// old loop allowed only 800ms before clicking again: up to 8 clicks, six copies of the
+// sequence in flight at once, and those copies stretched to 13-24s. The helper destroyed the
+// latency budget it was waiting on. Click once, then wait.
+const PUBLISHED_APPLICATIONS_TAB_SWITCH_TIMEOUT = 25_000;
+
+async function waitForPublishedApplicationsView(page: Page, timeout: number): Promise<boolean> {
+  const deadline = Date.now() + timeout;
+  do {
+    if (await publishedApplicationsViewIsActive(page)) {
+      return true;
+    }
+    await page.waitForTimeout(500);
+  } while (Date.now() < deadline);
+  return publishedApplicationsViewIsActive(page);
+}
+
 export async function openPublishedApplicationsTab(page: Page): Promise<void> {
   await test.step('open the Published Applications selector tab', async () => {
     await returnToSelectorFromEditor(page);
     await dismissVisiblePopovers(page);
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       if (await publishedApplicationsViewIsActive(page)) {
         break;
       }
 
-      const tab = await publishedApplicationsTabLocator(page);
-      await tab.click({ timeout: 10_000, force: attempt > 0 }).catch(async () => tab.dispatchEvent('click'));
-      await waitForIonicLoading(page, 10_000);
-      await page.waitForTimeout(800);
-      if (!(await publishedApplicationsViewIsActive(page))) {
+      if (attempt === 0) {
+        // The tab is transiently absent while an earlier re-root is still in flight, so a
+        // locator failure here means "not clickable yet", not "the product is broken": fall
+        // through to the wait and to the DOM click instead of aborting the whole helper.
+        const tab = await publishedApplicationsTabLocator(page).catch(() => null);
+        if (tab) {
+          await tab.click({ timeout: 10_000 }).catch(async () => tab.dispatchEvent('click'));
+        }
+      } else {
         await clickPublishedApplicationsTabByDom(page);
-        await waitForIonicLoading(page, 10_000);
-        await page.waitForTimeout(800);
       }
-      if (await publishedApplicationsViewIsActive(page)) {
+      await waitForIonicLoading(page, 10_000);
+      if (await waitForPublishedApplicationsView(page, PUBLISHED_APPLICATIONS_TAB_SWITCH_TIMEOUT)) {
         break;
       }
     }
     await expect
       .poll(() => publishedApplicationsViewIsActive(page), {
         message: 'the Published Applications selector tab should be active before opening a published card menu',
-        timeout: 10_000,
+        timeout: 20_000,
       })
       .toBe(true);
     await page.waitForTimeout(500);
@@ -6469,17 +6507,22 @@ export async function openEditionApplicationsTab(page: Page): Promise<void> {
 }
 
 async function publishedApplicationsTabLocator(page: Page): Promise<Locator> {
-  const stable = page.locator(SEL.publishedApplicationsTab).filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE }).first();
-  if (await stable.isVisible({ timeout: 1_500 }).catch(() => false)) {
+  // `filter({ hasText })` tests a RegExp against the element's RAW text
+  // (playwright-core/lib/coreBundle.js, createTextMatcher -> `re.test(elementText.full)`; only
+  // `elementText().normalized` is whitespace-collapsed), so an anchored /^...$/ can never match
+  // a generated ion-button whose label sits on its own line inside an ion-label. Both former
+  // fast paths were dead and every call fell through to firstVisibleLocator. The Convertigo
+  // priority class identifies the tab on its own, per project convention.
+  const stable = page.locator(`${SEL.publishedApplicationsTab}:visible`).first();
+  if (await stable.isVisible().catch(() => false)) {
     return stable;
   }
 
-  const byText = page
-    .locator('page-selectorpage ion-button, page-selectorpage button, page-selectorpage [role="button"]')
-    .filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE })
-    .first();
-  if (await byText.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    return byText;
+  // Accessible names ARE whitespace-normalized, so the anchored regex is safe on getByRole
+  // even though it is not on hasText.
+  const byRole = page.locator('page-selectorpage').getByRole('button', { name: PUBLISHED_APPLICATIONS_TAB_RE }).first();
+  if (await byRole.isVisible().catch(() => false)) {
+    return byRole;
   }
 
   return firstVisibleLocator(page, SEL.publishedApplicationsTab, 'Published Applications tab', 5_000);
@@ -6518,18 +6561,24 @@ async function clickPublishedApplicationsTabByDom(page: Page): Promise<boolean> 
 }
 
 async function publishedApplicationsViewIsActive(page: Page): Promise<boolean> {
+  // The product binds the active state on the tab itself: selectorpage.html:164 renders
+  // class="{{(this.local.published) ? 'btn btn--tab-active' : 'btn btn--tab'}} class1761754757348",
+  // and the deployed DisplayObjects/mobile chunk carries the same pair, so the priority class
+  // combined with btn--tab-active is the authoritative signal. The former
+  // `filter({ hasText: /^...$/ })` variant could never match (Playwright tests a RegExp against
+  // the raw, un-normalized element text), which left only the text fallbacks doing any work.
+  const activeTabCount = await page
+    .locator(`${SEL.publishedApplicationsTab}.btn--tab-active:visible`)
+    .count()
+    .catch(() => 0);
+  if (activeTabCount > 0) {
+    return true;
+  }
+
   const root = page.locator('page-selectorpage').first();
-  const rootVisible = await root.isVisible({ timeout: 1_000 }).catch(() => false);
+  const rootVisible = await root.isVisible().catch(() => false);
 
   if (rootVisible) {
-    const activePublishedTab = root
-      .locator('ion-button.btn--tab-active, ion-button.TabSelected, ion-button.tab-selected, .btn--tab-active, .TabSelected')
-      .filter({ hasText: PUBLISHED_APPLICATIONS_TAB_RE })
-      .first();
-    if (await activePublishedTab.isVisible({ timeout: 500 }).catch(() => false)) {
-      return true;
-    }
-
     const rootText = normalizeWhitespace(await root.innerText({ timeout: 1_000 }).catch(() => ''));
     if (PUBLISHED_APPLICATIONS_VIEW_RE.test(rootText)) {
       return true;
@@ -6582,15 +6631,19 @@ export async function openPublishedPwaEditor(page: Page, title: string): Promise
   await test.step(`open published PWA editor for ${title}`, async () => {
     await returnToSelectorFromEditor(page);
     await page.locator(SEL.publishedApplicationsTab).first().click();
-    if (await page.locator('ion-popover').isVisible().catch(() => false)) {
-      await page.keyboard.press('Escape');
-      await page.locator('ion-popover').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
-    }
     const card = page.locator('[id^="idcard"]').filter({ hasText: title }).first();
     await expect(card, `published form card ${title} should be visible`).toBeVisible({ timeout: 30_000 });
     const menu = card.locator(SEL.cardMenuButton).first();
     for (let attempt = 0; attempt < 3; attempt++) {
-      await card.hover();
+      // A popover left open by an earlier step sits on top of the selector cards
+      // and intercepts pointer events ("<ion-popover ...> intercepts pointer
+      // events" in the call log). hover() then retries with no deadline of its
+      // own, so an un-timeouted hover burns the whole test budget rather than
+      // failing: #1326 and #1407 both died that way on 240s. Clear the popover on
+      // every attempt - the previous probe ran once, before the loop, and matched
+      // hidden popovers too - and bound the hover so a blocked attempt costs 10s.
+      await dismissVisiblePopovers(page).catch(() => undefined);
+      await card.hover({ timeout: 10_000 }).catch(() => undefined);
       await page.waitForTimeout(500);
       await menu.click({ timeout: 2_000 }).catch(async () => {
         await menu.evaluate((el) => (el as HTMLElement).click());
@@ -8483,14 +8536,21 @@ export async function expectComponentHeaderDefaultValueIndicator(
 
 /**
  * Mark a Checkbox component option as selected by default (so it carries a value
- * at runtime in the viewer), by toggling its per-option "selected" checkbox.
- * Call after setCheckboxLocalOptions, with the option's 0-based index.
+ * at runtime in the viewer). Call after setCheckboxLocalOptions, with the option
+ * LABEL.
+ *
+ * ref #1466 (commit 93d409d2f) removed the per-option "selected by default"
+ * ion-checkbox from the Checkbox options editor - DivCheckbox now carries
+ * `isEnabled: false` in itemCheckboxEditor.yaml and the generated template has no
+ * ion-checkbox left. The Default value tab is the supported way to pre-select an
+ * option, and it is the same flow #1109 exercises for Checkbox components.
+ *
+ * The parameter is a label rather than an index on purpose: the Default value
+ * grid is keyed by label, and reading the label back out of the options inputs
+ * would re-introduce an index the editor no longer guarantees.
  */
-export async function setCheckboxDefaultSelected(page: Page, optionIndex: number): Promise<void> {
-  const toggle = page.locator(SEL.checkboxOptionDefaultToggle).nth(optionIndex);
-  await toggle.waitFor({ state: 'visible', timeout: 10_000 });
-  await toggle.click();
-  await page.waitForTimeout(300);
+export async function setCheckboxDefaultSelected(page: Page, optionLabel: string): Promise<void> {
+  await setChoiceDefaultValueVisual(page, [optionLabel]);
 }
 
 export async function createFormWithCheckboxAndDescription(

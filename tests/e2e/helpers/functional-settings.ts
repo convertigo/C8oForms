@@ -39,11 +39,17 @@ const CUSTOM_HEADER_LOGO = `data:image/svg+xml;base64,${Buffer.from(
 ).toString('base64')}`;
 
 type LogoMetrics = {
+  // 'img' or 'ion-icon' - reported in assertion messages so a failure says which
+  // branch of the toolbar rendered the logo.
+  tag: string;
   src: string;
   width: number;
   height: number;
-  naturalWidth: number;
-  naturalHeight: number;
+  // null when the toolbar renders the logo as an <ion-icon> (SVG sources): an
+  // ion-icon exposes no intrinsic size. The `src` assertion still pins the exact
+  // fixture bytes, which carry width="200" height="200".
+  naturalWidth: number | null;
+  naturalHeight: number | null;
 };
 
 type GdprLanguage = 'fr' | 'en' | 'es' | 'it';
@@ -161,9 +167,16 @@ export async function verifyCustomHeaderLogoServerSymbolThroughUi(page: Page): P
 
     await test.step('Verify the custom logo server symbol impacts the viewer completion page', async () => {
       const metrics = await responseCompletedLogoMetrics(page);
-      expect(metrics.src, 'response completion should render the configured custom header logo').toBe(CUSTOM_HEADER_LOGO);
-      expect(metrics.naturalWidth, 'the custom logo fixture should load with its intrinsic width').toBe(200);
-      expect(metrics.naturalHeight, 'the custom logo fixture should load with its intrinsic height').toBe(200);
+      expect(
+        metrics.src,
+        `response completion should render the configured custom header logo; metrics=${JSON.stringify(metrics)}`,
+      ).toBe(CUSTOM_HEADER_LOGO);
+      if (metrics.naturalWidth !== null) {
+        // <img> branch only. On the <ion-icon> branch the src equality above already
+        // pins the fixture, whose SVG source declares width="200" height="200".
+        expect(metrics.naturalWidth, 'the custom logo fixture should load with its intrinsic width').toBe(200);
+        expect(metrics.naturalHeight, 'the custom logo fixture should load with its intrinsic height').toBe(200);
+      }
       expect(metrics.height, `custom logo height should stay constrained; metrics=${JSON.stringify(metrics)}`).toBeLessThanOrEqual(60);
     });
   } finally {
@@ -177,8 +190,29 @@ export async function verifyGdprViewerToastConfigurationThroughUi(page: Page): P
   const toastText = `Functional GDPR viewer toast ${Date.now()}`;
   let restoreGdprConfig: RestoreGdprConfig | undefined;
   let formId = '';
+  let bodyError: unknown;
 
   try {
+    await test.step('Assert the modern Toast configuration is not locked by the legacy symbol', async () => {
+      // The engine-wide symbol C8Oforms.GDRP-TOAST takes precedence over the stored
+      // configuration BY DESIGN: getGDRPtoast.yaml short-circuits on
+      // `else if (legacyToastExists) { text = legacyToastValue; }` before it ever reads
+      // the document, and the product says so in its own UI
+      // (admin_gdpr_legacy_toast_symbol_explanation: "The global C8Oforms.GDRP-TOAST symbol
+      // exists in Convertigo. The modern Toast message configuration is therefore locked.").
+      // The presence of the NAME is what locks it - admin_gdrp_get.yaml's
+      // c8oFormsLegacySymbolStatus only calls symbolsGetNames().contains(...) - so neither
+      // the stored `symbols.toast` nor an empty value can unlock it. This scenario is
+      // therefore only meaningful on a server where that symbol is absent. Check it in
+      // 2 seconds instead of failing after two minutes of UI work on a misleading assertion.
+      const admin = await createFunctionalAdminSequenceClient();
+      const legacyToastSymbolActive = await gdprLegacyToastSymbolIsActive(admin);
+      expect(
+        legacyToastSymbolActive,
+        'the server-wide symbol C8Oforms.GDRP-TOAST must not be defined: while it exists the product deliberately locks the modern Toast configuration, so no configured viewer toast can reach the published viewer. Remove that global symbol from the Convertigo server to run this scenario.',
+      ).toBe(false);
+    });
+
     await test.step('Set the GDPR viewer toast configuration', async () => {
       restoreGdprConfig = await setGdprViewerToastForTest(toastText);
     });
@@ -201,9 +235,23 @@ export async function verifyGdprViewerToastConfigurationThroughUi(page: Page): P
         })
         .toBe(true);
     });
+  } catch (error) {
+    bodyError = error;
+    throw error;
   } finally {
     await test.step('Restore the GDPR viewer toast configuration', async () => {
-      await restoreGdprConfig?.();
+      try {
+        await restoreGdprConfig?.();
+      } catch (restoreError) {
+        // Playwright reports whatever `finally` throws, so a restore failure REPLACES the
+        // assertion the test actually made. That is how an "Authentication required" on the
+        // restore hid the real toast mismatch for two runs. Keep the body's error when there
+        // is one, and only surface this failure on its own when the body passed.
+        if (bodyError === undefined) {
+          throw restoreError;
+        }
+        console.warn(`GDPR viewer toast restore failed after the test had already failed: ${String(restoreError)}`);
+      }
     });
   }
 }
@@ -375,6 +423,17 @@ function normalizedStudioLanguage(value: string): StudioLanguage {
   return GDPR_LANGUAGES.includes(value as GdprLanguage) ? (value as StudioLanguage) : 'fr';
 }
 
+// admin_gdrp_get returns a `legacy` node built by c8oFormsLegacySymbolStatus, which reports
+// whether each engine-wide GDPR symbol NAME exists. getGDRPtoast.yaml keys its short-circuit on
+// exactly this value, so it is the authoritative "is the modern configuration locked?" signal.
+async function gdprLegacyToastSymbolIsActive(admin: FunctionalAdminSequenceClient): Promise<boolean> {
+  const response = await admin.callSequence('admin_gdrp_get', {});
+  const document = asRecord(response.document);
+  const legacy = asRecord(response.legacy) ?? asRecord(document?.legacy) ?? {};
+  const toast = asRecord(legacy.toast) ?? {};
+  return toast.exists === true || toast.exists === 'true';
+}
+
 function gdprData(response: Record<string, unknown>): Record<string, unknown> {
   const document = asRecord(response.document);
   return parseJsonRecord(response.data) ?? parseJsonRecord(document?.data) ?? {};
@@ -434,7 +493,14 @@ async function responseCompletedLogoMetrics(page: Page): Promise<LogoMetrics> {
     .poll(
       () =>
         logo.evaluate((node) => {
-          const image = node as HTMLImageElement;
+          const element = node as HTMLElement;
+          if (element.tagName.toLowerCase() !== 'img') {
+            // ion-icon fetches and injects the SVG; it is ready once Angular has set
+            // the src property and it has been painted.
+            const src = (element as unknown as { src?: unknown }).src;
+            return typeof src === 'string' && src !== '' && element.getBoundingClientRect().height > 0;
+          }
+          const image = element as HTMLImageElement;
           return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
         }),
       {
@@ -445,14 +511,23 @@ async function responseCompletedLogoMetrics(page: Page): Promise<LogoMetrics> {
     .toBe(true);
 
   return logo.evaluate((node) => {
-    const image = node as HTMLImageElement;
-    const box = image.getBoundingClientRect();
+    const element = node as HTMLElement;
+    const box = element.getBoundingClientRect();
+    const isImg = element.tagName.toLowerCase() === 'img';
+    const image = element as HTMLImageElement;
+    // Both branches receive the logo through an Angular PROPERTY binding - the
+    // compiled consts read [1,"class1772621540854",3,"src"], where 3 is
+    // AttributeMarker.Bindings. <img> reflects that property to the content
+    // attribute, <ion-icon> (a Stencil custom element) does not, so there the
+    // attribute is absent and only the property carries the value.
+    const propertySrc = (element as unknown as { src?: unknown }).src;
     return {
-      src: image.src,
+      tag: element.tagName.toLowerCase(),
+      src: typeof propertySrc === 'string' && propertySrc !== '' ? propertySrc : element.getAttribute('src') ?? '',
       width: box.width,
       height: box.height,
-      naturalWidth: image.naturalWidth,
-      naturalHeight: image.naturalHeight,
+      naturalWidth: isImg ? image.naturalWidth : null,
+      naturalHeight: isImg ? image.naturalHeight : null,
     };
   });
 }

@@ -38,6 +38,8 @@ scriptContent:
         	public projectLang = "";
         	public filterActions = "";
         	public mainEditorTabsFrames = {};
+        	private mainEditorTabsObservers: any = {};
+        	private mainEditorTabsBudget: any = {};
         	public tinyFuncDrop;
         	public tinyFuncDropWithCancel;
         	public tinyFuncDropWithCancelText;
@@ -468,6 +470,16 @@ scriptContent:
         	}
         	public dragCleanupListenersBound = false;
         	public dragCleanupHandlers: any = null;
+        	private windowResizeHandler: any = null;
+        	// #nav-memo: memo fields for the index-free navigation helpers. See getNavState().
+        	// local.currentIndex is deliberately NOT probed: the cached state is a function of the
+        	// RESOLVED values only, so two identically configured pages may legitimately share an
+        	// entry. This stops being true the day a cached helper returns anything index-derived.
+        	public navMemoKeys: string[] = ["buttonsOrientation", "buttonsVerticalPosition", "enabledTab", "enabledButtons", "positionTab", "positionButtons", "buttonsBehavior"];
+        	private navMemoProbe: any[] = null;
+        	private navMemoScratch: any[] = new Array(17);
+        	private navMemoState: any = null;
+        	private tabsClassMapCache: any = null;
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         		//		console.log(this.global.settings);
@@ -1191,9 +1203,14 @@ scriptContent:
         			this.global.urls.push("assets/images/jpg/img" + i + ".jpg");
         		}
         		this.global["center"] = "";
-        		window.onresize = (e) => {
-        			this.ref.detectChanges();
-        		}
+        		// registered (not assigned) so we do not clobber another handler, and removed in
+        		// PageFinalization so a destroyed page stops refreshing on every resize frame.
+        		// markForCheck, not detectChanges: one scheduled pass instead of a synchronous
+        		// full refresh per resize event.
+        		this.windowResizeHandler = () => {
+        			this.ref.markForCheck();
+        		};
+        		window.addEventListener("resize", this.windowResizeHandler);
         		/** settings for action definition **/
         		this.local.tagName = "span";
         		this.local.tagId = "id";
@@ -1295,6 +1312,11 @@ scriptContent:
         		/*End_c8o_PageAfterViewInit*/
         /*Begin_c8o_PageFinalization*/
         		this.unbindGlobalDragCleanupListeners();
+        		this.disconnectMainEditorTabsObservers();
+        		if (this.windowResizeHandler != null) {
+        			window.removeEventListener("resize", this.windowResizeHandler);
+        			this.windowResizeHandler = null;
+        		}
         		/*End_c8o_PageFinalization*/
         /*Begin_c8o_PageFunction*/
         	public debugShouldRenderFlowDropIndicator(flowIndexRendered: number, flowId: any, itemId: any): boolean {
@@ -1303,21 +1325,6 @@ scriptContent:
         		const shouldRender =
         			this.local.draggingActions == true &&
         			((currentIndex == 0 && draggingType == "business_logic") || currentIndex != 0);
-        		if (this.local?.draggingActions === true) {
-        			console.log("[DnD] drop indicator render candidate", JSON.stringify({
-        				shouldRender,
-        				flowIndexRendered,
-        				currentIndex,
-        				currentPage: this.local?.currentPage,
-        				dragging: this.local?.dragging,
-        				draggingActions: this.local?.draggingActions,
-        				draggingFlows: this.local?.draggingFlows,
-        				draggingType,
-        				flow: this.local?.flow,
-        				flowId,
-        				itemId
-        			}));
-        		}
         		return shouldRender;
         	}
         
@@ -8399,6 +8406,20 @@ scriptContent:
         				compactRequiredWidth: 0
         			};
         		}
+        		// #tabs-measure: bootstrap a measurement whenever this item has no LIVE container
+        		// under observation. Gating on the state entry alone is not enough: the tab bar
+        		// sits under *ngIf="item.id == idselected", so selecting another component
+        		// destroys the element while the state entry survives, and re-selecting would
+        		// otherwise reuse flags measured at a stale panel width.
+        		// This stays O(1) per pass -- scheduleMainEditorTabsMeasure coalesces on
+        		// mainEditorTabsFrames, and once a measure succeeds the container is connected
+        		// and this branch stops firing.
+        		if (itemId != null) {
+        			const observed = this.mainEditorTabsObservers[itemId];
+        			if (observed == null || observed.container == null || observed.container.isConnected !== true) {
+        				this.scheduleMainEditorTabsMeasure(item);
+        			}
+        		}
         		return itemId != null ? this.local.mainEditorTabsState[itemId] : {compact: false, compactWrapped: false, requiredWidth: 0, compactRequiredWidth: 0};
         	}
         	
@@ -8636,7 +8657,22 @@ scriptContent:
         		};
         	}
         	
-        	public scheduleMainEditorTabsMeasure(item) {
+        	/**
+        	 * #tabs-measure -- DOM measurement of the properties-panel tab bar.
+        	 *
+        	 * This used to be driven from the [ngClass] bindings through
+        	 * ensureMainEditorTabsResponsive(), which armed a frame on EVERY change-detection
+        	 * pass: each frame forced three synchronous layouts and, whenever a measured value
+        	 * moved, called detectChanges(), which re-evaluated the same binding -- a loop
+        	 * sustained at frame rate. The bindings are pure again and the measurement is now
+        	 * driven by real events:
+        	 *   - first render of an item (getMainEditorTabsState creates its entry),
+        	 *   - tab / tab-group selection (selectMainEditorTab, selectMainEditorTabGroup),
+        	 *   - any resize of the container or of its button rows (ResizeObserver).
+        	 * The settle budget in measureMainEditorTabs is the hard stop: even if a future CSS
+        	 * change makes the measurement depend on its own result, it cannot free-run.
+        	 */
+        	public scheduleMainEditorTabsMeasure(item, retries = 12) {
         		const itemId = item?.id;
         		if (itemId == null || typeof requestAnimationFrame !== "function") {
         			return;
@@ -8646,20 +8682,104 @@ scriptContent:
         		}
         		this.mainEditorTabsFrames[itemId] = requestAnimationFrame(() => {
         			delete this.mainEditorTabsFrames[itemId];
-        			this.measureMainEditorTabs(item);
+        			// on a first render the panel may not be in the DOM yet: bounded retry,
+        			// never an open-ended one.
+        			if (this.measureMainEditorTabs(item) === false && retries > 0) {
+        				this.scheduleMainEditorTabsMeasure(item, retries - 1);
+        			}
         		});
         	}
-        	
-        	public measureMainEditorTabs(item) {
+        
+        	/**
+        	 * #tabs-measure: the settle budget, per item and per second.
+        	 * MAX_MEASURES caps the measurement itself (three forced layouts each) and
+        	 * MAX_REFRESHES the synchronous refresh it triggers, so a measurement that turns out
+        	 * to depend on its own result cannot burn frames. Both reset every second.
+        	 *
+        	 * Going over budget NEVER drops the last measurement: a window-resize drag notifies
+        	 * once per frame (~60/s), so the trailing notification -- the one carrying the final
+        	 * width -- would otherwise be discarded and the bar left at the wrong size. Over
+        	 * budget, one re-measure is deferred to the end of the window instead.
+        	 *
+        	 * The warning discriminates a runaway from a drag by watching REFRESHES, not
+        	 * measures: dragging re-measures constantly but changes the verdict once or twice,
+        	 * whereas a self-feeding measurement flips it every frame. It takes
+        	 * WARN_AFTER_WINDOWS consecutive saturated seconds to report.
+        	 */
+        	private getMainEditorTabsBudget(itemId): any {
+        		const now = Date.now();
+        		let budget = this.mainEditorTabsBudget[itemId];
+        		if (budget == null) {
+        			budget = { windowStart: now, measures: 0, refreshes: 0, deferred: false, saturated: false, saturatedWindows: 0, warned: false };
+        			this.mainEditorTabsBudget[itemId] = budget;
+        			return budget;
+        		}
+        		if ((now - budget.windowStart) > 1000) {
+        			budget.saturatedWindows = budget.saturated ? (budget.saturatedWindows + 1) : 0;
+        			if (!budget.saturated) {
+        				budget.warned = false;
+        			}
+        			budget.saturated = false;
+        			budget.windowStart = now;
+        			budget.measures = 0;
+        			budget.refreshes = 0;
+        		}
+        		return budget;
+        	}
+        
+        	private canMeasureMainEditorTabs(itemId, item): boolean {
+        		const MAX_MEASURES = 20;
+        		const budget = this.getMainEditorTabsBudget(itemId);
+        		budget.measures++;
+        		if (budget.measures > MAX_MEASURES) {
+        			if (!budget.deferred) {
+        				budget.deferred = true;
+        				setTimeout(() => {
+        					budget.deferred = false;
+        					this.scheduleMainEditorTabsMeasure(item, 0);
+        				}, Math.max(0, 1000 - (Date.now() - budget.windowStart)));
+        			}
+        			return false;
+        		}
+        		return true;
+        	}
+        
+        	private canApplyMainEditorTabsMeasure(itemId): boolean {
+        		const MAX_REFRESHES = 12;
+        		const WARN_AFTER_WINDOWS = 3;
+        		const budget = this.getMainEditorTabsBudget(itemId);
+        		budget.refreshes++;
+        		if (budget.refreshes > MAX_REFRESHES) {
+        			budget.saturated = true;
+        			if (budget.saturatedWindows >= WARN_AFTER_WINDOWS && !budget.warned) {
+        				budget.warned = true;
+        				console.warn("[main-editor-tabs] measurement is not settling for \"" + itemId + "\"; throttling the refresh to avoid a render loop");
+        			}
+        			return false;
+        		}
+        		return true;
+        	}
+        
+        	/**
+        	 * #tabs-measure: re-measure one item''s tab bar.
+        	 * Returns false when the container is not in the DOM (the caller may retry),
+        	 * true once a measurement has been taken.
+        	 */
+        	public measureMainEditorTabs(item): boolean {
         		try {
         			const itemId = item?.id;
         			if (itemId == null || typeof document === "undefined") {
-        				return;
+        				return true;
         			}
         			const selector = "[data-main-editor-tabs-inner=\"" + this.getMainEditorTabsDomId(item) + "\"]";
         			const container = document.querySelector(selector);
         			if (container == null) {
-        				return;
+        				return false;
+        			}
+        			if (!this.canMeasureMainEditorTabs(itemId, item)) {
+        				// deliberately leaves state.measuredWidth stale: that is what keeps the
+        				// ResizeObserver guard open for the deferred re-measure.
+        				return true;
         			}
         			const hadCompact = container.classList.contains("div-container-inner-compact");
         			const hadCompactWrap = container.classList.contains("div-container-inner-compact-wrap");
@@ -8689,23 +8809,96 @@ scriptContent:
         			}
         			const compact = (container.clientWidth + 1) < requiredWidth;
         			const compactWrapped = compact && (container.clientWidth + 1) < compactRequiredWidth;
+        			this.observeMainEditorTabs(itemId, container, item, buttonContainers);
         			const state = this.getMainEditorTabsState(item);
         			if (state.requiredWidth !== requiredWidth || state.compactRequiredWidth !== compactRequiredWidth || state.compact !== compact || state.compactWrapped !== compactWrapped) {
         				state.requiredWidth = requiredWidth;
         				state.compactRequiredWidth = compactRequiredWidth;
         				state.compact = compact;
         				state.compactWrapped = compactWrapped;
-        				this.ref.detectChanges();
+        				state.measuredWidth = container.clientWidth;
+        				state.measuredRowsWidth = this.getMainEditorTabsRowsWidth(container);
+        				// the state is written either way; only the synchronous refresh is
+        				// dropped when the budget is exhausted, so the next natural pass still
+        				// paints the right layout.
+        				if (this.canApplyMainEditorTabsMeasure(itemId)) {
+        					this.ref.detectChanges();
+        				}
         			}
+        			else {
+        				state.measuredWidth = container.clientWidth;
+        				state.measuredRowsWidth = this.getMainEditorTabsRowsWidth(container);
+        			}
+        			return true;
         		}
         		catch (e) {
         			console.error(e);
+        			return true;
         		}
         	}
-        	
-        	public ensureMainEditorTabsResponsive(item) {
-        		this.scheduleMainEditorTabsMeasure(item);
-        		return this.isMainEditorTabsCompact(item);
+        
+        	/** #tabs-measure: total width the button rows currently need, the second input of the verdict. */
+        	private getMainEditorTabsRowsWidth(container): number {
+        		let total = 0;
+        		const rows = (container != null) ? container.querySelectorAll("[data-main-editor-tabs-buttons]") : [];
+        		Array.from(rows).forEach((row: any) => { total += row.scrollWidth; });
+        		return total;
+        	}
+        
+        	/**
+        	 * #tabs-measure: watch the container and its button rows so a width change from ANY
+        	 * cause (window resize, splitter, panel toggle, font load, tab set change) re-measures
+        	 * without having to enumerate every trigger.
+        	 * Re-entrancy guard: a notification that changed NEITHER of the two inputs of the
+        	 * verdict is ignored, so restoring the compact classes during a measure cannot feed
+        	 * itself. Both inputs are compared, not just the container: the container is
+        	 * align-self: stretch, so its width is panel-driven, and a tab row that grows or
+        	 * shrinks with the item config (e.g. a Button switching to advanced display mode)
+        	 * moves only the rows.
+        	 */
+        	private observeMainEditorTabs(itemId, container, item, buttonContainers) {
+        		if (itemId == null || container == null || typeof ResizeObserver !== "function") {
+        			return;
+        		}
+        		const existing = this.mainEditorTabsObservers[itemId];
+        		if (existing != null) {
+        			if (existing.container === container) {
+        				return;
+        			}
+        			existing.observer.disconnect();
+        		}
+        		const observer = new ResizeObserver(() => {
+        			if (container.isConnected !== true) {
+        				// the panel moved to another component: release the detached subtree.
+        				observer.disconnect();
+        				const current = this.mainEditorTabsObservers[itemId];
+        				if (current != null && current.observer === observer) {
+        					delete this.mainEditorTabsObservers[itemId];
+        				}
+        				return;
+        			}
+        			const state = this.getMainEditorTabsState(item);
+        			if (state.measuredWidth === container.clientWidth && state.measuredRowsWidth === this.getMainEditorTabsRowsWidth(container)) {
+        				return;
+        			}
+        			this.scheduleMainEditorTabsMeasure(item, 0);
+        		});
+        		observer.observe(container);
+        		(buttonContainers || []).forEach((buttonContainer: any) => observer.observe(buttonContainer));
+        		this.mainEditorTabsObservers[itemId] = { observer: observer, container: container };
+        	}
+        
+        	/** #tabs-measure: released in PageFinalization. */
+        	public disconnectMainEditorTabsObservers() {
+        		const observers = this.mainEditorTabsObservers || {};
+        		Object.keys(observers).forEach((itemId) => {
+        			try { observers[itemId].observer.disconnect(); } catch (e) {}
+        		});
+        		this.mainEditorTabsObservers = {};
+        		Object.keys(this.mainEditorTabsFrames || {}).forEach((itemId) => {
+        			try { cancelAnimationFrame(this.mainEditorTabsFrames[itemId]); } catch (e) {}
+        		});
+        		this.mainEditorTabsFrames = {};
         	}
         	
         	public selectMainEditorTabGroup(item, group) {
@@ -8720,6 +8913,8 @@ scriptContent:
         			const defaultValue = this.getDefaultMainEditorTab(item, group);
         			if (defaultValue != null) {
         				this.local.propsTabsSelected[item.id] = defaultValue;
+        				// #tabs-measure: the visible button row changed, so the required width did.
+        				this.scheduleMainEditorTabsMeasure(item);
         			}
         		}
         		catch (e) {
@@ -8738,6 +8933,8 @@ scriptContent:
         				this.local.propsTabsSelected = {};
         			}
         			this.local.propsTabsSelected[item.id] = tabId;
+        			// #tabs-measure: the visible button row changed, so the required width did.
+        			this.scheduleMainEditorTabsMeasure(item);
         		}
         		catch (e) {
         			console.error(e);
@@ -9200,96 +9397,28 @@ scriptContent:
         		index = -1,
         		fallbackToPageWhenGlobalMissing = true
         	): T {
-        
         		const currentPage = this.getCurrentPage(index);
         		const globalNavigation = this.form?.navigation;
-        
-        		const globalNavigationEnabled =
-        			this.isGlobalNavigationEnabled();
-        
-        		const individualNavigationEnabled =
-        			this.isIndividualNavigationEnabled(index);
-        
-        		console.groupCollapsed(
-        			`[getNavigationValue] key="${key}" index=${index}`
-        		);
-        
-        		console.log("INPUT", {
-        			key,
-        			defaultValue,
-        			index,
-        			fallbackToPageWhenGlobalMissing
-        		});
-        
-        		console.log("NAVIGATION STATE", {
-        			globalNavigationEnabled,
-        			individualNavigationEnabled,
-        			globalNavigation,
-        			currentPage
-        		});
         
         		/**
         		 * 1. Si la navigation globale est activée
         		 * et que la page n''utilise pas sa navigation individuelle,
         		 * alors la config globale prime.
         		 */
-        		if (
-        			globalNavigationEnabled &&
-        			!individualNavigationEnabled
-        		) {
+        		if (this.isGlobalNavigationEnabled() && !this.isIndividualNavigationEnabled(index)) {
         			const hasGlobalValue =
         				globalNavigation != null &&
         				this.hasOwn(globalNavigation, key) &&
         				globalNavigation[key] !== null &&
         				globalNavigation[key] !== undefined;
         
-        			console.log("GLOBAL CHECK", {
-        				hasGlobalValue,
-        				hasOwn:
-        					globalNavigation != null
-        						? this.hasOwn(globalNavigation, key)
-        						: false,
-        				value:
-        					globalNavigation != null
-        						? globalNavigation[key]
-        						: undefined
-        			});
-        
         			if (hasGlobalValue) {
-        				console.log(
-        					"RETURN → GLOBAL",
-        					globalNavigation[key]
-        				);
-        
-        				console.groupEnd();
-        
         				return globalNavigation[key];
         			}
         
         			if (!fallbackToPageWhenGlobalMissing) {
-        				console.log(
-        					"RETURN → DEFAULT (global missing + fallback disabled)",
-        					defaultValue
-        				);
-        
-        				console.groupEnd();
-        
         				return defaultValue;
         			}
-        
-        			console.log(
-        				"GLOBAL VALUE MISSING → FALLBACK TO PAGE"
-        			);
-        		}
-        		else {
-        			console.log(
-        				"GLOBAL NAVIGATION SKIPPED",
-        				{
-        					reason: !globalNavigationEnabled
-        						? "global navigation disabled"
-        						: "individual navigation enabled"
-        				}
-        			);
         		}
         
         		/**
@@ -9301,147 +9430,232 @@ scriptContent:
         			currentPage[key] !== null &&
         			currentPage[key] !== undefined;
         
-        		console.log("PAGE CHECK", {
-        			hasPageValue,
-        			hasOwn:
-        				currentPage != null
-        					? this.hasOwn(currentPage, key)
-        					: false,
-        			value:
-        				currentPage != null
-        					? currentPage[key]
-        					: undefined
-        		});
-        
         		if (hasPageValue) {
-        			console.log(
-        				"RETURN → PAGE",
-        				currentPage[key]
-        			);
-        
-        			console.groupEnd();
-        
         			return currentPage[key];
         		}
         
         		/**
         		 * 3. Fallback final.
         		 */
-        		console.log(
-        			"RETURN → DEFAULT",
-        			defaultValue
-        		);
-        
-        		console.groupEnd();
-        
         		return defaultValue;
         	}
-          public getTabsOrientation(index = -1): "horizontal" | "vertical" {
-            const orientation = this.getNavigationValue<string>("buttonsOrientation", "horizontal", index);
-            return orientation === "vertical" ? "vertical" : "horizontal";
-          }
-          public getTabsVerticalPosition(index = -1): "left" | "right" {
-            const verticalPosition = this.getNavigationValue<string>("buttonsVerticalPosition", "left", index);
-            return verticalPosition === "right" ? "right" : "left";
-          }
-          private isTabsNavigationActive(index = -1): boolean {
-            if (!this.getCurrentPage(index)) {
-              return false;
-            }
-            const enabledTab = this.getNavigationValue<boolean>("enabledTab", false, index);
-            const enabledButtons = this.getNavigationValue<boolean>("enabledButtons", false, index);
-            const positionButtons = this.getNavigationValue<string>("positionButtons", "standard", index);
-            return enabledTab === true || (enabledButtons === true && positionButtons === "tab");
-          }
-          public isVerticalTabsNavigationEnabled(position?: "left" | "right"): boolean {
-            if (this.getTabsOrientation() !== "vertical" || !this.isTabsNavigationActive()) {
-              return false;
-            }
-            return position == null || this.getTabsVerticalPosition() === position;
-          }
-          public isHorizontalTabsNavigationEnabled(): boolean {
-            return this.getTabsOrientation() !== "vertical";
-          }
-          public isTabsEnabledAt(position: "top" | "bottom"): boolean {
-            if (!this.getCurrentPage()) {
-              return false;
-            }
-            if (this.getTabsOrientation() === "vertical") {
-              const verticalPosition = this.getTabsVerticalPosition();
-              return this.isTabsNavigationActive() && ((verticalPosition === "left" && position === "top") || (verticalPosition === "right" && position === "bottom"));
-            }
-            const positionTab = this.getNavigationValue<string>("positionTab", "bottom");
-            return positionTab === position && this.isTabsNavigationActive();
-          }
+        	/**
+        	 * #nav-memo -- memoized snapshot of the index-free navigation helpers.
+        	 *
+        	 * WHY: these helpers are bound in templates (here and, through pageOwner, in
+        	 * SharedTabs), so they are re-evaluated on EVERY change-detection pass. Without
+        	 * a guard a single pass runs hundreds of getNavigationValue() resolutions.
+        	 *
+        	 * INVALIDATION IS VALUE-BASED, DELIBERATELY. Every navigation writer in this
+        	 * project mutates form.navigation or local.pages[i] IN PLACE, so a reference /
+        	 * WeakMap key would serve stale values. Conversely "form.navigation = {}"
+        	 * replaces the container without changing any resolved value, so an identity key
+        	 * would also invalidate for nothing.
+        	 *
+        	 * TOTALITY: getNavigationValue(k, d, -1, fb) reads exactly
+        	 * form.globalNavigationEnabled, form.navigation[k], local.pages[currentIndex]
+        	 * and that page''s .individualNavigation / [k]. navMemoKeys is the complete key
+        	 * set the index-free helpers pass. The probe below samples all of it, so
+        	 * equal probe => equal getNavigationValue output for every (k, d, fb), and every
+        	 * cached helper is a pure function of those outputs plus hasPage. The probe runs
+        	 * on every call, so the staleness window is zero.
+        	 *
+        	 * NOT cached: any call carrying an explicit index (only
+        	 * getNavigationValue("included", true, index) from the SharedTabs ngFor) and
+        	 * getNavigationValue itself -- both keep their original code path.
+        	 */
+        	private getNavState(): any {
+        		const local: any = this.local;
+        		const form: any = this.form;
+        		const nav: any = (form != null) ? form.navigation : null;
+        		const pages: any = (local != null) ? local.pages : null;
+        		const page: any = (pages != null) ? pages[local.currentIndex] : undefined;
+        		const keys: string[] = this.navMemoKeys;
+        		const probe: any[] = this.navMemoScratch;
+        
+        		probe[0] = (form != null && form.globalNavigationEnabled === true);
+        		probe[1] = (page != null && page.individualNavigation === true);
+        		probe[2] = page ? true : false;
+        		for (let i = 0; i < 7; i++) {
+        			probe[3 + i] = (nav != null) ? nav[keys[i]] : undefined;
+        			probe[10 + i] = (page != null) ? page[keys[i]] : undefined;
+        		}
+        
+        		const previous: any[] = this.navMemoProbe;
+        		if (previous != null) {
+        			let same = true;
+        			for (let i = 0; i < 17; i++) {
+        				if (previous[i] !== probe[i]) { same = false; break; }
+        			}
+        			if (same) { return this.navMemoState; }
+        		}
+        		// build first: a throw must not commit the probe against a stale state.
+        		const built = this.buildNavState();
+        		this.navMemoState = built;
+        		this.navMemoProbe = probe.slice(0);
+        		return built;
+        	}
+        
+        	/** #nav-memo: runs ONLY on a probe miss. Each const mirrors one former helper body. */
+        	private buildNavState(): any {
+        		const hasPage = this.getCurrentPage() ? true : false;
+        
+        		const orientation = (this.getNavigationValue<string>("buttonsOrientation", "horizontal") === "vertical") ? "vertical" : "horizontal";
+        		const vertical = (orientation === "vertical");
+        		const verticalPosition = (this.getNavigationValue<string>("buttonsVerticalPosition", "left") === "right") ? "right" : "left";
+        
+        		const enabledTab = this.getNavigationValue<boolean>("enabledTab", false);
+        		// enabledButtons is resolved TWICE, with different defaults -- do not collapse:
+        		// false at isTabsNavigationActive / isTabButtonsNavigationEnabled,
+        		// undefined at isStandardButtonsNavigationEnabled.
+        		const enabledButtonsFalse = this.getNavigationValue<boolean>("enabledButtons", false);
+        		const enabledButtonsUndef = this.getNavigationValue<boolean | undefined>("enabledButtons", undefined);
+        		const positionButtons = this.getNavigationValue<string>("positionButtons", "standard");
+        
+        		const tabsActive = hasPage && (enabledTab === true || (enabledButtonsFalse === true && positionButtons === "tab"));
+        
+        		let tabsTop = false;
+        		let tabsBottom = false;
+        		if (hasPage) {
+        			if (vertical) {
+        				tabsTop = tabsActive && (verticalPosition === "left");
+        				tabsBottom = tabsActive && (verticalPosition === "right");
+        			} else {
+        				const positionTab = this.getNavigationValue<string>("positionTab", "bottom");
+        				tabsTop = (positionTab === "top") && tabsActive;
+        				tabsBottom = (positionTab === "bottom") && tabsActive;
+        			}
+        		}
+        
+        		const standardButtons = hasPage && positionButtons === "standard" && (enabledButtonsUndef === undefined || enabledButtonsUndef === true);
+        		const tabButtons = hasPage && enabledButtonsFalse === true && positionButtons === "tab";
+        
+        		return {
+        			hasPage: hasPage,
+        			orientation: orientation,
+        			vertical: vertical,
+        			verticalPosition: verticalPosition,
+        			tabsActive: tabsActive,
+        			tabsTop: tabsTop,
+        			tabsBottom: tabsBottom,
+        			verticalTabs: vertical && tabsActive,
+        			standardButtons: standardButtons,
+        			tabButtons: tabButtons,
+        			displayTop: tabsTop,
+        			displayBottom: tabsBottom || (standardButtons && positionButtons === "standard")
+        		};
+        	}
+        
+        	/**
+        	 * #nav-memo: the class map the three SharedTabs [ngClass] bindings used to
+        	 * inline. One call site instead of five inline expressions per bound element:
+        	 * 3 navigation resolutions per component instead of 9 per element. The reference
+        	 * is kept stable while the five classes are unchanged.
+        	 * Comparing the three independent inputs is a complete check, because the other
+        	 * two classes are a total function of them:
+        	 *   c8o-tabs-vertical-left  = vertical && !right
+        	 *   c8o-tabs-buttons-scroll = !vertical && !wrap
+        	 * KEEP THIS METHOD IDENTICAL in editorPage / viewerPage / responseCompleted:
+        	 * SharedTabs reaches it through pageOwner, which is typed any, so a missing or
+        	 * drifted copy is a runtime error, not a compile error.
+        	 */
+        	public getTabsClassMap(): any {
+        		const vertical = this.getTabsOrientation() === "vertical";
+        		const right = vertical && this.getTabsVerticalPosition() === "right";
+        		const wrap = !vertical && this.getNavigationValue<string>("buttonsBehavior", "scroll", -1, false) === "wrap";
+        		const cached: any = this.tabsClassMapCache;
+        		if (cached != null
+        			&& cached["c8o-tabs-orientation-vertical"] === vertical
+        			&& cached["c8o-tabs-vertical-right"] === right
+        			&& cached["c8o-tabs-buttons-wrap"] === wrap) {
+        			return cached;
+        		}
+        		this.tabsClassMapCache = {
+        			"c8o-tabs-orientation-vertical": vertical,
+        			"c8o-tabs-vertical-right": right,
+        			"c8o-tabs-vertical-left": vertical && !right,
+        			"c8o-tabs-buttons-wrap": wrap,
+        			"c8o-tabs-buttons-scroll": !vertical && !wrap
+        		};
+        		return this.tabsClassMapCache;
+        	}
+        
+        	public getTabsOrientation(index = -1): "horizontal" | "vertical" {
+        		if (index !== -1) {
+        			const orientation = this.getNavigationValue<string>("buttonsOrientation", "horizontal", index);
+        			return orientation === "vertical" ? "vertical" : "horizontal";
+        		}
+        		return this.getNavState().orientation;
+        	}
+        
+        	public getTabsVerticalPosition(index = -1): "left" | "right" {
+        		if (index !== -1) {
+        			const verticalPosition = this.getNavigationValue<string>("buttonsVerticalPosition", "left", index);
+        			return verticalPosition === "right" ? "right" : "left";
+        		}
+        		return this.getNavState().verticalPosition;
+        	}
+        
+        	private isTabsNavigationActive(index = -1): boolean {
+        		if (index !== -1) {
+        			if (!this.getCurrentPage(index)) {
+        				return false;
+        			}
+        			const enabledTab = this.getNavigationValue<boolean>("enabledTab", false, index);
+        			const enabledButtons = this.getNavigationValue<boolean>("enabledButtons", false, index);
+        			const positionButtons = this.getNavigationValue<string>("positionButtons", "standard", index);
+        			return enabledTab === true || (enabledButtons === true && positionButtons === "tab");
+        		}
+        		return this.getNavState().tabsActive;
+        	}
+        
+        	public isVerticalTabsNavigationEnabled(position?: "left" | "right"): boolean {
+        		const s = this.getNavState();
+        		if (!s.verticalTabs) {
+        			return false;
+        		}
+        		return position == null || s.verticalPosition === position;
+        	}
+        
+        	public isHorizontalTabsNavigationEnabled(): boolean {
+        		return !this.getNavState().vertical;
+        	}
+        
+        	public isTabsEnabledAt(position: "top" | "bottom"): boolean {
+        		const s = this.getNavState();
+        		// an explicit test per position: the original returned false for any other
+        		// argument, which a ternary on "top" would not.
+        		if (position === "top") {
+        			return s.tabsTop;
+        		}
+        		if (position === "bottom") {
+        			return s.tabsBottom;
+        		}
+        		return false;
+        	}
+        
         	public isTopNavigationEnabled(): boolean {
-        	  return this.isTabsEnabledAt("top");
+        		return this.getNavState().tabsTop;
         	}
         
         	public isBottomNavigationEnabled(): boolean {
-        	  return this.isTabsEnabledAt("bottom");
+        		return this.getNavState().tabsBottom;
         	}
         
         	public isStandardButtonsNavigationEnabled(): boolean {
-        	  if (!this.getCurrentPage()) {
-        	    return false;
-        	  }
-        
-        	  const enabledButtons = this.getNavigationValue<boolean | undefined>(
-        	    "enabledButtons",
-        	    undefined
-        	  );
-        
-        	  const positionButtons = this.getNavigationValue<string>(
-        	    "positionButtons",
-        	    "standard"
-        	  );
-        
-        	  return (
-        	    positionButtons === "standard" &&
-        	    (
-        	      enabledButtons === undefined ||
-        	      enabledButtons === true
-        	    )
-        	  );
+        		return this.getNavState().standardButtons;
         	}
         
         	public isTabButtonsNavigationEnabled(): boolean {
-        	  if (!this.getCurrentPage()) {
-        	    return false;
-        	  }
-        
-        	  const enabledButtons = this.getNavigationValue<boolean>(
-        	    "enabledButtons",
-        	    false
-        	  );
-        
-        	  const positionButtons = this.getNavigationValue<string>(
-        	    "positionButtons",
-        	    "standard"
-        	  );
-        
-        //	  console.log(enabledButtons, positionButtons)
-        	  return (
-        	    enabledButtons === true &&
-        	    positionButtons === "tab"
-        	  );
+        		return this.getNavState().tabButtons;
         	}
         
         	public shouldDisplayBottomNavigationOrStandardButtons(): boolean {
-        		const positionButtons = this.getNavigationValue<string>(
-        		  "positionButtons",
-        		  "standard"
-        		);
-        	  return (
-        	    this.isBottomNavigationEnabled() ||
-        	    (this.isStandardButtonsNavigationEnabled() && positionButtons == "standard")
-        	  );
+        		return this.getNavState().displayBottom;
         	}
-        	
+        
         	public shouldDisplayTopNavigationOrStandardButtons(): boolean {
-        	  return (
-        	    this.isTopNavigationEnabled()
-        	  );
+        		return this.getNavState().displayTop;
         	}
         	
         	private async getMonacoToastErrorsForCurrentComponent(): Promise<any[]> {
@@ -32237,7 +32451,7 @@ title: Title for editor
                                                     attrValue: 
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                        - MobileSmartSourceType: 'script:{ ''div-container-inner-compact'': this.ensureMainEditorTabsResponsive(item) && this.shouldKeepMainEditorTabsSingleLine(item), ''div-container-inner-compact-wrap'': this.isMainEditorTabsCompactWrapped(item) }'
+                                                        - MobileSmartSourceType: 'script:{ ''div-container-inner-compact'': this.isMainEditorTabsCompact(item) && this.shouldKeepMainEditorTabsSingleLine(item), ''div-container-inner-compact-wrap'': this.isMainEditorTabsCompactWrapped(item) }'
                                                   ↓Attr2 [ngx.components.UIAttribute-1775914540002]: 
                                                     attrName: '[attr.data-main-editor-tabs-inner]'
                                                     attrValue: 
@@ -33834,6 +34048,13 @@ title: Title for editor
                                                     width: calc(100vw - 95px);
                                                     border: 0px solid transparent !important;
                                                     '
+                                          ↓AgentAwareContentWidth [ngx.components.UIAttribute-1785249856931]: 
+                                            attrName: '[style]'
+                                            attrValue: 
+                                              - xmlizable: 
+                                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                                - MobileSmartSourceType: 'script:''width: calc(100% - 95px) !important; max-width: calc(100% - 95px) !important; flex: 0 1 calc(100% - 95px) !important;'''
+                                            comment: Reserves the fixed 95px action rail inside the available editor width.
                                         ↓DivC [ngx.components.UIDynamicElement-1774275449676]: 
                                           beanData: '{"ionBean":"DivTag"}'
                                           tagName: div
@@ -34760,6 +34981,13 @@ title: Title for editor
                                                   - xmlizable: 
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                     - MobileSmartSourceType: script:this.translate.instant('close')
+                                        ↓AgentAwareWidth [ngx.components.UIAttribute-1785249856929]: 
+                                          attrName: '[style]'
+                                          attrValue: 
+                                            - xmlizable: 
+                                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                              - MobileSmartSourceType: 'script:''width: 100% !important;'''
+                                          comment: Follows the full width currently available in the split-pane.
                                     ↓Style [ngx.components.UIStyle-1650357060491]: 
                                       styleContent: 
                                         - xmlizable: 
@@ -36751,6 +36979,7 @@ title: Title for editor
                                               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                               - MobileSmartSourceType: script:thing.type
                                           ↓Directive5631 [ngx.components.UIControlDirective-1650357061862]: 
+                                            directiveName: SwitchCase
                                             directiveSource: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
@@ -36774,6 +37003,7 @@ title: Title for editor
                                                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                                     - MobileSmartSourceType: script:true
                                           ↓Directive56311 [ngx.components.UIControlDirective-1650357061874]: 
+                                            directiveName: SwitchCase
                                             directiveSource: 
                                               - xmlizable: 
                                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
@@ -53276,7 +53506,7 @@ title: Title for editor
                                                     attrValue: 
                                                       - xmlizable: 
                                                         - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                                        - MobileSmartSourceType: 'script:{ ''div-container-inner-compact'': this.ensureMainEditorTabsResponsive(thing) && this.shouldKeepMainEditorTabsSingleLine(thing), ''div-container-inner-compact-wrap'': this.isMainEditorTabsCompactWrapped(thing) }'
+                                                        - MobileSmartSourceType: 'script:{ ''div-container-inner-compact'': this.isMainEditorTabsCompact(thing) && this.shouldKeepMainEditorTabsSingleLine(thing), ''div-container-inner-compact-wrap'': this.isMainEditorTabsCompactWrapped(thing) }'
                                                   ↓Attr2 [ngx.components.UIAttribute-1776862588071]: 
                                                     attrName: '[attr.data-main-editor-tabs-inner]'
                                                     attrValue: 
@@ -57538,9 +57768,29 @@ title: Title for editor
                     //--transition	//Transition of the button
                     position: relative;
                     z-index: 6000;
+                    
+                    ion-icon[name="sparkles-outline"] {
+                    	color: #ffffff;
+                    	font-size: 25px;
+                    	height: 25px;
+                    	width: 25px;
+                    }
                     width: 60px;
                     height: 60px;
                     '
+          ↓TigoImage [ngx.components.UIDynamicElement-1785251215497]: 
+            beanData: |
+              '{
+               "ionBean": "Image",
+               "url": "plain:assets\/images\/tigo-assistant.png",
+               "width": "plain:46px",
+               "height": "plain:46px",
+               "alt": "plain:Tigo"
+              }'
+            comment: Tigo assistant brand mark.
+            isEnabled: false
+            selfClose: true
+            tagName: img
         ↓Style [ngx.components.UIStyle-1787587400125]: 
           styleContent: 
             - xmlizable: 
@@ -57556,7 +57806,8 @@ title: Title for editor
       attrValue: 
         - xmlizable: 
           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-          - MobileSmartSourceType: 'script:this.global.isMenuOpen ? ''width: calc(100vw - 223px);'' : ''width: 100vw;'''
+          - MobileSmartSourceType: 'script:''width: 100% !important;'''
+      comment: Follows the actual split-pane content width for navigation and AI menus.
     ↓Style [ngx.components.UIStyle-1773253208185]: 
       styleContent: 
         - xmlizable: 
@@ -58029,6 +58280,53 @@ title: Title for editor
                 →: |
                   '		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
                   		page.local.filteredPaletteComponents = page.searchPalette(this.local.Palette, "");
+                  		resolve();
+                  '
+        ↓PublishAgentAssistantFormContext [ngx.components.UICustomAction-1784896708637]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '		try {
+                  			var form = page.form || {};
+                  			var pageTechName = String((page.local && page.local.currentPage) || "");
+                  			var pageDefinition = null;
+                  			try {
+                  				var pages = Array.isArray(form.pages) ? form.pages : [];
+                  				for (var i = 0; i < pages.length; i++) {
+                  					if (pages[i] && (pages[i].pageTechName == pageTechName || pages[i].id == pageTechName)) {
+                  						pageDefinition = pages[i];
+                  						break;
+                  					}
+                  				}
+                  			} catch (ePage) {}
+                  			if (page.global) {
+                  				page.global.agentAssistantSelectionContext = {
+                  					currentFormId: String(form._id || (page.local && page.local.formId) || ""),
+                  					nocodeCurrentFormId: String(form._id || (page.local && page.local.formId) || ""),
+                  					formId: String(form._id || (page.local && page.local.formId) || ""),
+                  					currentFormName: String(form.name || ""),
+                  					formName: String(form.name || ""),
+                  					currentFormRevision: String(form._rev || form.version || ""),
+                  					formRevision: String(form._rev || form.version || ""),
+                  					currentPage: pageTechName,
+                  					pageId: pageTechName,
+                  					pageName: String((pageDefinition && (pageDefinition.name || pageDefinition.title)) || pageTechName),
+                  					elementId: "",
+                  					elementName: "",
+                  					elementType: "",
+                  					parentElementId: "",
+                  					selectionKind: "form"
+                  				};
+                  			}
+                  			try { window.dispatchEvent(new CustomEvent("c8oforms:assistant-context-change")); } catch (eEvent) {}
+                  			var pending = page.global && page.global.agentAssistantPendingFocus;
+                  			if (pending && String(pending.formId || "") === String(form._id || "")) {
+                  				page.global.agentAssistantPendingFocus = null;
+                  				page.events.publish("AgentAssistantFormUpdated", pending, true);
+                  			}
+                  		} catch (e) {}
                   		resolve();
                   '
       ↓PublishEventInitalSyncFinished [ngx.components.UIDynamicAction-1601369445620]: 
@@ -67185,7 +67483,148 @@ title: Title for editor
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             		page.local.filteredPaletteComponents = page.searchPalette(this.local.Palette, "");
-                    resolve();
+            		resolve();
+↓AgentAssistantFormUpdated [ngx.components.UIEventSubscriber-1784901025663]: 
+  comment: Reloads the current form after a successful mutation reported by the embedded Convertigo Assistant.
+  topic: AgentAssistantFormUpdated
+  ↓ReloadAssistantUpdatedForm [ngx.components.UIDynamicAction-1784901027571]: 
+    beanData: |
+      '{
+       "ionBean": "CallSequenceAction",
+       "requestable": "plain:C8Oforms.APIV2_getDocument",
+       "noLoading": "plain:true"
+      }'
+    comment: Fetches the authoritative form document after an Assistant mutation.
+    ↓id [ngx.components.UIControlVariable-1784901029503]: 
+      varValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+          - MobileSmartSourceType: script:(stack && stack['root'] && stack['root'].out && stack['root'].out.formId) || c8oPage.local.formId
+    ↓ApplyAssistantUpdatedForm [ngx.components.UICustomAction-1784901029505]: 
+      actionValue: 
+        - xmlizable: 
+          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+          - com.twinsoft.convertigo.beans.common.FormatedContent: 
+            →: |
+              '		try {
+              			var rootEvent = props.stack && props.stack["root"] ? (props.stack["root"].out || {}) : {};
+              			var currentFormId = String((page.local && page.local.formId) || (page.form && page.form._id) || "");
+              			var eventFormId = String(rootEvent.formId || currentFormId || "");
+              			if (!currentFormId.length || eventFormId !== currentFormId) {
+              				resolve({applied: false, reason: "form-changed"});
+              				return;
+              			}
+              			if (page["__updateStateLocalWriteInFlight"] === true) {
+              				var attempt = Number(rootEvent.refreshAttempt || 0);
+              				if (attempt < 10) {
+              					var retryEvent: any = {};
+              					for (var retryKey in rootEvent) {
+              						retryEvent[retryKey] = rootEvent[retryKey];
+              					}
+              					retryEvent.refreshAttempt = attempt + 1;
+              					setTimeout(function() {
+              						try { page.events.publish("AgentAssistantFormUpdated", retryEvent, true); } catch (eRetry) {}
+              					}, 500);
+              				}
+              				resolve({applied: false, reason: "local-write-in-flight", deferred: attempt < 10});
+              				return;
+              			}
+              			var out = props.parent && props.parent.out ? props.parent.out : {};
+              			var doc = out.res || (out.document && out.document.res) || out.document || null;
+              			if (!doc || String(doc._id || "") !== currentFormId) {
+              				resolve({applied: false, reason: "document-unavailable"});
+              				return;
+              			}
+              			if (rootEvent.changed === false && page.form && String(page.form._id || "") === currentFormId) { doc = page.form; }
+              			var previousForm = page.form || {};
+              			var previousRevision = String(previousForm._rev || "");
+              			var nextRevision = String(doc._rev || "");
+              			var revisionNumber = function(value) {
+              				var match = String(value || "").match(/^(\d+)-/);
+              				return match ? Number(match[1]) : 0;
+              			};
+              			if (revisionNumber(nextRevision) < revisionNumber(previousRevision)) {
+              				resolve({applied: false, reason: "older-revision"});
+              				return;
+              			}
+              			var selection = page.global && page.global.agentAssistantSelectionContext ? page.global.agentAssistantSelectionContext : {};
+              			var selectedElementId = String(rootEvent.elementId || selection.elementId || page.idselectedC || page.idselected || "");
+              			var currentPage = String(rootEvent.pageId || (page.local && page.local.currentPage) || selection.pageId || "");
+              			var findById = function(value, wantedId) {
+              				if (!wantedId.length || value == null || typeof value !== "object") { return null; }
+              				if (!Array.isArray(value) && String(value.id || "") === wantedId) { return value; }
+              				if (Array.isArray(value)) {
+              					for (var arrayIndex = 0; arrayIndex < value.length; arrayIndex++) {
+              						var arrayMatch = findById(value[arrayIndex], wantedId);
+              						if (arrayMatch) { return arrayMatch; }
+              					}
+              					return null;
+              				}
+              				for (var objectKey in value) {
+              					if (objectKey === "_attachments") { continue; }
+              					var objectMatch = findById(value[objectKey], wantedId);
+              					if (objectMatch) { return objectMatch; }
+              				}
+              				return null;
+              			};
+              			var selectedElement = findById(doc.formulaire || [], selectedElementId) || findById(doc.flows || [], selectedElementId);
+              			if (selectedElement && selectedElement.config && selectedElement.config.page) {
+              				currentPage = String(selectedElement.config.page);
+              			}
+              			var pages = Array.isArray(doc.pages) ? doc.pages : [];
+              			var pageIndex = -1;
+              			for (var pageCursor = 0; pageCursor < pages.length; pageCursor++) {
+              				if (pages[pageCursor] && (String(pages[pageCursor].pageTechName || "") === currentPage || String(pages[pageCursor].id || "") === currentPage)) {
+              					pageIndex = pageCursor;
+              					break;
+              				}
+              			}
+              			if (pageIndex < 0 && pages.length) {
+              				pageIndex = 0;
+              				currentPage = String(pages[0].pageTechName || pages[0].id || "");
+              			}
+              			page.form = doc;
+              			page.formsList = doc.formulaire || [];
+              			page.local.pages = pages;
+              			page.local.currentIndex = pageIndex < 0 ? 0 : pageIndex;
+              			page.local.currentPage = currentPage;
+              			if (selectedElement && rootEvent.elementId) {
+              				page.idselected = String(selectedElement.parentRef || selectedElement.id || "");
+              				page.idselectedC = selectedElement.parentRef ? String(selectedElement.id || "") : "";
+              			}
+              			if (!selectedElement) {
+              				page.idselected = "";
+              				page.idselectedC = "";
+              				selectedElementId = "";
+              			}
+              			var pageDefinition = pageIndex >= 0 ? pages[pageIndex] : null;
+              			if (!page.global) { page.global = {}; }
+              			page.global.agentAssistantSelectionContext = {
+              				currentFormId: currentFormId,
+              				nocodeCurrentFormId: currentFormId,
+              				formId: currentFormId,
+              				currentFormName: String(doc.name || ""),
+              				formName: String(doc.name || ""),
+              				currentFormRevision: nextRevision,
+              				formRevision: nextRevision,
+              				currentPage: currentPage,
+              				pageId: currentPage,
+              				pageName: String((pageDefinition && (pageDefinition.name || pageDefinition.title)) || currentPage),
+              				elementId: selectedElementId,
+              				elementName: String((selectedElement && (selectedElement.name || (selectedElement.config && selectedElement.config.label))) || ""),
+              				elementType: String((selectedElement && selectedElement.type) || ""),
+              				parentElementId: String((selectedElement && selectedElement.parentRef) || ""),
+              				selectionKind: selectedElement ? String(selection.selectionKind || "form-element") : "form"
+              			};
+              			try { window.dispatchEvent(new CustomEvent("c8oforms:assistant-context-change")); } catch (eContext) {}
+              			page.ref.detectChanges();
+              			resolve({applied: true, formId: currentFormId, revision: nextRevision, elementPreserved: !!selectedElement});
+              		} catch (e) {
+              			try { page.c8o.log.warn("[Assistant] Unable to refresh the updated form: " + e); } catch (eLog) {}
+              			resolve({applied: false, reason: "refresh-error"});
+              		}
+              '
+      comment: Applies the refreshed form while preserving the current page and exact element selection when possible.
 ↓StyleVerticalTabsCompact [ngx.components.UIStyle-1787934098304]: 
   comment: '#1390/#badge: editor vertical nav rail is content-sized, but the outer nav row must not clip badges.'
   styleContent: 

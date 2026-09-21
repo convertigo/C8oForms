@@ -42,7 +42,7 @@ test('#1394 - source palette collapse-all closes every section and preserves man
   await openComponentConfig(page, 'c8oforms-itemdescriptionviewer');
   await setTechnicalId(page, 'desc_source_palette');
 
-  await page.frameLocator('iframe[title="Rich Text Area"]').locator('body').waitFor({
+  await page.frameLocator(SEL.richTextEditorFrame).locator('body').waitFor({
     state: 'visible',
     timeout: 30_000,
   });

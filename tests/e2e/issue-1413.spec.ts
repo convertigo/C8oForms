@@ -154,7 +154,7 @@ async function setGridReturnedValueToRowSelected(page: Page): Promise<void> {
 
 async function insertGridColumnValueInDescription(page: Page): Promise<void> {
   await dragPaletteEntryToEditor(page, GRID_NAME);
-  await page.frameLocator('iframe[title="Rich Text Area"]').locator('svg[id^="clickable-"]').first().click();
+  await page.frameLocator(SEL.richTextEditorFrame).locator('svg[id^="clickable-"]').first().click();
 
   const treeview = page.locator('ion-modal.modalCSV').last();
   await expect(treeview, 'source tree modal should be visible').toBeVisible({ timeout: 15_000 });
@@ -169,7 +169,7 @@ async function insertGridColumnValueInDescription(page: Page): Promise<void> {
     await clickChooseButtonForTreeLabel(page, 'value');
   }
 
-  const editorBody = page.frameLocator('iframe[title="Rich Text Area"]').locator('body');
+  const editorBody = page.frameLocator(SEL.richTextEditorFrame).locator('body');
   await expect
     .poll(() => editorBody.evaluate((body) => body.innerHTML), {
       message: 'the Description editor should contain the selected quoted grid path',
@@ -179,7 +179,7 @@ async function insertGridColumnValueInDescription(page: Page): Promise<void> {
 }
 
 async function dragPaletteEntryToEditor(page: Page, label: string): Promise<void> {
-  const editorBody = page.frameLocator('iframe[title="Rich Text Area"]').locator('body');
+  const editorBody = page.frameLocator(SEL.richTextEditorFrame).locator('body');
   await editorBody.waitFor({ state: 'visible', timeout: 15_000 });
 
   const tile = page.locator('.class1775922875303 [draggable="true"]').filter({ hasText: label }).first();

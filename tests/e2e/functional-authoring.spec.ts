@@ -24,6 +24,14 @@ import {
 import { loginAsAdminWithUsernamePassword } from './helpers/functional-admin';
 
 test.describe('No-Code Studio functional authoring', () => {
+  // Every authoring journey creates an application through the UI and reloads the
+  // selector, which costs 60-90s on a loaded CI server. Without a budget these
+  // tests die on the 90s global timeout (playwright.config.ts) while an inner
+  // 30s poll is still running, and the report blames whatever step was in flight
+  // instead of naming the deadline. The two tests below that already declare
+  // their own budget keep it - test.setTimeout() overrides this default.
+  test.describe.configure({ timeout: 180_000 });
+
   test('AUTH-001 - log in with the current username/password test user', async ({ page }) => {
     await loginWithUsernamePassword(page);
     await expectNoCodeDashboardReady(page);
@@ -94,6 +102,9 @@ test.describe('No-Code Studio functional authoring', () => {
   });
 
   test('APP-007 - move an application into a folder', async ({ page }) => {
+    // The heaviest journey in this file: it creates a folder AND an application,
+    // then reloads the selector three times.
+    test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await moveApplicationIntoFolderAndAssertThroughUi(page);
   });

@@ -267,7 +267,7 @@ export async function exerciseCheckboxLocalOptionsThroughUi(page: Page): Promise
     await expectChoiceOptionInputValues(page, initialOptions);
     await setCheckboxLocalOptions(page, finalOptions);
     await expectChoiceOptionInputValues(page, finalOptions);
-    await setCheckboxDefaultSelected(page, 1);
+    await setCheckboxDefaultSelected(page, finalOptions[1]);
     await closeComponentConfig(page);
   });
 

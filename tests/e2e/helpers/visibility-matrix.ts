@@ -141,7 +141,7 @@ async function addCheckboxSource(
   await openComponentConfigAt(page, SEL.checkboxComponent, index);
   await setTechnicalId(page, technicalId);
   await setCheckboxLocalOptions(page, options);
-  await setCheckboxDefaultSelected(page, defaultSelectedIndex);
+  await setCheckboxDefaultSelected(page, options[defaultSelectedIndex]);
   await closeComponentConfig(page);
 }
 
