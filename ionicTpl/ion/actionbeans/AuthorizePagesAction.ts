@@ -138,6 +138,167 @@
                     return out;
                 };
 
+                var normalizePermission = function(value: any): string {
+                    if (value == null) {
+                        return "";
+                    }
+                    return ("" + value).trim().toLowerCase();
+                };
+
+                var parsePermissionList = function(value: any): string[] {
+                    var out: string[] = [];
+
+                    var append = function(entry: any): void {
+                        if (entry == null) {
+                            return;
+                        }
+
+                        if (Array.isArray(entry)) {
+                            for (var i = 0; i < entry.length; i++) {
+                                append(entry[i]);
+                            }
+                            return;
+                        }
+
+                        if (typeof entry === "object") {
+                            if (entry.permissions != null) {
+                                append(entry.permissions);
+                                return;
+                            }
+                            if (entry.permission != null) {
+                                append(entry.permission);
+                                return;
+                            }
+                            if (entry.name != null) {
+                                append(entry.name);
+                                return;
+                            }
+                            if (entry.code != null) {
+                                append(entry.code);
+                                return;
+                            }
+                            if (entry.id != null) {
+                                append(entry.id);
+                                return;
+                            }
+                            for (var key in entry) {
+                                if (Object.prototype.hasOwnProperty.call(entry, key) && entry[key] === true) {
+                                    append(key);
+                                }
+                            }
+                            return;
+                        }
+
+                        var text = ("" + entry).trim();
+                        if (text == "") {
+                            return;
+                        }
+                        if (text.indexOf("script:") === 0 || text.indexOf("plain:") === 0 || text.indexOf("source:") === 0) {
+                            text = text.substring(text.indexOf(":") + 1).trim();
+                        }
+                        var firstChar = text.charAt(0);
+                        if (firstChar == "[" || firstChar == "{") {
+                            try {
+                                append(JSON.parse(text));
+                                return;
+                            } catch (e) {
+                            }
+                        }
+                        var parts = text.split(/[,;\n|]/);
+                        for (var p = 0; p < parts.length; p++) {
+                            var permission = normalizePermission(parts[p]);
+                            if (permission != "") {
+                                out.push(permission);
+                            }
+                        }
+                    };
+
+                    append(value);
+                    var unique: string[] = [];
+                    for (var i = 0; i < out.length; i++) {
+                        if (unique.indexOf(out[i]) == -1) {
+                            unique.push(out[i]);
+                        }
+                    }
+                    return unique;
+                };
+
+                var normalizePermissionMatch = function(value: any, defaultValue: string): string {
+                    var match = normalizePermission(value);
+                    return match == "all" ? "all" : (match == "any" ? "any" : defaultValue);
+                };
+
+                var parsePermissionRules = function(value: any, defaultMatch: string): any[] {
+                    var out: any[] = [];
+
+                    var addRule = function(pagesValue: any, permissionsValue: any, matchValue: any): void {
+                        var pages = uniquePages(parsePageList(pagesValue));
+                        var permissions = parsePermissionList(permissionsValue);
+                        if (pages.length == 0 || permissions.length == 0) {
+                            return;
+                        }
+                        out.push({
+                            pages: pages,
+                            permissions: permissions,
+                            match: normalizePermissionMatch(matchValue, defaultMatch)
+                        });
+                    };
+
+                    var append = function(entry: any, mappedPage: any): void {
+                        if (entry == null) {
+                            return;
+                        }
+
+                        if (Array.isArray(entry)) {
+                            if (mappedPage != null) {
+                                addRule(mappedPage, entry, null);
+                            } else {
+                                for (var i = 0; i < entry.length; i++) {
+                                    append(entry[i], null);
+                                }
+                            }
+                            return;
+                        }
+
+                        if (typeof entry === "object") {
+                            var hasRuleProperties = entry.page != null || entry.pages != null || entry.name != null || entry.qname != null || entry.permissions != null || entry.requiredPermissions != null;
+                            if (hasRuleProperties) {
+                                var pagesValue = entry.pages != null ? entry.pages : (entry.page != null ? entry.page : (entry.qname != null ? entry.qname : (entry.name != null ? entry.name : mappedPage)));
+                                var permissionsValue = entry.permissions != null ? entry.permissions : entry.requiredPermissions;
+                                addRule(pagesValue, permissionsValue, entry.match);
+                            } else if (entry.rules != null) {
+                                append(entry.rules, null);
+                            } else {
+                                for (var key in entry) {
+                                    if (Object.prototype.hasOwnProperty.call(entry, key)) {
+                                        append(entry[key], key);
+                                    }
+                                }
+                            }
+                            return;
+                        }
+
+                        if (mappedPage != null) {
+                            addRule(mappedPage, entry, null);
+                        }
+                    };
+
+                    if (typeof value === "string") {
+                        var text = value.trim();
+                        if (text.indexOf("script:") === 0 || text.indexOf("plain:") === 0 || text.indexOf("source:") === 0) {
+                            text = text.substring(text.indexOf(":") + 1).trim();
+                        }
+                        if (text.charAt(0) == "[" || text.charAt(0) == "{") {
+                            try {
+                                value = JSON.parse(text);
+                            } catch (e) {
+                            }
+                        }
+                    }
+                    append(value, null);
+                    return out;
+                };
+
                 var pageVariants = function(value: any): string[] {
                     var base = normalizePage(value);
                     if (base == "") {
@@ -145,8 +306,13 @@
                     }
                     var variants: string[] = [];
                     var pushVariant = function(v: string): void {
-                        if (v != "" && variants.indexOf(v) == -1) {
-                            variants.push(v);
+                        var normalized = normalizePage(v);
+                        if (normalized != "" && variants.indexOf(normalized) == -1) {
+                            variants.push(normalized);
+                        }
+                        var compact = normalized.replace(/[^a-z0-9]/g, "");
+                        if (compact != "" && variants.indexOf(compact) == -1) {
+                            variants.push(compact);
                         }
                     };
                     pushVariant(base);
@@ -346,15 +512,42 @@
                 var globalAuthProperty = (props.globalAuthProperty != null && ("" + props.globalAuthProperty).trim() != "") ? ("" + props.globalAuthProperty).trim() : "authenticated";
                 var globalUserProperty = (props.globalUserProperty != null && ("" + props.globalUserProperty).trim() != "") ? ("" + props.globalUserProperty).trim() : "user";
                 var localUserProperty = (props.localUserProperty != null && ("" + props.localUserProperty).trim() != "") ? ("" + props.localUserProperty).trim() : "user";
+                var globalUserProfile = props.globalUserProfileProperty;
 
                 var redirectOnDenied = toBoolean(props.redirectOnDenied, true);
                 var allowByDefault = toBoolean(props.allowByDefault, true);
                 var setUserOnAuth = toBoolean(props.setUserOnAuth, true);
                 var returnDetails = toBoolean(props.returnDetails, false);
                 var globalResultProperty = (props.globalResultProperty != null && ("" + props.globalResultProperty).trim() != "") ? ("" + props.globalResultProperty).trim() : "authorization";
+                var requiredPermissionsMatch = normalizePermissionMatch(props.requiredPermissionsMatch, "any");
+                var permissionDeniedMessage = (props.permissionDeniedMessage != null && ("" + props.permissionDeniedMessage).trim() != "") ? ("" + props.permissionDeniedMessage).trim() : "Accès refusé : permissions insuffisantes.";
+                var redirectPermissionDeniedTo = props.redirectPermissionDeniedTo;
 
                 var protectedPages = uniquePages(parsePageList(props.protectedPages));
                 var guestOnlyPages = uniquePages(parsePageList(props.guestOnlyPages));
+                var pagePermissionRules = parsePermissionRules(props.pagePermissionRules, requiredPermissionsMatch);
+
+                var displayPermissionDeniedMessage = async function(): Promise<void> {
+                    if (permissionDeniedMessage == "") {
+                        return;
+                    }
+                    try {
+                        var toastHost: any = (paramCtx && typeof paramCtx["getInstance"] === "function") ? paramCtx : ((ctx && typeof ctx["getInstance"] === "function") ? ctx : null);
+                        var toastController: any = toastHost ? toastHost.getInstance(ToastController) : null;
+                        if (!toastController || typeof toastController.create !== "function") {
+                            return;
+                        }
+                        var toast = await toastController.create({
+                            color: "warning",
+                            duration: 3000,
+                            icon: "alert-circle-outline",
+                            message: permissionDeniedMessage,
+                            position: "top"
+                        });
+                        await toast.present();
+                    } catch (e) {
+                    }
+                };
 
                 var authenticated = false;
                 var authSource = "none";
@@ -423,9 +616,11 @@
                     username = "" + session.user.name;
                 }
 
+                var userServiceResponse: any = null;
                 if (!authResolved && c8oInstance && c8oInstance.httpInterface && typeof c8oInstance.httpInterface.getUserServiceStatus === "function") {
                     try {
                         var res: any = await c8oInstance.httpInterface.getUserServiceStatus();
+                        userServiceResponse = res;
                         var authFromService = extractUserServiceAuthenticated(res);
                         if (authFromService != null) {
                             authenticated = !!authFromService;
@@ -465,6 +660,9 @@
                     globalHost.global[globalAuthProperty] = authenticated;
                 }
 
+                var userPermissions = parsePermissionList(globalUserProfile);
+                var userPermissionsSource = userPermissions.length > 0 ? "global_profile" : "none";
+
                 if (setUserOnAuth) {
                     var userValue = authenticated ? (username || null) : null;
                     if (globalHost && globalHost.global && globalUserProperty != "") {
@@ -479,12 +677,44 @@
                 var allowed = allowByDefault;
                 var reason = allowByDefault ? "default_allow" : "default_deny";
                 var redirectTo = "";
+                var matchedPermissionRules: any[] = [];
+                var requiredPermissions: string[] = [];
+                var permissionAuthorized = true;
 
-                if (protectedPages.length > 0 || guestOnlyPages.length > 0) {
+                for (var i = 0; i < pagePermissionRules.length; i++) {
+                    var permissionRule = pagePermissionRules[i];
+                    if (!listContains(permissionRule.pages, currentPage)) {
+                        continue;
+                    }
+                    var hasRequiredPermissions = permissionRule.match == "all";
+                    for (var j = 0; j < permissionRule.permissions.length; j++) {
+                        var requiredPermission = permissionRule.permissions[j];
+                        if (requiredPermissions.indexOf(requiredPermission) == -1) {
+                            requiredPermissions.push(requiredPermission);
+                        }
+                        var hasPermission = userPermissions.indexOf(requiredPermission) != -1;
+                        if (permissionRule.match == "all") {
+                            hasRequiredPermissions = hasRequiredPermissions && hasPermission;
+                        } else {
+                            hasRequiredPermissions = hasRequiredPermissions || hasPermission;
+                        }
+                    }
+                    matchedPermissionRules.push({
+                        pages: permissionRule.pages,
+                        permissions: permissionRule.permissions,
+                        match: permissionRule.match,
+                        allowed: hasRequiredPermissions
+                    });
+                    if (!hasRequiredPermissions) {
+                        permissionAuthorized = false;
+                    }
+                }
+
+                if (protectedPages.length > 0 || guestOnlyPages.length > 0 || pagePermissionRules.length > 0) {
                     allowed = true;
                     reason = "allowed";
 
-                    if (!authenticated && listContains(protectedPages, currentPage)) {
+                    if (!authenticated && (listContains(protectedPages, currentPage) || matchedPermissionRules.length > 0)) {
                         allowed = false;
                         reason = "auth_required";
                         redirectTo = normalizePage(props.redirectUnauthenticatedTo);
@@ -492,10 +722,17 @@
                         allowed = false;
                         reason = "guest_only";
                         redirectTo = normalizePage(props.redirectAuthenticatedTo);
+                    } else if (authenticated && matchedPermissionRules.length > 0 && !permissionAuthorized) {
+                        allowed = false;
+                        reason = "permission_required";
+                        redirectTo = normalizePage(redirectPermissionDeniedTo);
                     }
                 }
 
                 var redirected = false;
+                if (!allowed && reason == "permission_required") {
+                    await displayPermissionDeniedMessage();
+                }
                 if (!allowed && redirectOnDenied && redirectTo != "" && !isSameRoute(redirectTo, currentPage)) {
                     redirected = await navigateToPage(redirectTo);
                 }
@@ -505,9 +742,15 @@
                     allowed: allowed,
                     source: authSource,
                     user: username,
+                    userPermissions: userPermissions,
+                    userPermissionsSource: userPermissionsSource,
                     currentPage: currentPage,
                     protectedPages: protectedPages,
                     guestOnlyPages: guestOnlyPages,
+                    pagePermissionRules: pagePermissionRules,
+                    matchedPermissionRules: matchedPermissionRules,
+                    requiredPermissions: requiredPermissions,
+                    permissionAuthorized: permissionAuthorized,
                     reason: reason,
                     redirectTo: redirectTo,
                     redirected: redirected

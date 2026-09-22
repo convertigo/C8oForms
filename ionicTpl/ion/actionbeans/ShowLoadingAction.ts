@@ -6,26 +6,33 @@
      * @param vars  , the object which holds variables key-value pairs
      */
     ShowLoadingAction(page: C8oPageBase, props, vars) : Promise<any> {
-		
-		page.global.c8oLoadingOptions.mode.set(props.IonMode ? props.IonMode : undefined);
-		page.global.c8oLoadingOptions.spinner.set(props.spinner);
-		page.global.c8oLoadingOptions.message.set(props.message);
-		page.global.c8oLoadingOptions.duration.set(props.duration);
-		page.global.c8oLoadingOptions.keyboardClose.set(props.keyboardClose);
-		page.global.c8oLoadingOptions.showBackdrop.set(props.showBackdrop);
-		page.global.c8oLoadingOptions.backdropDismiss.set(props.backdropDismiss);
-		page.global.c8oLoadingOptions.animated.set(props.animated);
-		page.global.c8oLoadingOptions.enterAnimation.set(props.enterAnimation ?? undefined);
-		page.global.c8oLoadingOptions.leaveAnimation.set(props.leaveAnimation ?? undefined);
-		page.global.c8oLoadingOptions.cssClass.set(props.cssClass ?? undefined);
-		page.global.c8oLoadingOptions.translucent.set(props.translucent);
-		page.global.c8oLoadingOptions.isOpen.set(true);
-        if(!isNaN(page?.global?.c8oLoadingOptions?.duration()) && page?.global?.c8oLoadingOptions?.duration() > 0){
-			setTimeout(() => {
-				page.global.c8oLoadingOptions.isOpen.set(false);
-			}, page?.global?.c8oLoadingOptions?.duration());
-		}
-        return new Promise((resolve, reject) => {
-            resolve()
-        });
+		const showLoading = async () => {
+			if (page.global["_c8o_loading"]) {
+				return;
+			}
+
+			const loading = await page.getInstance(LoadingController).create({
+				mode: props.IonMode ?? undefined,
+				spinner: props.spinner ?? undefined,
+				message: props.message ?? undefined,
+				duration: props.duration ?? undefined,
+				keyboardClose: props.keyboardClose,
+				showBackdrop: props.showBackdrop,
+				backdropDismiss: props.backdropDismiss,
+				animated: props.animated,
+				enterAnimation: props.enterAnimation ?? undefined,
+				leaveAnimation: props.leaveAnimation ?? undefined,
+				cssClass: props.cssClass ?? undefined,
+				translucent: props.translucent
+			});
+			page.global["_c8o_loading"] = loading;
+			loading.onDidDismiss().then(() => {
+				if (page.global["_c8o_loading"] === loading) {
+					delete page.global["_c8o_loading"];
+				}
+			});
+			await loading.present();
+		};
+
+		return showLoading();
     }
