@@ -757,6 +757,20 @@ jobs:
     needs: prepare_e2e_test_users
     if: ${{ always() && needs.prepare_e2e_test_users.result == 'success' }}
     runs-on: ubuntu-latest
+    # One test account can serve only one run at a time. Each shard drives a dedicated
+    # account on a shared server, and two tag pushes a few minutes apart start two full
+    # pipelines against the same accounts: on 2026-09-22 runs 35724167463 and 35726156673
+    # overlapped for an hour, one run's shard 3 autosaved a form 205 times while the other
+    # run's shard 3, logged in as the same testuser3, was loading the application selector,
+    # whose live FullSync feed restarted its query on every save and never finished loading.
+    # 19 tests failed instead of 2. The newest run wins: its shard cancels the older run's
+    # shard for the same account, whose results are moot once a newer build is deployed.
+    # Keyed per account rather than per workflow so that builds, deploys and GitHub releases
+    # are never cancelled or skipped (a workflow-level group drops pending runs, and with them
+    # the release of their tag). A run dispatched against another endpoint uses its own group.
+    concurrency:
+      group: c8oforms-e2e-${{ github.event.inputs.endpoint || 'default' }}-user-${{ matrix.user_index }}
+      cancel-in-progress: true
     # The image must match the @playwright/test version in tests/package.json
     # (browsers are pinned per Playwright version). Bump both together.
     container:
