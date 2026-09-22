@@ -7,6 +7,7 @@ scriptContent:
         '/*Begin_c8o_PageImport*/
         /*End_c8o_PageImport*/
         /*Begin_c8o_PageDeclaration*/
+        	public tinySetup;
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         		window["r"] = this;
@@ -21,6 +22,10 @@ scriptContent:
         		this.local.usersChoosen = [];
         		this.local.filters = { showGroups: true, showUsers: true };
         		this.local.filteredGrp = [];
+        		this.tinySetup = (editor) => {
+        			this.registerTinySpacingControls(editor);
+        			this.registerTinyMenuPaste(editor);
+        		};
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageFunction*/
         	public registerTinySpacingControls(editor){
@@ -263,6 +268,57 @@ scriptContent:
         		editor.ui.registry.addNestedMenuItem("spacingMenu", {
         			text: "Espacement",
         			getSubmenuItems: () => buildSpacingItems()
+        		});
+        	}
+        	public registerTinyMenuPaste(editor) {
+        		if (!editor || editor["__c8oMenuPasteRegistered"]) {
+        			return;
+        		}
+        		editor["__c8oMenuPasteRegistered"] = true;
+        		// Edit > Paste relies on document.execCommand("paste"), which browsers block: read the clipboard with the async Clipboard API instead
+        		let plainTextMode: boolean = null;
+        		editor.on("PastePlainTextToggle", (e) => {
+        			plainTextMode = e.state == true;
+        		});
+        		const showKeyboardHint = () => {
+        			let msg = editor.translate("Your browser doesn''t support direct access to the clipboard. Please use the Ctrl+X/C/V keyboard shortcuts instead.");
+        			if (/Mac|iPhone|iPad|iPod/.test(navigator.platform)) {
+        				msg = msg.replace(/Ctrl\+/g, "\u2318+");
+        			}
+        			// hugerte notifications are hidden by the app styles, so use a dialog
+        			editor.windowManager.alert(msg);
+        		};
+        		const readClipboard = async () => {
+        			const asText = plainTextMode ?? editor.options.get("paste_as_text") == true;
+        			if (navigator.clipboard?.read) {
+        				let text = "";
+        				for (const item of await navigator.clipboard.read()) {
+        					if (!asText && item.types.includes("text/html")) {
+        						const html = await (await item.getType("text/html")).text();
+        						// same cleanup as a keyboard paste
+        						return { html: html.replace(/^[\s\S]*<body[^>]*>\s*|\s*<\/body[^>]*>[\s\S]*$/ig, "").replace(/<!--StartFragment-->|<!--EndFragment-->/g, "") };
+        					}
+        					if (text == "" && item.types.includes("text/plain")) {
+        						text = await (await item.getType("text/plain")).text();
+        					}
+        				}
+        				return text != "" ? { text: text } : null;
+        			}
+        			if (navigator.clipboard?.readText) {
+        				const text = await navigator.clipboard.readText();
+        				return text != "" ? { text: text } : null;
+        			}
+        			return null;
+        		};
+        		editor.addCommand("Paste", () => {
+        			readClipboard().then((content) => {
+        				if (content != null) {
+        					editor.execCommand("mceInsertClipboardContent", false, content);
+        				}
+        				else {
+        					showKeyboardHint();
+        				}
+        			}).catch(() => showKeyboardHint());
         		});
         	}
         	public getTitle(){
@@ -2644,7 +2700,7 @@ title: Title for ManageAccessRights
                                 contextmenu: ''link image imagetools table'',
                                 language: getTinyLang(this.global.settings.language),
                                 language_url: getTinyPathLang(this.global.settings.language),
-                                setup: registerTinySpacingControls,
+                                setup: tinySetup,
                                convert_urls: false,
                             branding: false
                             }'
