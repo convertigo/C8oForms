@@ -9,6 +9,11 @@ scriptContent:
         import javascript from ''highlight.js/lib/languages/javascript'';
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
+        	// #html-stability: DomSanitizer.bypassSecurityTrustHtml() returns a NEW SafeHtml wrapper on every call.
+        	// Called inline in an [innerHTML] binding, it made Angular re-set innerHTML on EVERY change-detection
+        	// pass: the HTML was re-parsed and its images re-fetched each time. One wrapper is kept per HTML string,
+        	// so the binding only changes when the HTML does. See trustHtml().
+        	private trustedHtmlCache: Map<string, any> = new Map();
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		this.local.computed = {};
@@ -44,6 +49,19 @@ scriptContent:
         			this.local.computed[arg1] = computed;
         			return computed;
         		}
+        	}
+        	/** #html-stability: the one stable SafeHtml for a given HTML string; see trustedHtmlCache. */
+        	public trustHtml(html: any): any {
+        		const key = html == null ? "" : "" + html;
+        		let trusted = this.trustedHtmlCache.get(key);
+        		if (trusted === undefined) {
+        			if (this.trustedHtmlCache.size >= 1024) {
+        				this.trustedHtmlCache.clear();
+        			}
+        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(html);
+        			this.trustedHtmlCache.set(key, trusted);
+        		}
+        		return trusted;
         	}
         	/*End_c8o_CompFunction*/
         '
@@ -172,7 +190,7 @@ scriptContent:
                   attrValue: 
                     - xmlizable: 
                       - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                      - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.pageOwner.getBadge(this.item.id, this.item.name, null, false, null, 'btLight') + ' =')
+                      - MobileSmartSourceType: script:this.trustHtml(this.pageOwner.getBadge(this.item.id, this.item.name, null, false, null, 'btLight') + ' =')
                 ↓Style [ngx.components.UIStyle-1742295482073]: 
                   styleContent: 
                     - xmlizable: 
@@ -267,7 +285,7 @@ scriptContent:
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.pageOwner.getBadge(this.item.id, this.item.name, null, false, null, 'btLight') +' = '+ this.pageOwner.transform$toHtml(this.pageOwner.getItemNameById(this.item.sources.self['vars']['selfVar'])))
+                    - MobileSmartSourceType: script:this.trustHtml(this.pageOwner.getBadge(this.item.id, this.item.name, null, false, null, 'btLight') +' = '+ this.pageOwner.transform$toHtml(this.pageOwner.getItemNameById(this.item.sources.self['vars']['selfVar'])))
               ↓Badge [ngx.components.UIDynamicElement-1610655253242]: 
                 beanData: '{"ionBean":"Badge","IonColor":"plain:convertigo"}'
                 isEnabled: false

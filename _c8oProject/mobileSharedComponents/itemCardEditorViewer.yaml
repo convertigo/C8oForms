@@ -7,6 +7,11 @@ scriptContent:
         /*End_c8o_CompImport*/
         /*Begin_c8o_CompDeclaration*/
         	public idselectedC: any = "";
+        	// #html-stability: DomSanitizer.bypassSecurityTrustHtml() returns a NEW SafeHtml wrapper on every call.
+        	// Called inline in an [innerHTML] binding, it made Angular re-set innerHTML on EVERY change-detection
+        	// pass: the HTML was re-parsed and its images re-fetched each time. One wrapper is kept per HTML string,
+        	// so the binding only changes when the HTML does. See trustHtml().
+        	private trustedHtmlCache: Map<string, any> = new Map();
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		/*End_c8o_CompConstructor*/
@@ -37,6 +42,19 @@ scriptContent:
             public canShowCardChildDropZones(): boolean {
                 return this.pageOwner?.local?.dragging === true && this.pageOwner?.local?.draggingActions !== true && !this.isDraggingContainerFormElement();
             }
+        	/** #html-stability: the one stable SafeHtml for a given HTML string; see trustedHtmlCache. */
+        	public trustHtml(html: any): any {
+        		const key = html == null ? "" : "" + html;
+        		let trusted = this.trustedHtmlCache.get(key);
+        		if (trusted === undefined) {
+        			if (this.trustedHtmlCache.size >= 1024) {
+        				this.trustedHtmlCache.clear();
+        			}
+        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(html);
+        			this.trustedHtmlCache.set(key, trusted);
+        		}
+        		return trusted;
+        	}
         	/*End_c8o_CompFunction*/'
 ↓item [ngx.components.UICompVariable-1588774892558]: 
   value: 
@@ -73,7 +91,7 @@ scriptContent:
           attrValue: 
             - xmlizable: 
               - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-              - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.pageOwner.transform$toHtml(this.item.config.title.html))
+              - MobileSmartSourceType: script:this.trustHtml(this.pageOwner.transform$toHtml(this.item.config.title.html))
         ↓Style [ngx.components.UIStyle-1588774963769]: 
           isEnabled: false
           styleContent: 

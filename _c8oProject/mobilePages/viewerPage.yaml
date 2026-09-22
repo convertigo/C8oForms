@@ -156,6 +156,14 @@ scriptContent:
         	};
         	public willDestroyEvent: any = new Subject();
         	private tabsClassMapCache: any = null;
+        	// #html-stability: DomSanitizer.bypassSecurityTrustHtml() returns a NEW SafeHtml wrapper on every call.
+        	// Called inline in an [innerHTML] binding, it made Angular re-set innerHTML on EVERY change-detection
+        	// pass: the HTML was re-parsed and its images re-fetched each time. One wrapper is kept per HTML string,
+        	// so the binding only changes when the HTML does. See trustHtml().
+        	private trustedHtmlCache: Map<string, any> = new Map();
+        	// #html-stability: removeHTML() is called from item templates on every change-detection pass. Each call
+        	// created a DIV and parsed the HTML. The result is a pure function of the string, so it is cached.
+        	private removeHtmlCache: Map<string, string> = new Map();
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         //		console.log(this.c8oforms_toolbarcomponentui)
@@ -11936,9 +11944,19 @@ scriptContent:
         	 * @returns The string without HTML tags.
         	 */
         	public removeHTML(str: string): string {
-        		const tmp = document.createElement("DIV");
-        		tmp.innerHTML = str;
-        		return tmp.textContent || tmp.innerText || "";
+        		// #html-stability: cached per input; see removeHtmlCache. The key keeps null and undefined apart from strings.
+        		const key = (str === undefined ? "u:" : str === null ? "n:" : "s:") + str;
+        		let text = this.removeHtmlCache.get(key);
+        		if (text === undefined) {
+        			if (this.removeHtmlCache.size >= 2048) {
+        				this.removeHtmlCache.clear();
+        			}
+        			const tmp = document.createElement("DIV");
+        			tmp.innerHTML = str;
+        			text = tmp.textContent || tmp.innerText || "";
+        			this.removeHtmlCache.set(key, text);
+        		}
+        		return text;
         	}
         
         	/**
@@ -12585,6 +12603,19 @@ scriptContent:
         	    catch (e) {
         	        return page?.included !== false;
         	    }
+        	}
+        	/** #html-stability: the one stable SafeHtml for a given HTML string; see trustedHtmlCache. */
+        	public trustHtml(html: any): any {
+        		const key = html == null ? "" : "" + html;
+        		let trusted = this.trustedHtmlCache.get(key);
+        		if (trusted === undefined) {
+        			if (this.trustedHtmlCache.size >= 1024) {
+        				this.trustedHtmlCache.clear();
+        			}
+        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(html);
+        			this.trustedHtmlCache.set(key, trusted);
+        		}
+        		return trusted;
         	}
             /*End_c8o_PageFunction*/
         '
@@ -14162,7 +14193,7 @@ title: Visualisateur
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.form.descform)
+                    - MobileSmartSourceType: script:this.trustHtml(this.form.descform)
               ↓Attr2 [ngx.components.UIAttribute-1584626454040]: 
                 attrName: '[ngClass]'
                 attrValue: 
@@ -14197,9 +14228,9 @@ title: Visualisateur
                 attrValue: 
                   - xmlizable: 
                     - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this.router.sanitizer.bypassSecurityTrustHtml(this.local?.htmlValue?.['pagec8o'+this.local.currentIndex])
+                    - MobileSmartSourceType: script:this.trustHtml(this.local?.htmlValue?.['pagec8o'+this.local.currentIndex])
                 comment: |
-                  'this.router.sanitizer.bypassSecurityTrustHtml((this.computeHtml$(this.form.pages[this[''local''][''currentIndex'']].desc)))
+                  'this.trustHtml((this.computeHtml$(this.form.pages[this[''local''][''currentIndex'']].desc)))
                   
                   //this.computeHtml$(this.form.pages[this[''local''][''currentIndex'']].desc) | async
                   
