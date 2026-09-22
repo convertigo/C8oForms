@@ -11951,9 +11951,10 @@ scriptContent:
         			if (this.removeHtmlCache.size >= 2048) {
         				this.removeHtmlCache.clear();
         			}
-        			const tmp = document.createElement("DIV");
+        			// #local-files: an inert <template> fetches nothing (a live element would try to load a file:// image)
+        			const tmp = document.createElement("template");
         			tmp.innerHTML = str;
-        			text = tmp.textContent || tmp.innerText || "";
+        			text = tmp.content.textContent || "";
         			this.removeHtmlCache.set(key, text);
         		}
         		return text;
@@ -12612,10 +12613,24 @@ scriptContent:
         			if (this.trustedHtmlCache.size >= 1024) {
         				this.trustedHtmlCache.clear();
         			}
-        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(html);
+        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(this.removeLocalFileReferences(html));
         			this.trustedHtmlCache.set(key, trusted);
         		}
         		return trusted;
+        	}
+        	/**
+        	 * #local-files: references to files of the author machine (file:///C:/Users/...) cannot load anywhere else and only
+        	 * produce a console error at every display. Images and media using one are removed, any other file: attribute
+        	 * (href, data, poster) is dropped and the element is kept. Same rule as the tinyMce component of
+        	 * lib_ExtendedComponents_ui_ngx, which applies it when content is pasted or loaded into the editor.
+        	 */
+        	public removeLocalFileReferences(html: any): any {
+        		if (typeof html !== "string" || !/file:/i.test(html)) {
+        			return html;
+        		}
+        		const fileUrl = "(?:\"\\s*file:[^\"]*\"|''\\s*file:[^'']*''|file:[^\\s>]*)";
+        		const result = html.replace(new RegExp("<(?:img|source|embed)\\b[^>]*\\bsrc\\s*=\\s*" + fileUrl + "[^>]*>", "gi"), "");
+        		return result.replace(new RegExp("\\s(?:src|href|data|poster)\\s*=\\s*" + fileUrl, "gi"), "");
         	}
             /*End_c8o_PageFunction*/
         '
