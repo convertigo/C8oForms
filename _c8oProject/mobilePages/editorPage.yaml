@@ -1318,14 +1318,6 @@ scriptContent:
         		/*End_c8o_PageInitialization*/
         /*Begin_c8o_PageAfterViewInit*/
         		/*End_c8o_PageAfterViewInit*/
-        /*Begin_c8o_PageFinalization*/
-        		this.unbindGlobalDragCleanupListeners();
-        		this.disconnectMainEditorTabsObservers();
-        		if (this.windowResizeHandler != null) {
-        			window.removeEventListener("resize", this.windowResizeHandler);
-        			this.windowResizeHandler = null;
-        		}
-        		/*End_c8o_PageFinalization*/
         /*Begin_c8o_PageFunction*/
         	public debugShouldRenderFlowDropIndicator(flowIndexRendered: number, flowId: any, itemId: any): boolean {
         		const currentIndex = Number(this.local?.currentIndex);
@@ -8265,11 +8257,21 @@ scriptContent:
         	}
         	
         	public searchPalette(array, query) {
-        		const q = (query || "").trim().toLowerCase();
-        		const palette = array || [];
+        		const normalize = (value: any): string => {
+        			return String(value ?? "")
+        				.normalize("NFD")
+        				.replace(/[\u0300-\u036f]/g, "")
+        				.toLocaleLowerCase()
+        				.trim();
+        		};
+        
+        		const q = normalize(query);
+        		const palette = Array.isArray(array) ? array : [];
         
         		const indexedPalette = palette.map((topic, topicOriginalIndex) => {
-        			const sourceObjects = Array.isArray(topic?.objects) ? topic.objects : [];
+        			const sourceObjects = Array.isArray(topic?.objects)
+        				? topic.objects
+        				: [];
         
         			return {
         				...topic,
@@ -8292,46 +8294,23 @@ scriptContent:
         					return null;
         				}
         
-        				let topicLabel = "";
-        				try {
-        					topicLabel = this.translate.instant(topic.name || "").toLowerCase();
-        				} catch (e) {
-        					topicLabel = (topic?.name || "").toLowerCase();
-        				}
-        
-        				const sourceObjects = Array.isArray(topic.objects) ? topic.objects : [];
-        
-        				if (topicLabel.includes(q)) {
-        					return {
-        						...topic,
-        						objects: sourceObjects
-        					};
-        				}
+        				const sourceObjects = Array.isArray(topic.objects)
+        					? topic.objects
+        					: [];
         
         				const objects = sourceObjects.filter((object) => {
         					let objectLabel = "";
-        					let description = "";
-        					const type = (object?.type || "").toLowerCase();
         
         					try {
-        						objectLabel = this.translate.instant(object?.name || "").toLowerCase();
-        					} catch (e) {
-        						objectLabel = (object?.name || "").toLowerCase();
+        						objectLabel = normalize(
+        							this.translate.instant(object?.name || "")
+        						);
+        					}
+        					catch (e) {
+        						objectLabel = normalize(object?.name);
         					}
         
-        					try {
-        						if (object?.custom) {
-        							description = (object?.description || "").toLowerCase();
-        						} else {
-        							const meta = this.getMetaFromPalette(object?.type);
-        							if (meta?.description) {
-        								description = this.translate.instant(meta.description).toLowerCase();
-        							}
-        						}
-        					} catch (e) {
-        					}
-        
-        					return objectLabel.includes(q) || description.includes(q) || type.includes(q);
+        					return objectLabel.includes(q);
         				});
         
         				return objects.length > 0
