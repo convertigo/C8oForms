@@ -37,6 +37,16 @@
               			let res = (await page.c8o.callJsonObject("C8Oforms.APIV2_DeleteDocument", {"id": _id}).async()).res;
               			if(!res?.error){
               				page.global.selectedItem = {};
+              				// The list belongs to the selector, but this action also runs from the card
+              				// popover (where page is the popover) and from the editor. Announce the change
+              				// instead of reaching for page: the selector, when on screen, drops the cards at
+              				// once and reads the list again. With no selector on screen nobody listens.
+              				try {
+              					const deletedIds = vars.multiple ? JSON.parse(_id) : [_id];
+              					page.getInstance(Events).publish("formListChanged", {removedIds: deletedIds});
+              				} catch (refreshError) {
+              					page.c8o.log.warn("Unable to refresh the list after a delete", refreshError);
+              				}
               				return {msg: page[''translate''].instant("form_deleted_success"), cssClass: "toastSuccess"};
               			}
               			else{

@@ -2140,6 +2140,46 @@ title: Selection de formulaires
                 margin: 0 !important;
                 display: block !important;
               }
+              
+              /*
+               * Live refresh cue. A silent refresh keeps the rows on screen and therefore
+               * shows no skeleton, so without this nothing would tell the user the list is
+               * being updated. Absolutely positioned: the row is a grid container, so a
+               * pseudo element in flow would become a grid cell. Only .selector-refreshing
+               * carries position: relative, so nothing changes when idle.
+               */
+              ::ng-deep .class1732008302130.selector-refreshing{
+                position: relative;
+              }
+              
+              ::ng-deep .class1732008302130.selector-refreshing::after{
+                content: "";
+                position: absolute;
+                top: -8px;
+                left: 0;
+                right: 0;
+                height: 2px;
+                border-radius: 2px;
+                pointer-events: none;
+                background-color: rgba(var(--ion-color-primary-rgb), 0.15);
+                background-image: linear-gradient(90deg, transparent 0%, var(--ion-color-primary) 50%, transparent 100%);
+                background-repeat: no-repeat;
+                background-size: 35% 100%;
+                animation: c8o-selector-refreshing 1.1s ease-in-out infinite;
+              }
+              
+              @keyframes c8o-selector-refreshing{
+                0%{ background-position: -40% 0; }
+                100%{ background-position: 140% 0; }
+              }
+              
+              @media (prefers-reduced-motion: reduce){
+                ::ng-deep .class1732008302130.selector-refreshing::after{
+                  animation: none;
+                  background-image: none;
+                  background-color: rgba(var(--ion-color-primary-rgb), 0.35);
+                }
+              }
               '
     ↓Grid [ngx.components.UIDynamicElement-1645545895858]: 
       beanData: '{"ionBean":"Grid"}'
@@ -15789,6 +15829,18 @@ title: Selection de formulaires
                               - xmlizable: 
                                 - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                                 - MobileSmartSourceType: script:global.grid
+                          ↓AttrRefreshing [ngx.components.UIAttribute-1790200000001]: 
+                            attrName: '[class.selector-refreshing]'
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.local.refreshing === true
+                          ↓AttrRefreshingAria [ngx.components.UIAttribute-1790200000002]: 
+                            attrName: '[attr.aria-busy]'
+                            attrValue: 
+                              - xmlizable: 
+                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+                                - MobileSmartSourceType: script:this.local.refreshing === true
                           ↓Directive1 [ngx.components.UIControlDirective-1772122435025]: 
                             directiveName: If
                             directiveSource: 
@@ -17259,8 +17311,8 @@ title: Selection de formulaires
                             const stack = props.stack;
                             const out = {keys: null};
                             // declare function to call shared action manually
-                            page.local.manualCallShared = ()=>{
-                                this.actionBeans.STS1567094239807(this,{...{stack: stack, parent: parent, out: out}, ...props}, {...stack["root"].in, ...out}, event)
+                            page.local.manualCallShared = (extraVars: any = {})=>{
+                                this.actionBeans.STS1567094239807(this,{...{stack: stack, parent: parent, out: out}, ...props}, {...stack["root"].in, ...out, ...extraVars}, event)
                                 .then((result)=>{
                                 })
                                 .catch((error)=>{
@@ -17292,6 +17344,56 @@ title: Selection de formulaires
                             
                     		// call event subscriber
                 			page["subscriptions"][''updateThumbnail''] = events.subscribe(''ngxTagInputNgModelChange'', page.local.func);
+                		
+                		// Delete, duplicate and import publish formListChanged: they run from popovers,
+                		// modals and other pages that cannot reach this one. Removed cards are dropped
+                		// at once, then the list is read again through the silent live refresh path.
+                		// Released in onWillLeave and replaced on every entry, so handlers never stack.
+                		page.local.onFormListChanged = (change: any) => {
+                			try {
+                				const removedIds = Array.isArray(change?.removedIds) ? change.removedIds : [];
+                				let emptied = false;
+                				if (removedIds.length > 0) {
+                					// Every request issued so far may predate the delete, and its rows would bring
+                					// the removed cards back: withoutRemovedForms (callViewLiveAndFillFormList) and
+                					// searchForm drop these ids from them. Later requests are left untouched.
+                					const removed = page.local.removedFormIds;
+                					page.local.removedFormIds = {
+                						ids: (removed != null ? removed.ids : []).concat(removedIds),
+                						upTo: Math.max(removed != null ? removed.upTo : 0, Number(page.local.requestCounter) || 0)
+                					};
+                					if (Array.isArray(page["list"]) && page["list"].length > 0) {
+                						page["list"] = page["list"].filter((item) => item == null || removedIds.indexOf(item._id) < 0);
+                						// Nothing left on this page: show the skeletons rather than claim there is no
+                						// form, and reload from page 1, as other pages may still hold some.
+                						if (page["list"].length === 0) {
+                							emptied = true;
+                							page.local.spinner = true;
+                						}
+                						page.ref.detectChanges();
+                					}
+                				}
+                				// Without a changes feed the silent refresh would never run: reload instead.
+                				if (typeof page.local.requestListRefresh === "function" && page.local.live != null) {
+                					page.local.requestListRefresh({reveal: change?.reveal === true, resetPagination: emptied});
+                				}
+                				else if (typeof page.local.manualCallShared === "function") {
+                					// Same page rule as requestListRefresh in callViewLiveAndFillFormList.
+                					const currentDdoc = page.local["ddoc"] != undefined && page.local["ddoc"] != ""
+                						? page.local["ddoc"]
+                						: (page.local.published === true ? "published_formsV2" : "formsV2");
+                					page.local.manualCallShared({
+                						resetPagination: emptied || (change?.reveal === true && currentDdoc == "formsV2")
+                					});
+                				}
+                			} catch (refreshError) {
+                				page.c8o.log.warn("Unable to refresh the list after a local change", refreshError);
+                			}
+                		};
+                		if (page["subscriptions"]["formListChanged"] != null) {
+                			page["subscriptions"]["formListChanged"].unsubscribe();
+                		}
+                		page["subscriptions"]["formListChanged"] = events.subscribe("formListChanged", page.local.onFormListChanged);
                 		/**
                 		
                 		parent = self;
@@ -17878,6 +17980,10 @@ title: Selection de formulaires
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
             '		    
+                		if (page["subscriptions"]["formListChanged"] != null) {
+                			page["subscriptions"]["formListChanged"].unsubscribe();
+                			delete page["subscriptions"]["formListChanged"];
+                		}
             		    page.c8o.removeFullSyncChangeListener("c8oforms_fs", page["local"]["changeListener"]);
                 		page.c8o.log.debug("removing event ngxTagInputNgModelChange from selectorPage, instance: " + this["created"]);
                 		const events = this.getInstance(Events);
@@ -17889,6 +17995,19 @@ title: Selection de formulaires
         - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
         - com.twinsoft.convertigo.beans.common.FormatedContent: 
           →: |
+            		// The debounced live refresh belongs to this page instance: leaving the page
+            		// must not leave a timer behind that would query, and call detectChanges(),
+            		// against a destroyed view.
+            		if (page.local.liveRefresh != null) {
+            			if (page.local.liveRefresh.timer != null) {
+            				clearTimeout(page.local.liveRefresh.timer);
+            			}
+            			if (page.local.liveRefresh.expiryTimer != null) {
+            				clearTimeout(page.local.liveRefresh.expiryTimer);
+            			}
+            		}
+            		page.local.liveRefresh = null;
+            		page.local.requestListRefresh = null;
             		try {
             			page.local.live.cancel();
             		} catch (e) {
