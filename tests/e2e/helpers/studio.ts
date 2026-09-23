@@ -42,6 +42,9 @@ export const SEL = {
   previewButton: '.class1773331718985',
   // viewerPage.yaml — rendered viewer and default submit button
   viewerPage: 'page-viewerpage',
+  // SharedTabs.yaml — one tab per page in the viewer tab bar (the current page
+  // carries tab-selected); the previous/next buttons use other classes.
+  viewerPageTab: 'page-viewerpage ion-tab-button.class1664292958743',
   viewerPageTitleHeading: 'page-viewerpage [role="heading"][aria-level="1"].ion-text-wrap',
   viewerSubmitButton: [
     'page-viewerpage ion-button.class1543865084771',
@@ -143,6 +146,10 @@ export const SEL = {
   // Pages panel (left sidebar) + a page row's inline edit (pencil) action
   appSettingsPanelButton: 'ion-button.class1774952185775, ion-button.class1780909504441',
   appSettingsCategories: '.app-settings-categories',
+  // application Settings > Navigation category, and its global page tabs
+  // ToggleSwitch (options: disabled / header / footer)
+  appSettingsNavigationCategory: 'button.class1781084447181',
+  appSettingsPageTabsToggle: 'c8oforms-toggleswitch.class1781084751359',
   componentPanelButton: 'ion-button.class1773237045434, ion-button.class1780909504474',
   componentPaletteSearch: 'ion-searchbar.class1775889901001',
   pagesPanelButton: 'ion-button.class1773237523408, ion-button.class1780909504522',
@@ -10198,6 +10205,49 @@ export async function openApplicationSettingsFromSidebar(page: Page): Promise<vo
       'application settings categories should be visible after clicking the settings sidebar button',
     ).toBeVisible({ timeout: 15_000 });
   });
+}
+
+export type PageTabsPosition = 'disabled' | 'header' | 'footer';
+
+const PAGE_TABS_OPTION_INDEX: Record<PageTabsPosition, number> = { disabled: 0, header: 1, footer: 2 };
+
+/**
+ * Application Settings > Navigation: set the global page tabs ToggleSwitch. A new
+ * application starts with the tabs disabled. The ToggleSwitch saves on every click,
+ * the already selected option included.
+ */
+export async function setPageTabsThroughAppSettings(page: Page, position: PageTabsPosition): Promise<void> {
+  await test.step(`Set the application page tabs to ${position}`, async () => {
+    if (!(await page.locator(SEL.appSettingsCategories).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
+      await openApplicationSettingsFromSidebar(page);
+    }
+    const category = await firstVisibleLocator(page, SEL.appSettingsNavigationCategory, 'application Settings Navigation category');
+    await category.click({ timeout: 10_000 }).catch(async () => category.dispatchEvent('click'));
+    const toggle = await firstVisibleLocator(page, SEL.appSettingsPageTabsToggle, 'application page tabs toggle');
+    const options = toggle.locator('button.c8o-btn');
+    await expect(options, 'the page tabs toggle should offer disabled, header and footer').toHaveCount(3, { timeout: 10_000 });
+    const target = options.nth(PAGE_TABS_OPTION_INDEX[position]);
+    await target.click({ timeout: 10_000 });
+    await expect(target, `the page tabs option ${position} should be selected`).toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
+  });
+}
+
+/** Index of the current page in the viewer tab bar, -1 when no page tab is selected. */
+export async function selectedViewerPageTabIndex(page: Page): Promise<number> {
+  return page.locator(SEL.viewerPageTab).evaluateAll((tabs) => tabs.findIndex((tab) => tab.classList.contains('tab-selected')));
+}
+
+/** Click the page tab at `index` in the viewer tab bar and wait until that page is the current one. */
+export async function switchViewerPageTab(page: Page, index: number): Promise<void> {
+  const tab = page.locator(SEL.viewerPageTab).nth(index);
+  await expect(tab, `viewer page tab #${index + 1} should be visible`).toBeVisible({ timeout: 15_000 });
+  await tab.click({ timeout: 10_000 });
+  await expect
+    .poll(() => selectedViewerPageTabIndex(page), {
+      message: `viewer page tab #${index + 1} should become the current page`,
+      timeout: 15_000,
+    })
+    .toBe(index);
 }
 
 export async function expectEditorSidebarButtonsVisible(page: Page): Promise<void> {
