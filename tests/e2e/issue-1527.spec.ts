@@ -23,11 +23,13 @@ import {
  * "Grid sources cannot be edited from the Palette when multiple Horizontal
  * Layout components are used."
  *
- * Found in 2.2.0-beta337. Root cause: after a value was chosen in the Grid
- * source tree, replaceTinyBadgeFromTreeview looked the badge up by its fakeId
- * class in the whole page. For a component nested in Horizontal layouts, the
- * canvas behind the editor renders a copy of the same badge: that copy was
- * replaced, and the editor kept the bare grid badge.
+ * Found in 2.2.0-beta337, still present in 2.2.0-beta347, fixed in
+ * 2.2.0-beta348. Root cause: after a value was chosen in the Grid source tree,
+ * replaceTinyBadgeFromTreeview looked the badge up by its fakeId class in the
+ * whole page. For a component nested in Horizontal layouts, the canvas behind
+ * the editor renders a copy of the same badge: that copy was replaced, and the
+ * editor kept the bare grid badge. Fix 62a59edd (merged into NGX by 6d82be81)
+ * looks the badge up in editor bodies only.
  */
 const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
