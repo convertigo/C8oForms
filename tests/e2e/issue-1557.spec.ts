@@ -13,7 +13,8 @@ import {
  * Regression test for https://github.com/convertigo/C8oForms/issues/1557
  *
  * Found in 2.2.0-beta347 (orphan groups found on the e2e accounts of
- * test-nocode); open until a release ships the fix (feature/#1557, 30ad0515).
+ * test-nocode), fixed in 2.2.0-beta348 by 3106a87b (merged into NGX by
+ * 4b8579c4).
  *
  * Root cause: APIV2_Publish puts the creator in the hidden group
  * _C8O_HIDDEN_published_<id> (the generated user of an anonymous PWA too), and
