@@ -229,6 +229,7 @@ export const SEL = {
   publishedShareMenuItem:
     'ion-popover ion-item.class1578663445209, ion-popover ion-item:has(ion-icon.class1603730319967), ion-popover ion-item:has(ion-icon[src*="share.svg"])',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
+  selectorDeleteMenuItem: 'ion-item.class1566923689496',
   shareAnonymousToggleSwitch: 'c8oforms-toggleswitch.class1779971800000, .class1779971800000',
   shareAnonymousLegacyToggle: 'ion-toggle.class1706176223747, ion-toggle.class1762164887460',
   shareQrLabel:
@@ -1768,6 +1769,46 @@ export async function openPublishedShareApplicationModal(page: Page, title: stri
   });
 }
 
+export async function deletePublishedApplicationThroughUi(page: Page, title: string): Promise<void> {
+  await test.step(`Delete published application ${title}`, async () => {
+    await openPublishedApplicationsTab(page);
+    await openPublishedSelectorCardMenuItem(page, title, clickVisibleSelectorDeleteMenuItem, 'Delete');
+    const alert = page.locator('ion-alert:not(.overlay-hidden)').filter({ hasText: title }).last();
+    await expect(alert, 'delete published application confirmation should be visible').toBeVisible({ timeout: 15_000 });
+    const confirm = alert.locator('button.btn--danger').last();
+    await expect(confirm, 'delete published application confirm action should be visible').toBeVisible({ timeout: 10_000 });
+    await confirm.click({ timeout: 10_000 }).catch(async () => confirm.dispatchEvent('click'));
+    await expect(alert, 'delete published application confirmation should close').toBeHidden({ timeout: 15_000 });
+    await expect
+      .poll(() => selectorApplicationVisible(page, title), {
+        message: `published application "${title}" should leave the list`,
+        timeout: 30_000,
+      })
+      .toBe(false);
+  });
+}
+
+/**
+ * Reloads the page and returns the groups of the signed-in user, as the first
+ * getCurrentUserSettings answer issued after the reload reports them (res.groups).
+ */
+export async function reloadAndReadCurrentUserGroups(page: Page): Promise<string[]> {
+  return test.step('Reload and read the groups of the signed-in user', async () => {
+    const reloadedAt = Date.now();
+    const settings = page.waitForResponse(
+      (response) =>
+        /\/projects\/C8Oforms\/\.json(?:[?#]|$)/.test(response.url()) &&
+        (response.request().postData() ?? '').includes('getCurrentUserSettings') &&
+        response.request().timing().startTime >= reloadedAt,
+      { timeout: 90_000 },
+    );
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
+    const body = (await (await settings).json()) as { res?: { groups?: unknown } } | null;
+    const groups = body?.res?.groups;
+    return groups == null ? [] : ([] as unknown[]).concat(groups).map(String);
+  });
+}
+
 const SHARE_YES_OPTION_RE = /^(Oui|Yes|Si|S\u00ed|S\u00ec)$/i;
 const SHARE_SAVE_BUTTON_RE = /^(Save(?: settings)?|Enregistrer.*|Sauvegarder.*|Guardar.*|Salva.*)$/i;
 const SHARE_ANONYMOUS_LINK_RE = /(?:lien anonyme|anonymous link|enlace an[o\u00f3]nimo|collegamento anonimo)/i;
@@ -2023,6 +2064,15 @@ async function visibleShareApplicationTinyMceBody(page: Page, modal: Locator): P
 }
 
 async function openPublishedSelectorCardShareMenuItem(page: Page, title: string): Promise<void> {
+  await openPublishedSelectorCardMenuItem(page, title, clickVisibleSelectorShareMenuItem, 'Share application');
+}
+
+async function openPublishedSelectorCardMenuItem(
+  page: Page,
+  title: string,
+  clickItem: (page: Page) => Promise<boolean>,
+  itemName: string,
+): Promise<void> {
   for (let pass = 0; pass < 2; pass++) {
     await dismissVisiblePopovers(page);
     await dismissVisibleToasts(page);
@@ -2037,7 +2087,7 @@ async function openPublishedSelectorCardShareMenuItem(page: Page, title: string)
     for (let attempt = 0; attempt < 3; attempt++) {
       await dismissVisiblePopovers(page);
       if (await clickVisibleSelectorCardMenuByTitle(page, title)) {
-        if (await clickVisibleSelectorShareMenuItem(page)) {
+        if (await clickItem(page)) {
           return;
         }
       }
@@ -2050,13 +2100,13 @@ async function openPublishedSelectorCardShareMenuItem(page: Page, title: string)
         }
 
         await clickSelectorCardMenuButton(page, menu);
-        if (await clickVisibleSelectorShareMenuItem(page)) {
+        if (await clickItem(page)) {
           return;
         }
       }
 
       if (await clickVisibleSelectorCardMenuById(page, cardId)) {
-        if (await clickVisibleSelectorShareMenuItem(page)) {
+        if (await clickItem(page)) {
           return;
         }
       }
@@ -2069,7 +2119,7 @@ async function openPublishedSelectorCardShareMenuItem(page: Page, title: string)
     }
   }
 
-  throw new Error(`Could not open Share application menu item for published application ${title}`);
+  throw new Error(`Could not open ${itemName} menu item for published application ${title}`);
 }
 
 async function expandSelectorSideMenuIfCardMenusAreCollapsed(page: Page, title: string): Promise<void> {
@@ -2376,6 +2426,28 @@ async function clickVisibleSelectorShareMenuItem(page: Page): Promise<boolean> {
 
   return page
     .locator(SEL.collaboratorsModal)
+    .last()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function clickVisibleSelectorDeleteMenuItem(page: Page): Promise<boolean> {
+  const popover = page.locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector').last();
+  if (!(await popover.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+
+  const item = popover.locator(SEL.selectorDeleteMenuItem).first();
+  if (!(await item.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    return false;
+  }
+  await item.click({ timeout: 3_000 }).catch(async () => {
+    await item.evaluate((el) => (el as HTMLElement).click());
+  });
+
+  return page
+    .locator('ion-alert:not(.overlay-hidden)')
     .last()
     .waitFor({ state: 'visible', timeout: 10_000 })
     .then(() => true)
