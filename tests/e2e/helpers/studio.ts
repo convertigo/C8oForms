@@ -5657,6 +5657,16 @@ export async function reselectMailActionFromActionSelection(page: Page): Promise
     await mailAction.click({ timeout: 10_000 }).catch(async () => mailAction.dispatchEvent('click'));
 
     await actionPicker.locator('ion-footer ion-button').last().click({ timeout: 10_000 });
+    // The overwrite warning is presented asynchronously (alertController.create().then(present)):
+    // wait for it, or for the picker to close when nothing is configured, instead of checking once.
+    // A forced click on the picker's Cancel while the warning is up lands on its backdrop.
+    const overwriteAlert = page.locator('ion-alert:not(.overlay-hidden)').last();
+    await expect
+      .poll(async () => (await overwriteAlert.isVisible()) || !(await actionPicker.isVisible()), {
+        message: 'saving the action picker should warn about the overwrite or close the picker',
+        timeout: 10_000,
+      })
+      .toBe(true);
     await cancelOverwriteAlertIfVisible(page);
     const closedAfterValidation = await actionPicker.waitFor({ state: 'hidden', timeout: 5_000 }).then(
       () => true,
@@ -5809,8 +5819,8 @@ async function mailActionSummaryChecked(checkbox: Locator): Promise<boolean> {
 }
 
 async function cancelOverwriteAlertIfVisible(page: Page): Promise<void> {
-  const alert = page.locator('ion-alert').last();
-  if (!(await alert.isVisible({ timeout: 1_500 }).catch(() => false))) {
+  const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+  if (!(await alert.isVisible().catch(() => false))) {
     return;
   }
   const cancelButton = alert.locator('button.btn--info, button.alert-button-role-cancel, button.alert-button').first();
@@ -7795,10 +7805,13 @@ async function waitForSelectorHomeReadyForCreate(page: Page): Promise<void> {
   await waitForSelectorFormListLoaded(page);
 }
 
-async function waitForSelectorFormListLoaded(page: Page): Promise<void> {
+export async function waitForSelectorFormListLoaded(
+  page: Page,
+  message = 'selector form list should finish loading before creating a form',
+): Promise<void> {
   await expect
     .poll(() => selectorFormListState(page), {
-      message: 'selector form list should finish loading before creating a form',
+      message,
       timeout: 30_000,
     })
     .toMatch(/^ready:/);
