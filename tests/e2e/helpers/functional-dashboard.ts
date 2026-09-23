@@ -15,6 +15,7 @@ import {
   openComponentConfig,
   publishCurrentFormWithPwa,
   searchSelectorApplicationsByName,
+  waitForSelectorFormListLoaded,
 } from './studio';
 
 type DashboardEntryPoint = 'dashboard-button' | 'left-menu';
@@ -156,10 +157,17 @@ async function createPublishedBaserowApplicationForDashboard(page: Page): Promis
 async function assertDashboardEmptyResultState(page: Page, section: 'edition' | 'published', query: string): Promise<void> {
   await test.step(`Assert ${section} dashboard empty result state remains usable`, async () => {
     await openDashboardSection(page, section, 'dashboard-button');
-    await searchDashboardApplications(page, query);
+    // The section switch reloads the list and clears the search field: typing the query
+    // before it lands loses the query, and the section's own cards stay listed.
     await expectDashboardButtonActive(page, section);
+    await waitForSelectorFormListLoaded(page, `${section} list should finish loading before the search`);
+    await searchDashboardApplications(page, query);
     await expectDashboardSearchInputVisible(page);
     await expectDashboardTabsVisible(page);
+    await expect(
+      page.locator(`${SEL.selectorSearchByNameInput}:visible`).first(),
+      `${section} search should still hold the query when the results are counted`,
+    ).toHaveValue(query, { timeout: 10_000 });
     await expectVisibleSelectorResultCards(page, 0);
     await expect(page.locator('ion-loading:not(.overlay-hidden)').first(), 'empty state should not leave an Ionic loader open').toHaveCount(
       0,
