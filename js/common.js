@@ -279,6 +279,36 @@ let isObject = function (value) {
 	return value !== null && typeof value === 'object' && !isArray(value);
 }
 
+/**
+ * Tells whether a user may edit a form document: a document without ACL, its owner (~c8oAcl),
+ * or a member of one of its c8oGrp groups still used by a form.
+ *
+ * @param {Object} doc - The form document.
+ * @param {string} userId - The authenticated user id.
+ * @returns {boolean} True if the user may edit the document.
+ */
+let canEditFormDocument = function (doc, userId) {
+	if (doc == null || doc._deleted != null) {
+		return false;
+	}
+	if ((doc["~c8oAcl"] == null && doc.c8oGrp == null) || doc["~c8oAcl"] == userId) {
+		return true;
+	}
+	let grpIsArray = isArray(doc.c8oGrp);
+	let grpIsObject = isObject(doc.c8oGrp);
+	if (doc.c8oGrp == null || !((grpIsArray && doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(doc.c8oGrp).length > 0))) {
+		return false;
+	}
+	let query = new HashMap();
+	query.put("reduce", "false");
+	let rows = toJSON(fsclient.postView("c8ofullsyncgrp", "design", "get_groups_by_user", query, toJettison([userId]))).rows;
+	query = new HashMap();
+	query.put("reduce", "true");
+	query.put("group", "true");
+	let usedGroups = toJSON(fsclient.postView("c8oforms_fs", "authentication", "distinctGroups", query, toJettison(rows.map(function (row) { return row.value; })))).rows.map(function (row) { return row.key; });
+	return usedGroups.length > 0 && ((grpIsArray && doc.c8oGrp.some(function (value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function (group) { return doc.c8oGrp[group] == true || doc.c8oGrp[group] == "true"; })));
+}
+
 let getContentType = function (pathToFile) {
 	//try{
 	path = Paths.get(pathToFile);

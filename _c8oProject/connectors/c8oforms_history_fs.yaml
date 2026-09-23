@@ -1,0 +1,61 @@
+anonymousReplication: deny
+comment: |
+  Application history store (#1359).
+  Versions of the applications (entries, contents, attachment blobs), only read and written by the history sequences.
+databaseName: c8oforms_history_fs
+↓history [couchdb.DesignDocument]: 
+  comment: |
+    Design doc history.
+    Views listing the versions of an application and every history document of an application. The validation refuses the documents FullSync clients push: they carry their user as ~c8oAcl, the sequences write _C8O_HISTORY_.
+  docdata: 
+    →: |
+      '{
+        "_id": "_design\/history",
+        "filters": {},
+        "updates": {},
+        "validate_doc_update": "function (newDoc, oldDoc, userCtx, secObj) {\r\n
+        if (newDoc._id.indexOf(\"_design\/\") !== 0 && newDoc[\"~c8oAcl\"] !== \"_C8O_HISTORY_\") {\r\n
+          throw({forbidden: \"The application history is written by its sequences only.\"});\r\n
+        }\r\n
+      }",
+        "views": {
+          "documents": {
+            "map": "function (doc) {\r\n
+        if (doc[\"~c8oAcl\"] === \"_C8O_HISTORY_\" && doc.applicationId && (doc.type === \"entry\" || doc.type === \"content\" || doc.type === \"blob\")) {\r\n
+          var blobs = [];\r\n
+          if (doc.type === \"content\" && doc.attachments) {\r\n
+            for (var name in doc.attachments) {\r\n
+              blobs.push(doc.attachments[name].blob);\r\n
+            }\r\n
+          }\r\n
+          emit(doc.applicationId, {type: doc.type, rev: doc._rev, createdAt: doc.createdAt || null, contentHash: doc.type === \"content\" ? doc.hash : (doc.contentHash || null), blobs: blobs});\r\n
+        }\r\n
+      }"
+          },
+          "entries": {
+            "map": "function (doc) {\r\n
+        if (doc[\"~c8oAcl\"] === \"_C8O_HISTORY_\" && doc.type === \"entry\" && doc.applicationId) {\r\n
+          emit([doc.applicationId, doc.createdAt, doc._id], {\r\n
+            id: doc._id,\r\n
+            createdAt: doc.createdAt,\r\n
+            origin: doc.origin,\r\n
+            author: doc.author || null,\r\n
+            label: doc.label || null,\r\n
+            name: doc.name || null,\r\n
+            contentHash: doc.contentHash,\r\n
+            technicalVersion: doc.technicalVersion || null,\r\n
+            publicationVersion: doc.publicationVersion || null,\r\n
+            restoredFrom: doc.restoredFrom || null\r\n
+          });\r\n
+        }\r\n
+      }"
+          },
+          "entries_by_origin": {
+            "map": "function (doc) {\r\n
+        if (doc[\"~c8oAcl\"] === \"_C8O_HISTORY_\" && doc.type === \"entry\" && doc.applicationId) {\r\n
+          emit([doc.applicationId, doc.origin, doc.createdAt], doc._rev);\r\n
+        }\r\n
+      }"
+          }
+        }
+      }'

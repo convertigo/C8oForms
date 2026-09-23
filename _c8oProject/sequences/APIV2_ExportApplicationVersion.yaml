@@ -1,0 +1,74 @@
+accessibility: Hidden
+authenticatedContextRequired: true
+comment: |
+  Export an application version (#1359).
+  Downloads one version of a draft application as a .c8oforms file, in the format of the application export.
+↓exportVersion [steps.SimpleStep-1790180000028]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    include("js/application_history.js");
+    
+    var authenticatedUserID = context.getAuthenticatedUser();
+    var res = {};
+    var val = null;
+    var fileName = null;
+    var draft = getDoc("" + id, null, "c8oforms_fs");
+    if (!c8oHistory.isDraft(draft)) {
+    	res.error = "not_found";
+    }
+    else if (!canEditFormDocument(draft, authenticatedUserID)) {
+    	res.error = "unauthorized";
+    }
+    else {
+    	try {
+    		var entry = c8oHistory.readEntry(draft._id, "" + entryId);
+    		var file = entry != null ? c8oHistory.exportFile(draft._id, entry) : null;
+    		if (file == null) {
+    			res.error = "not_found";
+    		}
+    		else {
+    			res.ok = true;
+    			val = encodeTxtToBase64Binary(JSON.stringify(file) + "");
+    			fileName = encodeURIComponent((file.name || draft._id) + "") + ".c8oforms";
+    		}
+    	}
+    	catch (e) {
+    		log.error("application history: unable to export " + entryId + " of " + id + ": " + e);
+    		res = { error: "history_failed" };
+    	}
+    }'
+↓output [steps.JsonToXmlStep-1790180000029]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓ifFile [steps.IfStep-1790180000020]: 
+  condition: val != null
+  ↓attachment [steps.ElementStep-1790180000021]: 
+    expression: val
+    nodeName: attachment
+    ↓name [steps.AttributeStep-1790180000022]: 
+      expression: fileName
+      nodeName: name
+    ↓type [steps.AttributeStep-1790180000023]: 
+      nodeName: type
+      nodeText: attachment
+    ↓contentType [steps.AttributeStep-1790180000024]: 
+      nodeName: content-type
+      nodeText: application/json
+    ↓encoding [steps.AttributeStep-1790180000025]: 
+      nodeName: encoding
+      nodeText: base64
+↓id [variables.RequestableVariable-1790180000026]: 
+  comment: Identifier of the draft application.
+↓entryId [variables.RequestableVariable-1790180000027]: 
+  comment: Identifier of the version to export.

@@ -1,0 +1,65 @@
+accessibility: Hidden
+authenticatedContextRequired: true
+comment: |
+  List application versions (#1359).
+  Returns one page of the version history of a draft application, most recent first, with the hash of its current state.
+↓listVersions [steps.SimpleStep-1790180000004]: 
+  expression: |
+    '// Imports and helpers functions
+    include("js/common.js");
+    include("js/application_history.js");
+    
+    var authenticatedUserID = context.getAuthenticatedUser();
+    var res = {};
+    var draft = getDoc("" + id, null, "c8oforms_fs");
+    if (!c8oHistory.isDraft(draft)) {
+    	res.error = "not_found";
+    }
+    else if (!canEditFormDocument(draft, authenticatedUserID)) {
+    	res.error = "unauthorized";
+    }
+    else {
+    	try {
+    		var cursor = null;
+    		if (before != null && ("" + before).length) {
+    			try {
+    				cursor = JSON.parse("" + before);
+    			}
+    			catch (e) {
+    				cursor = null;
+    			}
+    		}
+    		var history = c8oHistory.list(draft._id, limit, cursor);
+    		var published = getDoc("published_" + draft._id, null, "c8oforms_fs");
+    		res.ok = true;
+    		res.entries = history.entries;
+    		res.next = history.next;
+    		res.rev = "" + draft._rev;
+    		res.currentHash = c8oHistory.currentHash(draft);
+    		res.publishedVersion = published != null && !published.error && published.version != null ? "" + published.version : null;
+    	}
+    	catch (e) {
+    		log.error("application history: unable to list the versions of " + id + ": " + e);
+    		res = { error: "history_failed" };
+    	}
+    }'
+↓output [steps.JsonToXmlStep-1790180000005]: 
+  jsonObject: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: JS
+        - →→: res
+  key: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.steps.SmartType
+      - SmartType: 
+        - ↑mode: PLAIN
+        - →→: res
+↓id [variables.RequestableVariable-1790180000001]: 
+  comment: Identifier of the draft application.
+↓limit [variables.RequestableVariable-1790180000002]: 
+  comment: Number of versions per page (1 to 50).
+  value: 20
+↓before [variables.RequestableVariable-1790180000003]: 
+  comment: Cursor returned as next by the previous page (JSON array); empty for the first page.
