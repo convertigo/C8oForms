@@ -42,6 +42,9 @@ export const SEL = {
   previewButton: '.class1773331718985',
   // viewerPage.yaml — rendered viewer and default submit button
   viewerPage: 'page-viewerpage',
+  // SharedTabs.yaml — one tab per page in the viewer tab bar (the current page
+  // carries tab-selected); the previous/next buttons use other classes.
+  viewerPageTab: 'page-viewerpage ion-tab-button.class1664292958743',
   viewerPageTitleHeading: 'page-viewerpage [role="heading"][aria-level="1"].ion-text-wrap',
   viewerSubmitButton: [
     'page-viewerpage ion-button.class1543865084771',
@@ -103,6 +106,8 @@ export const SEL = {
   sliderStepInput: 'c8oforms-textinputsetting.class1776351300022 input, .class1776351300022 input',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
+  // itemGridEditor.yaml — Source selection ToggleSwitch: from local data / from a data source
+  gridSourceChoiceToggle: 'c8oforms-toggleswitch.class1775845500002',
   gridFooterSetting: '.class1782121400000',
   gridPaginationSetting: '.class1782121400010',
   gridRowsPerPageSetting: '.class1782121400030',
@@ -143,6 +148,10 @@ export const SEL = {
   // Pages panel (left sidebar) + a page row's inline edit (pencil) action
   appSettingsPanelButton: 'ion-button.class1774952185775, ion-button.class1780909504441',
   appSettingsCategories: '.app-settings-categories',
+  // application Settings > Navigation category, and its global page tabs
+  // ToggleSwitch (options: disabled / header / footer)
+  appSettingsNavigationCategory: 'button.class1781084447181',
+  appSettingsPageTabsToggle: 'c8oforms-toggleswitch.class1781084751359',
   componentPanelButton: 'ion-button.class1773237045434, ion-button.class1780909504474',
   componentPaletteSearch: 'ion-searchbar.class1775889901001',
   pagesPanelButton: 'ion-button.class1773237523408, ion-button.class1780909504522',
@@ -220,6 +229,7 @@ export const SEL = {
   publishedShareMenuItem:
     'ion-popover ion-item.class1578663445209, ion-popover ion-item:has(ion-icon.class1603730319967), ion-popover ion-item:has(ion-icon[src*="share.svg"])',
   publishedPwaMenuItem: 'ion-popover ion-item.class1603801509434',
+  selectorDeleteMenuItem: 'ion-item.class1566923689496',
   shareAnonymousToggleSwitch: 'c8oforms-toggleswitch.class1779971800000, .class1779971800000',
   shareAnonymousLegacyToggle: 'ion-toggle.class1706176223747, ion-toggle.class1762164887460',
   shareQrLabel:
@@ -1759,6 +1769,46 @@ export async function openPublishedShareApplicationModal(page: Page, title: stri
   });
 }
 
+export async function deletePublishedApplicationThroughUi(page: Page, title: string): Promise<void> {
+  await test.step(`Delete published application ${title}`, async () => {
+    await openPublishedApplicationsTab(page);
+    await openPublishedSelectorCardMenuItem(page, title, clickVisibleSelectorDeleteMenuItem, 'Delete');
+    const alert = page.locator('ion-alert:not(.overlay-hidden)').filter({ hasText: title }).last();
+    await expect(alert, 'delete published application confirmation should be visible').toBeVisible({ timeout: 15_000 });
+    const confirm = alert.locator('button.btn--danger').last();
+    await expect(confirm, 'delete published application confirm action should be visible').toBeVisible({ timeout: 10_000 });
+    await confirm.click({ timeout: 10_000 }).catch(async () => confirm.dispatchEvent('click'));
+    await expect(alert, 'delete published application confirmation should close').toBeHidden({ timeout: 15_000 });
+    await expect
+      .poll(() => selectorApplicationVisible(page, title), {
+        message: `published application "${title}" should leave the list`,
+        timeout: 30_000,
+      })
+      .toBe(false);
+  });
+}
+
+/**
+ * Reloads the page and returns the groups of the signed-in user, as the first
+ * getCurrentUserSettings answer issued after the reload reports them (res.groups).
+ */
+export async function reloadAndReadCurrentUserGroups(page: Page): Promise<string[]> {
+  return test.step('Reload and read the groups of the signed-in user', async () => {
+    const reloadedAt = Date.now();
+    const settings = page.waitForResponse(
+      (response) =>
+        /\/projects\/C8Oforms\/\.json(?:[?#]|$)/.test(response.url()) &&
+        (response.request().postData() ?? '').includes('getCurrentUserSettings') &&
+        response.request().timing().startTime >= reloadedAt,
+      { timeout: 90_000 },
+    );
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
+    const body = (await (await settings).json()) as { res?: { groups?: unknown } } | null;
+    const groups = body?.res?.groups;
+    return groups == null ? [] : ([] as unknown[]).concat(groups).map(String);
+  });
+}
+
 const SHARE_YES_OPTION_RE = /^(Oui|Yes|Si|S\u00ed|S\u00ec)$/i;
 const SHARE_SAVE_BUTTON_RE = /^(Save(?: settings)?|Enregistrer.*|Sauvegarder.*|Guardar.*|Salva.*)$/i;
 const SHARE_ANONYMOUS_LINK_RE = /(?:lien anonyme|anonymous link|enlace an[o\u00f3]nimo|collegamento anonimo)/i;
@@ -2014,6 +2064,15 @@ async function visibleShareApplicationTinyMceBody(page: Page, modal: Locator): P
 }
 
 async function openPublishedSelectorCardShareMenuItem(page: Page, title: string): Promise<void> {
+  await openPublishedSelectorCardMenuItem(page, title, clickVisibleSelectorShareMenuItem, 'Share application');
+}
+
+async function openPublishedSelectorCardMenuItem(
+  page: Page,
+  title: string,
+  clickItem: (page: Page) => Promise<boolean>,
+  itemName: string,
+): Promise<void> {
   for (let pass = 0; pass < 2; pass++) {
     await dismissVisiblePopovers(page);
     await dismissVisibleToasts(page);
@@ -2028,7 +2087,7 @@ async function openPublishedSelectorCardShareMenuItem(page: Page, title: string)
     for (let attempt = 0; attempt < 3; attempt++) {
       await dismissVisiblePopovers(page);
       if (await clickVisibleSelectorCardMenuByTitle(page, title)) {
-        if (await clickVisibleSelectorShareMenuItem(page)) {
+        if (await clickItem(page)) {
           return;
         }
       }
@@ -2041,13 +2100,13 @@ async function openPublishedSelectorCardShareMenuItem(page: Page, title: string)
         }
 
         await clickSelectorCardMenuButton(page, menu);
-        if (await clickVisibleSelectorShareMenuItem(page)) {
+        if (await clickItem(page)) {
           return;
         }
       }
 
       if (await clickVisibleSelectorCardMenuById(page, cardId)) {
-        if (await clickVisibleSelectorShareMenuItem(page)) {
+        if (await clickItem(page)) {
           return;
         }
       }
@@ -2060,7 +2119,7 @@ async function openPublishedSelectorCardShareMenuItem(page: Page, title: string)
     }
   }
 
-  throw new Error(`Could not open Share application menu item for published application ${title}`);
+  throw new Error(`Could not open ${itemName} menu item for published application ${title}`);
 }
 
 async function expandSelectorSideMenuIfCardMenusAreCollapsed(page: Page, title: string): Promise<void> {
@@ -2367,6 +2426,28 @@ async function clickVisibleSelectorShareMenuItem(page: Page): Promise<boolean> {
 
   return page
     .locator(SEL.collaboratorsModal)
+    .last()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function clickVisibleSelectorDeleteMenuItem(page: Page): Promise<boolean> {
+  const popover = page.locator('ion-popover:not(.overlay-hidden):visible page-popoverpageselector').last();
+  if (!(await popover.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+
+  const item = popover.locator(SEL.selectorDeleteMenuItem).first();
+  if (!(await item.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    return false;
+  }
+  await item.click({ timeout: 3_000 }).catch(async () => {
+    await item.evaluate((el) => (el as HTMLElement).click());
+  });
+
+  return page
+    .locator('ion-alert:not(.overlay-hidden)')
     .last()
     .waitFor({ state: 'visible', timeout: 10_000 })
     .then(() => true)
@@ -2855,6 +2936,33 @@ export async function visibleDataGridRow(page: Page, text: string, timeout = 45_
     })
     .toContain(text);
   return row;
+}
+
+/** Rendered height, in CSS pixels, of the row of `grid` that shows `text`. */
+export async function dataGridRowHeight(grid: Locator, text: string, timeout = 45_000): Promise<number> {
+  const row = grid.locator('.ag-center-cols-container .ag-row').filter({ hasText: text }).first();
+  await expect(row, `the Data Grid row ${text} should render`).toBeVisible({ timeout });
+  return row.evaluate((element) => element.getBoundingClientRect().height);
+}
+
+/**
+ * Header labels of a Data Grid exactly as rendered. Playwright `hasText` matches case-insensitively,
+ * so it cannot tell a source column `Etat de la saisie` from the title-cased `Etat De La Saisie` (#1554).
+ */
+export async function dataGridHeaderTexts(grid: Locator): Promise<string[]> {
+  return grid
+    .locator('.ag-header-cell .ag-header-cell-text')
+    .evaluateAll((cells) => cells.map((cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean));
+}
+
+/** Waits until the Data Grid shows every expected header, compared with exact case. */
+export async function expectDataGridHeaders(grid: Locator, expected: string[], surface: string): Promise<void> {
+  await expect
+    .poll(() => dataGridHeaderTexts(grid), {
+      message: `${surface} Data Grid headers should read exactly ${expected.map((name) => `"${name}"`).join(', ')}`,
+      timeout: 15_000,
+    })
+    .toEqual(expect.arrayContaining(expected));
 }
 
 export async function normalizedLocatorText(locator: Locator): Promise<string> {
@@ -4110,6 +4218,23 @@ export async function configureGridBaserowSource(page: Page, source: BaserowGrid
   await configureGridBaserowTable(page, source, pickerTimeout);
 }
 
+/**
+ * Source selection of the open Data Grid configuration: "From local data" (sourceEnabled false). The rows then
+ * come from the application itself, e.g. a Business logic action that writes them.
+ */
+export async function setGridLocalDataSource(page: Page): Promise<void> {
+  await test.step('Set the Data Grid source to local data', async () => {
+    await openConfigurationSection(page);
+    await openConfigTabById(page, 'tab_selector_choice_source');
+    const localData = page.locator(`${SEL.gridSourceChoiceToggle}:visible button.c8o-btn`).first();
+    await expect(localData, 'the Data Grid local data option should be visible').toBeVisible({ timeout: 15_000 });
+    await localData.click({ timeout: 10_000 });
+    await expect(localData, 'the Data Grid local data option should be selected').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+  });
+}
+
 export async function configureGridBaserowTable(
   page: Page,
   source: BaserowGridSourceOptions,
@@ -4996,6 +5121,44 @@ async function openBaserowActionVariableJavaScriptMode(page: Page, column: strin
   await visibleMonacoEditor(page, `Baserow Add Row mapping ${column} JavaScript editor`);
 }
 
+/**
+ * Replaces the whole code of the visible Monaco editor. The code is typed on a single line: Monaco auto-closes
+ * brackets and quotes and typing the closing character overtypes them, but a typed newline re-indents and
+ * leaves the auto-closed tail behind.
+ */
+async function replaceVisibleMonacoCode(page: Page, code: string, description: string): Promise<void> {
+  expect(code, `${description} code should fit on one line`).not.toContain('\n');
+  const editor = await visibleMonacoEditor(page, `${description} JavaScript editor`);
+  const lines = editor.locator('.view-lines');
+  const editorCode = () => lines.innerText().then(normalizeVisibleText);
+  // The JavaScript mode opens on a code template that Monaco loads after it shows up: clearing the editor
+  // before the template arrives would leave the template in front of the typed code.
+  await expect
+    .poll(editorCode, { message: `${description} JavaScript editor should show its code template`, timeout: 10_000 })
+    .not.toBe('');
+  await expect
+    .poll(
+      async () => {
+        await editor.click();
+        await page.keyboard.press('ControlOrMeta+A');
+        await page.keyboard.press('Delete');
+        return editorCode();
+      },
+      { message: `${description} JavaScript editor should be empty before typing`, timeout: 10_000 },
+    )
+    .toBe('');
+  await page.keyboard.type(code);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Tab');
+  await expect
+    .poll(editorCode, {
+      message: `${description} JavaScript editor should contain exactly the typed code`,
+      timeout: 10_000,
+    })
+    .toBe(normalizeVisibleText(code));
+  await page.waitForTimeout(1_000);
+}
+
 async function visibleMonacoEditor(page: Page, description: string): Promise<Locator> {
   const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
   await expect(editor, description).toBeVisible({ timeout: 15_000 });
@@ -5186,6 +5349,28 @@ async function openButtonFlowActionConfig(
     await expect(action, `${actionName} action card should be visible in the flow`).toBeVisible({ timeout: 15_000 });
     await action.click();
     await page.waitForTimeout(1_000);
+  });
+}
+
+/** Adds a Business logic action with a one-line JavaScript code to the Button workflow, then closes it. */
+export async function addButtonFlowBusinessLogicAction(
+  page: Page,
+  technicalId: string,
+  code: string,
+  flowName?: string | RegExp,
+): Promise<void> {
+  await openButtonFlowActionConfig(page, {
+    flowName,
+    icon: PALETTE_ICON.businessLogic,
+    actionCardSelector: SEL.flowBusinessLogicActionCard,
+    actionName: 'Business logic',
+  });
+  await test.step('Write the Business logic JavaScript code', async () => {
+    await setTechnicalId(page, technicalId);
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'Business logic JavaScript mode', 10_000, true);
+    await confirmAlertIfVisible(page);
+    await replaceVisibleMonacoCode(page, code, 'Business logic');
+    await closeComponentConfig(page);
   });
 }
 
@@ -9547,8 +9732,15 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
   return inlineEditor;
 }
 
+// The editor iframe title is localized ("Zone de Texte Riche" in fr-FR): match
+// its class. Only the visible editor counts: the canvas behind it can render
+// copies of the same badges (#1527).
+function visibleRichTextFrame(page: Page) {
+  return page.locator(`${SEL.richTextEditorFrame}:visible`).last().contentFrame();
+}
+
 async function clickTinyMcePathBadgeEditButton(page: Page): Promise<void> {
-  const frameBadge = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('svg[id^="clickable-"]').first();
+  const frameBadge = visibleRichTextFrame(page).locator('svg[id^="clickable-"]').first();
   if (await frameBadge.isVisible({ timeout: 3_000 }).catch(() => false)) {
     await frameBadge.click();
     return;
@@ -9560,13 +9752,14 @@ async function clickTinyMcePathBadgeEditButton(page: Page): Promise<void> {
 }
 
 async function tinyMcePathBadgePaths(page: Page): Promise<string[]> {
-  const frameBody = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('body');
+  const frameBody = visibleRichTextFrame(page).locator('body');
   if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    return frameBody.evaluate((body) =>
+    const framePaths = await frameBody.evaluate((body) =>
       Array.from(body.querySelectorAll<HTMLElement>('[c8opath]'))
         .map((element) => element.getAttribute('c8opath') ?? '')
         .filter(Boolean),
     );
+    if (framePaths.length > 0) return framePaths;
   }
 
   const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
@@ -10172,6 +10365,49 @@ export async function openApplicationSettingsFromSidebar(page: Page): Promise<vo
   });
 }
 
+export type PageTabsPosition = 'disabled' | 'header' | 'footer';
+
+const PAGE_TABS_OPTION_INDEX: Record<PageTabsPosition, number> = { disabled: 0, header: 1, footer: 2 };
+
+/**
+ * Application Settings > Navigation: set the global page tabs ToggleSwitch. A new
+ * application starts with the tabs disabled. The ToggleSwitch saves on every click,
+ * the already selected option included.
+ */
+export async function setPageTabsThroughAppSettings(page: Page, position: PageTabsPosition): Promise<void> {
+  await test.step(`Set the application page tabs to ${position}`, async () => {
+    if (!(await page.locator(SEL.appSettingsCategories).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
+      await openApplicationSettingsFromSidebar(page);
+    }
+    const category = await firstVisibleLocator(page, SEL.appSettingsNavigationCategory, 'application Settings Navigation category');
+    await category.click({ timeout: 10_000 }).catch(async () => category.dispatchEvent('click'));
+    const toggle = await firstVisibleLocator(page, SEL.appSettingsPageTabsToggle, 'application page tabs toggle');
+    const options = toggle.locator('button.c8o-btn');
+    await expect(options, 'the page tabs toggle should offer disabled, header and footer').toHaveCount(3, { timeout: 10_000 });
+    const target = options.nth(PAGE_TABS_OPTION_INDEX[position]);
+    await target.click({ timeout: 10_000 });
+    await expect(target, `the page tabs option ${position} should be selected`).toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
+  });
+}
+
+/** Index of the current page in the viewer tab bar, -1 when no page tab is selected. */
+export async function selectedViewerPageTabIndex(page: Page): Promise<number> {
+  return page.locator(SEL.viewerPageTab).evaluateAll((tabs) => tabs.findIndex((tab) => tab.classList.contains('tab-selected')));
+}
+
+/** Click the page tab at `index` in the viewer tab bar and wait until that page is the current one. */
+export async function switchViewerPageTab(page: Page, index: number): Promise<void> {
+  const tab = page.locator(SEL.viewerPageTab).nth(index);
+  await expect(tab, `viewer page tab #${index + 1} should be visible`).toBeVisible({ timeout: 15_000 });
+  await tab.click({ timeout: 10_000 });
+  await expect
+    .poll(() => selectedViewerPageTabIndex(page), {
+      message: `viewer page tab #${index + 1} should become the current page`,
+      timeout: 15_000,
+    })
+    .toBe(index);
+}
+
 export async function expectEditorSidebarButtonsVisible(page: Page): Promise<void> {
   await test.step('Assert editor sidebar buttons remain visible', async () => {
     await firstVisibleLocator(page, SEL.appSettingsPanelButton, 'application settings sidebar button', 10_000);
@@ -10649,6 +10885,29 @@ async function openLayoutChildEditor(
   if (await childEditorOpened()) return;
 
   throw new Error(`Could not open editor for layout child #${index}`);
+}
+
+/**
+ * Open the own editor of the layout child rendering `componentSelector`, in the
+ * layout(s) matched by `layoutSelector` (a nested layout too). The child host
+ * has no box of its own, so its card is the hover and click target; the last
+ * matching card is the innermost one.
+ */
+export async function openLayoutChildEditorByComponent(
+  page: Page,
+  layoutSelector: string,
+  componentSelector: string,
+): Promise<void> {
+  const card = page
+    .locator(`${layoutSelector} ${SEL.layoutChildCard}`)
+    .filter({ has: page.locator(componentSelector) })
+    .last();
+  await expect(card, `layout child ${componentSelector} should be visible`).toBeVisible({ timeout: 15_000 });
+  await page.mouse.move(5, 5);
+  await card.hover();
+  const box = await card.boundingBox();
+  if (!box) throw new Error(`layout child ${componentSelector} has no box`);
+  await openLayoutChildEditor(page, card, box, 0);
 }
 
 /**
