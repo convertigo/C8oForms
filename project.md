@@ -8069,12 +8069,12 @@ Email address targeted by the sequence.
 
 </p></blockquote></details>
 
-<details><summary><b>GetOdtTemplateDirectory</b></summary><blockquote><p>
+<details><summary><b>GetOdtTemplateDirectory</b> : Secure ODT Grid export wrapper</summary><blockquote><p>
 
 
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") GetOdtTemplateDirectory
 
-
+Secure ODT Grid export wrapper. Validates a plain template filename, confines it to C8Oforms/templates/odf, invokes lib_fill_odt_pdf.u_fill_odt server-side and returns its attachment.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -8089,10 +8089,34 @@ comment
 </tr>
 <tr>
 <td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;break_before
+</td>
+<td>
+Table break behavior passed to lib_fill_odt_pdf.u_fill_odt.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;markers
+</td>
+<td>
+JSON marker definitions passed to lib_fill_odt_pdf.u_fill_odt.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;output_filename
+</td>
+<td>
+Relative output ODT path passed to lib_fill_odt_pdf.u_fill_odt.
+</td>
+</tr>
+<tr>
+<td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;template_name
 </td>
 <td>
-Template name targeted by the sequence.
+Plain ODT template filename used for the Grid export.
 </td>
 </tr>
 </table>
@@ -10467,12 +10491,12 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>ExportGridDataAsOdt</b> : Exports the current AG Grid state to an ODT file using lib_fill_odt_pdf</summary><blockquote><p>
+<details><summary><b>ExportGridDataAsOdt</b> : Exports the current AG Grid state through a secure C8Oforms server-side ODT wrapper</summary><blockquote><p>
 
 
 ### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") ExportGridDataAsOdt
 
-Exports the current AG Grid state to an ODT file using lib_fill_odt_pdf.u_fill_odt through the .bin requester.
+Exports the current AG Grid state through a secure C8Oforms server-side ODT wrapper.
 
 <span style="color:DarkGoldenRod">Variables</span>
 
@@ -10498,7 +10522,7 @@ AG Grid component instance exposing the api property.
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;bin_url
 </td>
 <td>
-Optional explicit URL of the lib_fill_odt_pdf .bin requester. Leave empty for automatic resolution.
+Optional explicit URL of the secure C8Oforms .bin wrapper. Leave empty for automatic resolution.
 </td>
 </tr>
 <tr>
@@ -10522,7 +10546,7 @@ Readable prefix used to generate the downloaded ODT filename.
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;input_filename
 </td>
 <td>
-ODT template path expected by lib_fill_odt_pdf.u_fill_odt, for example .//templates/odf/grid_export.odt.
+Plain ODT template filename used for the Grid export, for example grid_export.odt.
 </td>
 </tr>
 <tr>
