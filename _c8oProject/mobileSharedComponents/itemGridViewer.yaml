@@ -37,6 +37,30 @@ scriptContent:
         		return this.agGridDefaultColDef;
         	}
         	
+        	/**
+        	 * #1540: shows the loading overlay again while the source of this grid loads.
+        	 * The page records the loading state (local.gridOverlays, local.updating) but can only apply it to an AG Grid
+        	 * that exists, and the AG Grid of this grid is created only once its locale is loaded. AG Grid also replaces the
+        	 * loading overlay by its "no rows" overlay on each row data update. Called on GridReady and on RowDataChanged.
+        	 * @param gridApi the AG Grid API carried by the event, the one of myGrid by default
+        	 */
+        	public restoreGridLoadingOverlay(gridApi?: any) {
+        		try {
+        			let id = this.item?.id;
+        			let local = this.pageOwner?.local;
+        			let api = gridApi ?? this.myGrid?.agGrid?.api;
+        			if (id == null || api == null || api.isDestroyed?.()) {
+        				return;
+        			}
+        			if (local?.gridOverlays?.[id] == true && local?.updating?.[id] === 0) {
+        				api.showLoadingOverlay();
+        			}
+        		}
+        		catch (e) {
+        			this.c8o.log.debug("[itemGridViewer] the loading overlay could not be restored", e);
+        		}
+        	}
+        	
         	public updateGridValues(){
         		let founded = false;
         		let item = this.item;
@@ -1324,7 +1348,9 @@ scriptContent:
               - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
               - com.twinsoft.convertigo.beans.common.FormatedContent: 
                 →: |
-                  '		let callSources = false;
+                  '		// #1540: AG Grid has just replaced the loading overlay, restore it while the source still loads
+                  		page.restoreGridLoadingOverlay(event?.api);
+                  		let callSources = false;
                   		if(page.pageOwner != null && page.pageOwner.getPathById != undefined){
                   			if(page.item != null){
                   				if(page.item.config.returned_value === "all_the_data"){
@@ -1393,6 +1419,16 @@ scriptContent:
         attrName: (GridReady)
         comment: Fired when the Grid is ready. Data will be the agGrid event
         eventName: GridReady
+        ↓restoreGridLoadingOverlay [ngx.components.UICustomAction-1790159522189]: 
+          actionValue: 
+            - xmlizable: 
+              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+              - com.twinsoft.convertigo.beans.common.FormatedContent: 
+                →: |
+                  '		// #1540: the source of this grid may have started loading before its AG Grid existed
+                  		page.restoreGridLoadingOverlay(event?.api);
+                  		resolve();
+                  '
       ↓Event9 [ngx.components.UIControlEvent-1662999029780]: 
         attrName: (GetRows)
         comment: Fire when the RowModelType is 'infinite'. Excepts fromatted data into a agGridUpdateRows action
@@ -1525,21 +1561,3 @@ scriptContent:
   ↓InvokeSharedAction1 [ngx.components.UIDynamicInvoke-1730304050695]: 
     beanData: '{"ionBean":"InvokeAction"}'
     stack: C8Oforms.MobileApplication.Application.importNg2Tooltips
-↓SharedComponent_Event1 [ngx.components.UISharedComponentEvent-1768319003377]: 
-  ↓CustomAsyncAction [ngx.components.UICustomAsyncAction-1768319014561]: 
-    actionValue: 
-      - xmlizable: 
-        - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-        - com.twinsoft.convertigo.beans.common.FormatedContent: 
-          →: |
-            		try {
-            			setTimeout(()=>{
-            				if(page.pageOwner?.local?.gridOverlays?.[page?.item?.id] == true){
-            					page.pageOwner.showGridOverlayById(page?.item?.id);
-            				}
-            			})
-            		} catch (e) {
-            		
-            		} finally {
-            			return;
-            		}

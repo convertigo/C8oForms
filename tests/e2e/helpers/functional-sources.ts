@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page, type Route } from '@playwright/test';
 import { ensureBaserowTable, type BaserowCatalog } from './baserow';
 import {
   PALETTE_ICON,
@@ -337,6 +337,128 @@ export async function configureGridBaserowTableAndAssertViewerRowsThroughUi(page
       expect(text, `Grid row ${row.Name} should contain its Status`).toContain(row.Status);
       expect(text, `Grid row ${row.Name} should contain its Marker`).toContain(row.Marker);
     }
+  });
+}
+
+// The loading overlay AG Grid renders with the C8Oforms spinner template (global.overlayNoRowsTemplate).
+const GRID_LOADING_SPINNER = `${SEL.gridComponent} .ag-overlay-loading-wrapper .justTocheckExistingLoading`;
+const GRID_NO_ROWS_OVERLAY = `${SEL.gridComponent} .ag-overlay-no-rows-wrapper`;
+const GRID_OVERLAY_ERROR = /an error occured while trying to show an overlay for grid/;
+
+export interface HeldSourceRequests {
+  /** Number of source requests held so far. */
+  count(): number;
+  /** Lets the held requests (and every later one) reach the server and removes the interception. */
+  release(): Promise<void>;
+}
+
+// A component source is loaded by a formssource_* sequence (formssource_GetTableData for a Baserow table).
+const SOURCE_SEQUENCE_URL = '**/convertigo/projects/C8Oforms/.json';
+const SOURCE_SEQUENCE_REQUEST = /name="__sequence"\r?\n\r?\nformssource_/;
+
+/**
+ * Holds the requests that load a component source until release() is called, so that the loading state of
+ * the component can be asserted however fast the source answers. Install it right before opening the viewer:
+ * every formssource_* sequence call issued from then on is held. The route is set on the browser context
+ * because the application service worker issues these fetches itself, out of reach of page.route
+ * (Chromium routes service worker requests through the context).
+ */
+export async function holdSourceRequests(page: Page, maxHoldMs = 60_000): Promise<HeldSourceRequests> {
+  const context = page.context();
+  let count = 0;
+  let released = false;
+  let releaseHeld: () => void = () => undefined;
+  const releasedPromise = new Promise<void>((resolve) => {
+    releaseHeld = resolve;
+  });
+  const handler = async (route: Route): Promise<void> => {
+    const request = route.request();
+    const body = request.method() === 'POST' ? (request.postDataBuffer()?.toString('utf8') ?? '') : '';
+    if (!released && SOURCE_SEQUENCE_REQUEST.test(body)) {
+      count++;
+      await Promise.race([releasedPromise, new Promise((resolve) => setTimeout(resolve, maxHoldMs))]);
+    }
+    await route.fallback().catch(() => undefined);
+  };
+  await context.route(SOURCE_SEQUENCE_URL, handler);
+  return {
+    count: () => count,
+    release: async () => {
+      released = true;
+      releaseHeld();
+      await context.unroute(SOURCE_SEQUENCE_URL, handler);
+    },
+  };
+}
+
+/**
+ * #1540: a Data Grid bound to a Baserow source shows its loading overlay in Preview until its rows arrive,
+ * without the "an error occured while trying to show an overlay" console error.
+ */
+export async function assertGridLoadingOverlayWhileSourceLoadsThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the functional Grid Baserow table exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_SOURCE_TABLE,
+      primaryField: 'Name',
+      columns: GRID_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
+      rows: GRID_SOURCE_ROWS,
+      upsertKey: 'Name',
+    });
+    assertGridSourceFixture(catalog);
+  });
+
+  await test.step('Create a Data Grid and configure its Baserow table source', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await expect(page.locator(`${SEL.gridComponent}:visible`).first(), 'Data Grid component should be present').toBeVisible({
+      timeout: 30_000,
+    });
+
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_SOURCE_TABLE,
+      expectedColumns: GRID_SOURCE_COLUMNS,
+    });
+    await closeComponentConfig(page);
+  });
+
+  const overlayErrors: string[] = [];
+  page.on('console', (message) => {
+    if (GRID_OVERLAY_ERROR.test(message.text())) overlayErrors.push(message.text());
+  });
+  const sourceRequests = await holdSourceRequests(page);
+
+  try {
+    await test.step('Open Preview while the Grid source is still loading', async () => {
+      await openPreview(page, SEL.gridComponent);
+      await expect
+        .poll(() => sourceRequests.count(), { message: 'the viewer should request the Grid source', timeout: 30_000 })
+        .toBeGreaterThan(0);
+    });
+
+    await test.step('Assert the Grid shows its loading overlay, not the no rows overlay', async () => {
+      await expect(page.locator(GRID_LOADING_SPINNER).first(), 'the Grid should show its loading spinner while its source loads').toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.locator(GRID_NO_ROWS_OVERLAY).first(), 'the Grid should not claim it has no rows while its source loads').toBeHidden();
+    });
+  } finally {
+    await sourceRequests.release();
+  }
+
+  await test.step('Release the source and assert the rows replace the loading overlay', async () => {
+    for (const row of GRID_SOURCE_ROWS) {
+      await visibleGridRow(page, row.Name);
+    }
+    await expect(page.locator(GRID_LOADING_SPINNER), 'the loading spinner should disappear once the rows are loaded').toHaveCount(0, {
+      timeout: 15_000,
+    });
+    expect(overlayErrors, 'showing the Grid loading overlay should not log an error').toEqual([]);
   });
 }
 
