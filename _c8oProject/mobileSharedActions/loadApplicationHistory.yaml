@@ -1,0 +1,65 @@
+↓more [ngx.components.UIStackVariable-1790182000101]: 
+  comment: True to append the next page to the versions already shown.
+  value: false
+↓automatic [ngx.components.UIStackVariable-1790182500101]: 
+  comment: True or false to show or hide the automatic versions from now on; empty keeps the choice.
+↓Load [ngx.components.UICustomAsyncAction-1790182000103]: 
+  actionValue: 
+    - xmlizable: 
+      - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
+      - com.twinsoft.convertigo.beans.common.FormatedContent: 
+        →: |
+          '		// Loads one page of the version history of navParams.data.form into page.local.history*.
+          		const form = page["navParams"]?.data?.form;
+          		if (form?._id == null) {
+          			return {ok: false};
+          		}
+          		const more = vars.more == true && page.local.historyNext != null;
+          		if (vars.automatic === true || vars.automatic === false) {
+          			page.local.historyShowAutomatic = vars.automatic;
+          		}
+          		page.local.historyLoading = true;
+          		page.local.historyError = null;
+          		page.ref.detectChanges();
+          		try {
+          			const res = (await page.c8o.callJsonObject("C8Oforms.APIV2_ListApplicationHistory", {
+          				id: form._id,
+          				limit: 20,
+          				before: more ? JSON.stringify(page.local.historyNext) : "",
+          				automatic: page.local.historyShowAutomatic !== false
+          			}).async()).res;
+          			if (res?.ok !== true) {
+          				page.local.historyError = res?.error == "unauthorized" ? "history_error_unauthorized" : "history_error_load";
+          				return {ok: false};
+          			}
+          			const entries = (more ? (page.local.historyEntries ?? []) : []).concat(res.entries ?? []);
+          			page.local.historyEntries = entries;
+          			page.local.historyNext = res.next ?? null;
+          			page.local.historyRev = res.rev;
+          			page.local.historyPublishedVersion = res.publishedVersion ?? null;
+          			// the most recent version holding the current state, and the one currently published
+          			page.local.historyCurrentId = entries.find((entry) => entry.contentHash === res.currentHash)?.id ?? null;
+          			page.local.historyPublishedId = res.publishedVersion == null ? null : (entries.find((entry) => entry.origin === "publish" && entry.publicationVersion === res.publishedVersion)?.id ?? null);
+          			return {ok: true};
+          		}
+          		catch (e) {
+          			page.c8o.log.error("[history] unable to load the versions", e);
+          			page.local.historyError = "history_error_load";
+          			return {ok: false};
+          		}
+          		finally {
+          			page.local.historyLoading = false;
+          			page.ref.detectChanges();
+          		}
+          '
+  comment: Calls APIV2_ListApplicationHistory and keeps the result in page.local.history*.
+  ↓more [ngx.components.UIControlVariable-1790182000102]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.more
+  ↓automatic [ngx.components.UIControlVariable-1790182500102]: 
+    varValue: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+        - MobileSmartSourceType: script:params.automatic

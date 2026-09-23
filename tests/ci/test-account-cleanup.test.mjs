@@ -3,8 +3,10 @@ import test from 'node:test';
 import {
   FORMS_DB,
   GROUPS_DB,
+  HISTORY_DB,
   MCP_TOKEN_MAX_AGE_MS,
   pruneStaleMcpTokens,
+  purgeApplicationVersions,
   removeOrphanHiddenPublicationGroups,
 } from './test-account-cleanup.mjs';
 
@@ -171,4 +173,38 @@ test('never writes back a settings document read without its owner', async () =>
 
   await assert.rejects(pruneStaleMcpTokens(fullsync, user, NOW), /without its ~c8oAcl owner/);
   assert.equal(fullsync.calls.put.length, 0);
+});
+
+test('deletes the application versions of the user only', async () => {
+  const user = 'testuser2-convertigo@yopmail.com';
+  const version = (id, creator) => ({ _id: id, _rev: '1-a', type: 'entry', creator });
+  const fullsync = fakeFullSync({
+    [HISTORY_DB]: [version('entry_1', user), version('content_1', user), version('entry_2', 'someone-else@yopmail.com')],
+  });
+
+  assert.equal(await purgeApplicationVersions(fullsync, user), 2);
+  assert.deepEqual(
+    fullsync.dbs[HISTORY_DB].map((d) => d._id),
+    ['entry_2'],
+  );
+});
+
+test('a release without the version history database has no versions to delete', async () => {
+  const fullsync = {
+    async find(db) {
+      throw new Error(`FullSync _find on ${db} failed: 404 {"error":"not_found","reason":"Database does not exist."}`);
+    },
+  };
+
+  assert.equal(await purgeApplicationVersions(fullsync, 'testuser2-convertigo@yopmail.com'), 0);
+});
+
+test('other failures of the version purge are reported', async () => {
+  const fullsync = {
+    async find(db) {
+      throw new Error(`FullSync _find on ${db} failed: 500 {"error":"unknown_error"}`);
+    },
+  };
+
+  await assert.rejects(purgeApplicationVersions(fullsync, 'testuser2-convertigo@yopmail.com'), / failed: 500 /);
 });

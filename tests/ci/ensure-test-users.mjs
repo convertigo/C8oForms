@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import {
   deleteDocs,
   findAll,
+  purgeApplicationVersions,
   pruneStaleMcpTokens,
   removeOrphanHiddenPublicationGroups,
 } from './test-account-cleanup.mjs';
@@ -371,7 +372,8 @@ function shouldResetUserData() {
 // can query/delete across the per-user FullSync ACL. The user's settings doc
 // (C8Oreserved_) and shared design/template docs are preserved. Then drop what
 // the document purge leaves behind: the hidden groups of the deleted
-// publications and the MCP tokens of earlier runs (test-account-cleanup.mjs).
+// publications, the versions of the deleted applications and the MCP tokens of
+// earlier runs (test-account-cleanup.mjs).
 async function cleanupUserData(endpoint, user) {
   const fullsync = adminFullSync(endpoint);
   let total = 0;
@@ -386,6 +388,10 @@ async function cleanupUserData(endpoint, user) {
   await bestEffort(`hidden publication groups of ${user}`, async () => {
     const { groups, memberships } = await removeOrphanHiddenPublicationGroups(fullsync, user);
     console.log(`removed ${groups} orphan hidden publication group(s), ${memberships} membership(s), for ${user}`);
+  });
+  await bestEffort(`application versions of ${user}`, async () => {
+    const deleted = await purgeApplicationVersions(fullsync, user);
+    console.log(`deleted ${deleted} application version document(s) for ${user}`);
   });
   await bestEffort(`MCP tokens of ${user}`, async () => {
     const dropped = await pruneStaleMcpTokens(fullsync, user);

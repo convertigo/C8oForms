@@ -7,11 +7,15 @@ comment: |
   expression: |
     '// Imports and helpers functions
     include("js/common.js");
+    include("js/form_import.js");
+    include("js/application_history.js");
     
     let loglevel = "warn";
     let authenticatedUserID = context.getAuthenticatedUser();
     let authGranted = false;
     let new_doc = false;
+    // draft the caller may edit, as it was before this save (#1359)
+    let historyDraft = null;
     
     try {
     	meta = JSON.parse(meta);
@@ -19,164 +23,6 @@ comment: |
     catch (e) {
     	meta = {};
     }
-    var getRefId = function(ref) {
-    	if (ref != null && typeof ref == "object") {
-    		return ref.id;
-    	}
-    	return ref;
-    };
-    var collectIds = function(elements, ids) {
-    	if (!(elements instanceof Array)) {
-    		return;
-    	}
-    	for (var i = 0; i < elements.length; i++) {
-    		var current = elements[i];
-    		if (current == null) {
-    			continue;
-    		}
-    		if (current.id != null) {
-    			ids["" + current.id] = true;
-    		}
-    		if (current.children instanceof Array) {
-    			collectIds(current.children, ids);
-    		}
-    	}
-    };
-    var collectInvalidPageIds = function(elements, validPages, idsToRemove) {
-    	if (!(elements instanceof Array)) {
-    		return;
-    	}
-    	for (var i = 0; i < elements.length; i++) {
-    		var current = elements[i];
-    		if (current == null) {
-    			continue;
-    		}
-    		var hasPage = current.config != null && Object.prototype.hasOwnProperty.call(current.config, "page");
-    		var invalidPage = hasPage && current.config.page != null && !validPages["" + current.config.page];
-    		if (invalidPage && current.id != null) {
-    			idsToRemove["" + current.id] = true;
-    		}
-    		if (current.children instanceof Array) {
-    			collectInvalidPageIds(current.children, validPages, idsToRemove);
-    		}
-    	}
-    };
-    var collectDescendantIds = function(elements, idsToRemove) {
-    	if (!(elements instanceof Array)) {
-    		return;
-    	}
-    	var refKeys = ["childrenRefs", "childrenRefsElse"];
-    	var changed = true;
-    	while (changed) {
-    		changed = false;
-    		for (var i = 0; i < elements.length; i++) {
-    			var current = elements[i];
-    			if (current == null || current.id == null) {
-    				continue;
-    			}
-    			var currentId = "" + current.id;
-    			if (idsToRemove[currentId]) {
-    				for (var r = 0; r < refKeys.length; r++) {
-    					var refs = current[refKeys[r]];
-    					if (refs instanceof Array) {
-    						for (var j = 0; j < refs.length; j++) {
-    							var refId = getRefId(refs[j]);
-    							if (refId != null && !idsToRemove["" + refId]) {
-    								idsToRemove["" + refId] = true;
-    								changed = true;
-    							}
-    						}
-    					}
-    				}
-    				if (current.children instanceof Array) {
-    					collectIds(current.children, idsToRemove);
-    				}
-    			}
-    			else if (current.parentRef != null && idsToRemove["" + current.parentRef]) {
-    				idsToRemove[currentId] = true;
-    				changed = true;
-    			}
-    		}
-    	}
-    };
-    var filterRemovedElements = function(elements, idsToRemove) {
-    	var cleaned = [];
-    	if (!(elements instanceof Array)) {
-    		return cleaned;
-    	}
-    	for (var i = 0; i < elements.length; i++) {
-    		var current = elements[i];
-    		if (current == null) {
-    			continue;
-    		}
-    		if (current.id != null && idsToRemove["" + current.id]) {
-    			continue;
-    		}
-    		if (current.children instanceof Array) {
-    			current.children = filterRemovedElements(current.children, idsToRemove);
-    		}
-    		cleaned.push(current);
-    	}
-    	return cleaned;
-    };
-    var cleanupRefs = function(elements, remainingIds) {
-    	if (!(elements instanceof Array)) {
-    		return;
-    	}
-    	var refKeys = ["childrenRefs", "childrenRefsElse"];
-    	for (var i = 0; i < elements.length; i++) {
-    		var current = elements[i];
-    		if (current == null) {
-    			continue;
-    		}
-    		for (var r = 0; r < refKeys.length; r++) {
-    			var refs = current[refKeys[r]];
-    			if (refs instanceof Array) {
-    				current[refKeys[r]] = refs.filter(function(ref) {
-    					var refId = getRefId(ref);
-    					return refId == null || remainingIds["" + refId] === true;
-    				});
-    			}
-    		}
-    		if (current.children instanceof Array) {
-    			cleanupRefs(current.children, remainingIds);
-    		}
-    	}
-    };
-    var sanitizeImportedFormStructure = function(importedMeta) {
-    	if (importedMeta == null || !(importedMeta.pages instanceof Array) || !(importedMeta.formulaire instanceof Array)) {
-    		return;
-    	}
-    	var validPages = {};
-    	var hasValidPage = false;
-    	for (var p = 0; p < importedMeta.pages.length; p++) {
-    		var pageDef = importedMeta.pages[p];
-    		if (pageDef != null && pageDef.pageTechName != null && pageDef.pageTechName !== "") {
-    			validPages["" + pageDef.pageTechName] = true;
-    			hasValidPage = true;
-    		}
-    	}
-    	if (!hasValidPage) {
-    		return;
-    	}
-    	var idsToRemove = {};
-    	collectInvalidPageIds(importedMeta.formulaire, validPages, idsToRemove);
-    	collectDescendantIds(importedMeta.formulaire, idsToRemove);
-    	importedMeta.formulaire = filterRemovedElements(importedMeta.formulaire, idsToRemove);
-    	var remainingIds = {};
-    	collectIds(importedMeta.formulaire, remainingIds);
-    	for (var i = 0; i < importedMeta.formulaire.length; i++) {
-    		var item = importedMeta.formulaire[i];
-    		if (item != null && item.parentRef != null && !remainingIds["" + item.parentRef] && item.id != null) {
-    			idsToRemove["" + item.id] = true;
-    		}
-    	}
-    	collectDescendantIds(importedMeta.formulaire, idsToRemove);
-    	importedMeta.formulaire = filterRemovedElements(importedMeta.formulaire, idsToRemove);
-    	remainingIds = {};
-    	collectIds(importedMeta.formulaire, remainingIds);
-    	cleanupRefs(importedMeta.formulaire, remainingIds);
-    };
     include("js/form_write_guard.js");
     var formWriteGuard = c8oFormWriteGuard.prepare(meta, function (id) { return getDoc(id, null, "c8oforms_fs"); });
     if (formWriteGuard.error) {
@@ -251,7 +97,12 @@ comment: |
     		//migrate source form id if from import
     		try{
     			if(meta["fromImport"] == true){
-    				sanitizeImportedFormStructure(meta);
+    				c8oFormImport.sanitizeStructure(meta);
+    				// export metadata and history bookkeeping of the source application
+    				delete meta["__c8oformsExport"];
+    				delete meta["historyCheckpointAt"];
+    				// #1359: the first version of the imported application is recorded as an import
+    				meta["historyNextOrigin"] = "import";
     				for(var key_form in meta["formulaire"]){
     					var elem =  meta["formulaire"][key_form];
     					if(elem.sources){
@@ -366,33 +217,12 @@ comment: |
     	}
     	if (!new_doc) {
     		// now check if existing_doc is authorized for currentUser
-    		if (existing_doc._deleted == null && ((existing_doc["~c8oAcl"] == null && existing_doc.c8oGrp == null) || existing_doc["~c8oAcl"] == authenticatedUserID)) {
-    			authGranted = true;
-    		}
-    		// if acl is not enough to grant access, check with used groups and existing_doc.grp is not null
-    		let grpIsArray = isArray(existing_doc.c8oGrp);
-    		let grpIsObject = isObject(existing_doc.c8oGrp);
-    		if (!authGranted && existing_doc.c8oGrp != null && ((grpIsArray && existing_doc.c8oGrp.length > 0) || (grpIsObject && Object.keys(existing_doc.c8oGrp).length > 0))) {
-    			// call c8ofullsyncgrp =>  design/get_groups_by_user
-    			query = new java.util.HashMap();
-    			query.put(''reduce'', ''false'');
-    			keys = toJettison([authenticatedUserID]);
-    			rows = toJSON(fsclient.postView("c8ofullsyncgrp", ''design'', ''get_groups_by_user'', query, keys)).rows;
-    
-    			// call c8oforms_fs =>  authentication/distinctGroups
-    			query = new java.util.HashMap();
-    			query.put(''reduce'', ''true'');
-    			query.put(''group'', ''true'');
-    			_use_keys = rows.map((x) => { return x.value });
-    			keys = toJettison(_use_keys);
-    			usedGroups = toJSON(fsclient.postView("c8oforms_fs", ''authentication'', ''distinctGroups'', query, keys));
-    			usedGroups = usedGroups.rows.map((x) => { return x.key });
-    			if (usedGroups.length > 0 && ((grpIsArray && existing_doc.c8oGrp.some(function(value) { return usedGroups.indexOf(value) !== -1; })) || (grpIsObject && usedGroups.some(function(group) { return (existing_doc.c8oGrp[group] == true || existing_doc.c8oGrp[group] == "true") })))) {
-    				authGranted = true;
-    			}
-    		}
+    		authGranted = canEditFormDocument(existing_doc, authenticatedUserID);
     		if (!authGranted) {
     			existing_doc = null;
+    		}
+    		else {
+    			historyDraft = existing_doc;
     		}
     	}
     }
@@ -425,6 +255,24 @@ comment: |
     		delete meta["_up_any_file"];
     		delete meta["_up_content_type"];
     		delete meta["_up_name"];
+    	}
+    	// #1359: the first save of each minute first keeps the state the draft holds as an automatic version
+    	// (attachment uploads excluded: an import uploads its media right after creating the draft).
+    	if (historyDraft != null && !_up_thumbnail && !_up_wallpaper && !_up_delete_attach && !_up_any_file) {
+    		if (c8oHistory.checkpointDue(historyDraft)) {
+    			try {
+    				c8oHistory.snapshot(historyDraft, historyDraft.historyNextOrigin == "import" ? "import" : "auto", { author: authenticatedUserID, skipIfUnchanged: true });
+    			}
+    			catch (e) {
+    				log.warn("application history: automatic version of " + historyDraft._id + " failed: " + e);
+    			}
+    			// set even after a failure, so a broken history store does not slow down every save
+    			meta["historyCheckpointAt"] = new Date().getTime();
+    			meta["historyNextOrigin"] = null;
+    		}
+    		else if (historyDraft.historyCheckpointAt != null) {
+    			meta["historyCheckpointAt"] = historyDraft.historyCheckpointAt;
+    		}
     	}
     	// prepare merge params
     	let mergeRules = new HashMap();

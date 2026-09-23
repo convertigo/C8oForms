@@ -8,6 +8,7 @@
 
 export const FORMS_DB = 'c8oforms_fs';
 export const GROUPS_DB = 'c8ofullsyncgrp';
+export const HISTORY_DB = 'c8oforms_history_fs';
 export const HIDDEN_PUBLICATION_GROUP_PREFIX = '_C8O_HIDDEN_published_';
 // A CI run lasts about two hours (Chromium then Firefox on the nightly): tokens
 // minted by a run still in progress are younger than this and are kept.
@@ -73,6 +74,26 @@ export async function removeOrphanHiddenPublicationGroups(fullsync, user) {
   }
   const removed = await deleteDocs(fullsync, GROUPS_DB, members);
   return { groups: orphans.length, memberships: removed };
+}
+
+/**
+ * The version history of the applications (#1359) lives in its own database, and
+ * each of its documents carries the creator of its application. The document
+ * purge deletes the applications, not their versions: delete the versions of
+ * `user` too. Releases older than the history have no such database, which is
+ * not an error.
+ */
+export async function purgeApplicationVersions(fullsync, user) {
+  let docs;
+  try {
+    docs = await findAll(fullsync, HISTORY_DB, { creator: user }, ['_id', '_rev']);
+  } catch (error) {
+    if (/ failed: 404 /.test(String(error?.message ?? error))) {
+      return 0;
+    }
+    throw error;
+  }
+  return deleteDocs(fullsync, HISTORY_DB, docs);
 }
 
 /**
