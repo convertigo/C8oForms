@@ -20,9 +20,19 @@ var c8oHistory = (function () {
 		"config", "navigation", "globalNavigationEnabled", "wallpaper", "thumbnail", "loopToForm",
 		"progressIndicator", "respNameRequired", "technicalVersion"
 	];
-	// Most recent entries kept per automatic origin; the other origins are kept until the application is deleted.
-	var RETENTION = { auto: 20, pre_restore: 10, restore: 20 };
-	var CHECKPOINT_DELAY = 30 * 60 * 1000;
+	// Most recent entries kept around restores. Automatic versions thin out with age (AUTO_TIERS); the other
+	// origins (manual, publish, import) are kept until the application is deleted.
+	var RETENTION = { pre_restore: 10, restore: 20 };
+	var HOUR = 60 * 60 * 1000;
+	// Every automatic version of the last hour, then the newest of each hour for a day, the newest of each day
+	// for a week, none older.
+	var AUTO_TIERS = [
+		{ upTo: HOUR, bucket: 0 },
+		{ upTo: 24 * HOUR, bucket: HOUR },
+		{ upTo: 7 * 24 * HOUR, bucket: 24 * HOUR }
+	];
+	// At most one automatic version per minute of edition.
+	var CHECKPOINT_DELAY = 60 * 1000;
 	// A content or blob just stored may not be referenced by its entry yet: only older ones are collected.
 	var GARBAGE_GRACE = 60 * 60 * 1000;
 	var MAX_LABEL_LENGTH = 120;
@@ -324,24 +334,51 @@ var c8oHistory = (function () {
 		return entry;
 	};
 
-	// Deletes the oldest automatic entries beyond the retention, then the contents and blobs no entry uses any more.
+	// entries: [{id, rev, createdAt}] of one application; returns the automatic entries AUTO_TIERS drops at `at`.
+	var autoEntriesToDrop = function (entries, at) {
+		var kept = {};
+		return entries.slice().sort(function (a, b) {
+			return Number(b.createdAt) - Number(a.createdAt);
+		}).filter(function (entry) {
+			var age = at - Number(entry.createdAt);
+			for (var t = 0; t < AUTO_TIERS.length; t++) {
+				if (age < AUTO_TIERS[t].upTo) {
+					if (!AUTO_TIERS[t].bucket) {
+						return false;
+					}
+					var bucket = t + ":" + Math.floor(Number(entry.createdAt) / AUTO_TIERS[t].bucket);
+					if (kept[bucket]) {
+						return true;
+					}
+					kept[bucket] = true;
+					return false;
+				}
+			}
+			return true;
+		});
+	};
+
+	// Deletes the entries of `origin` beyond its retention, then the contents and blobs no entry uses any more.
 	var prune = function (applicationId, origin) {
-		var keep = RETENTION[origin];
-		if (keep == null) {
+		if (origin != "auto" && RETENTION[origin] == null) {
 			return;
 		}
-		var rows = viewRows("entries_by_origin", {
+		var query = {
 			descending: true,
 			startkey: JSON.stringify(["" + applicationId, origin, {}]),
-			endkey: JSON.stringify(["" + applicationId, origin]),
-			skip: keep
+			endkey: JSON.stringify(["" + applicationId, origin])
+		};
+		if (origin != "auto") {
+			query.skip = RETENTION[origin];
+		}
+		var rows = viewRows("entries_by_origin", query).map(function (row) {
+			return { id: row.id, rev: row.value, createdAt: row.key[2] };
 		});
-		if (!rows.length) {
+		var dropped = origin == "auto" ? autoEntriesToDrop(rows, now()) : rows;
+		if (!dropped.length) {
 			return;
 		}
-		removeDocs(rows.map(function (row) {
-			return { id: row.id, rev: row.value };
-		}));
+		removeDocs(dropped);
 		collectGarbage(applicationId);
 	};
 
@@ -450,13 +487,16 @@ var c8oHistory = (function () {
 		// Hash of the draft as it is now, to spot the entries holding the same state.
 		currentHash: currentHash,
 
-		list: function (applicationId, limit, before) {
+		autoEntriesToDrop: autoEntriesToDrop,
+
+		// withAutomatic false leaves the automatic versions out.
+		list: function (applicationId, limit, before, withAutomatic) {
 			var size = Math.min(Math.max(parseInt(limit, 10) || 20, 1), MAX_PAGE_SIZE);
 			var startkey = ["" + applicationId, {}];
 			if (before instanceof Array && before.length == 2) {
 				startkey = ["" + applicationId, Number(before[0]), "" + before[1]];
 			}
-			var rows = viewRows("entries", {
+			var rows = viewRows(withAutomatic === false ? "entries_without_auto" : "entries", {
 				descending: true,
 				limit: size + 1,
 				startkey: JSON.stringify(startkey),

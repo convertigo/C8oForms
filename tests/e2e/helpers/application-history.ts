@@ -28,6 +28,7 @@ export const HISTORY_SEL = {
   entryRestoreButton: 'ion-button.class1790181000092',
   entryExportButton: 'ion-button.class1790181000100',
   empty: '.class1790181000057',
+  showAutomaticToggle: 'ion-toggle.class1790181500008',
   error: '.class1790181000053',
   restoreConfirmButton: 'ion-alert:not(.overlay-hidden) button.btn--success',
   selectorImportButton: 'ion-button.class1761574287978',
@@ -113,6 +114,25 @@ export async function createVersionThroughUi(page: Page, label: string): Promise
       .toBe(label);
     expect(await modal.locator(HISTORY_SEL.entry).count(), 'creating a version should add one entry').toBe(before + 1);
     await expect(input, 'the label field should be cleared once the version is created').toHaveValue('');
+  });
+}
+
+/** Shows or hides the automatic versions and waits for the list to follow. */
+export async function setAutomaticVersionsShown(page: Page, shown: boolean): Promise<void> {
+  await test.step(`${shown ? 'Show' : 'Hide'} the automatic versions`, async () => {
+    const toggle = page.locator(HISTORY_SEL.modal).last().locator(HISTORY_SEL.showAutomaticToggle).first();
+    await expect(toggle, 'the history should offer to hide the automatic versions').toBeVisible({ timeout: 10_000 });
+    const checked = () => toggle.evaluate((element) => (element as HTMLElement & { checked?: boolean }).checked === true);
+    if ((await checked()) !== shown) {
+      await toggle.click({ timeout: 10_000 });
+    }
+    await expect.poll(checked, { message: `the automatic versions toggle should be ${shown ? 'on' : 'off'}`, timeout: 10_000 }).toBe(shown);
+    await expect
+      .poll(async () => (await readVersionHistory(page)).some((entry) => entry.origin === 'auto'), {
+        message: `the list should ${shown ? 'show' : 'hide'} the automatic versions`,
+        timeout: 30_000,
+      })
+      .toBe(shown);
   });
 }
 

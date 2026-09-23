@@ -19,6 +19,7 @@ import {
   readVersionHistory,
   restoreVersionFromEditorThroughUi,
   restoreVersionFromListThroughUi,
+  setAutomaticVersionsShown,
 } from './helpers/application-history';
 
 /**
@@ -26,8 +27,8 @@ import {
  * (version history with restore capability for applications).
  *
  * An application keeps a history of versions (created on demand, on every
- * publication, automatically while it is edited, and when a file is imported
- * into it). Restoring a version rewrites the application itself: same id, so
+ * publication, automatically while it is edited - at most one a minute, thinned
+ * out with age - and when a file is imported into it). Restoring a version rewrites the application itself: same id, so
  * same URL, access rights and publication; the state it replaced is kept as a
  * version, which makes the restore undoable. An imported application file
  * creates a copy named as such, never taken for the original.
@@ -60,6 +61,13 @@ test('#1359 - restoring a version from the editor replaces the application in pl
     await createVersionThroughUi(page, label);
     const [latest] = await readVersionHistory(page);
     expect(latest, 'the named version should be the current one').toMatchObject({ origin: 'manual', title: label, current: true, restorable: false });
+  });
+
+  await test.step('The automatic versions can be hidden', async () => {
+    // The first save of the application kept its initial state as an automatic version.
+    await setAutomaticVersionsShown(page, false);
+    expect((await readVersionHistory(page)).map((entry) => entry.origin), 'only the named version should remain').toEqual(['manual']);
+    await setAutomaticVersionsShown(page, true);
     await closeVersionHistory(page);
   });
 
