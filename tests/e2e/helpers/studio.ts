@@ -2857,6 +2857,26 @@ export async function visibleDataGridRow(page: Page, text: string, timeout = 45_
   return row;
 }
 
+/**
+ * Header labels of a Data Grid exactly as rendered. Playwright `hasText` matches case-insensitively,
+ * so it cannot tell a source column `Etat de la saisie` from the title-cased `Etat De La Saisie` (#1554).
+ */
+export async function dataGridHeaderTexts(grid: Locator): Promise<string[]> {
+  return grid
+    .locator('.ag-header-cell .ag-header-cell-text')
+    .evaluateAll((cells) => cells.map((cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean));
+}
+
+/** Waits until the Data Grid shows every expected header, compared with exact case. */
+export async function expectDataGridHeaders(grid: Locator, expected: string[], surface: string): Promise<void> {
+  await expect
+    .poll(() => dataGridHeaderTexts(grid), {
+      message: `${surface} Data Grid headers should read exactly ${expected.map((name) => `"${name}"`).join(', ')}`,
+      timeout: 15_000,
+    })
+    .toEqual(expect.arrayContaining(expected));
+}
+
 export async function normalizedLocatorText(locator: Locator): Promise<string> {
   return (await locator.innerText()).replace(/\s+/g, ' ').trim();
 }
