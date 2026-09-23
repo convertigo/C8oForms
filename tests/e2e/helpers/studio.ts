@@ -83,6 +83,15 @@ export const SEL = {
   buttonIconNameInput: '.class1776709887054 input',
   buttonIconClearButton: 'ion-icon.class1780311333214, .class1780311333214',
   buttonRenderedIcon: 'c8oforms-itembuttonviewer ion-button ion-icon',
+  // chooseIcon shared component, opened as a modal by the Button icon field.
+  // Each virtual row holds three cells (GridCol, GridCol1, GridCol2).
+  iconPickerModal: 'ion-modal c8oforms-chooseicon',
+  iconPickerSearchInput: 'c8oforms-chooseicon ion-searchbar.class1674063111264 input',
+  iconPickerItem:
+    'c8oforms-chooseicon :is(ion-item.class1779443600106, ion-item.class1779443600116, ion-item.class1779443600126)',
+  iconPickerItemLabel: ':is(ion-label.class1779443600109, ion-label.class1779443600119, ion-label.class1779443600129)',
+  iconPickerItemImage:
+    ':is(ion-icon.class1780312500101, ion-icon.class1780312500111, ion-icon.class1780312500121, ion-img.class1779443600107, ion-img.class1779443600117, ion-img.class1779443600127)',
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
@@ -3370,6 +3379,81 @@ export async function expectButtonDefaultIconName(page: Page, expectedIcon = 'bu
       page.locator(SEL.buttonIconNameInput).first(),
       `new Button components should default to the available ${expectedIcon} icon`,
     ).toHaveValue(expectedIcon, { timeout: 15_000 });
+  });
+}
+
+export async function openButtonIconPicker(page: Page): Promise<void> {
+  await test.step('Open the Button icon picker', async () => {
+    await openButtonIconStyleSection(page);
+    await page.locator(SEL.buttonIconNameInput).first().click({ timeout: 10_000 });
+    await expect(
+      page.locator(SEL.iconPickerModal).first(),
+      'clicking the Button icon field should open the icon picker modal',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function searchIconPicker(page: Page, query: string): Promise<void> {
+  await test.step(`Search "${query}" in the icon picker`, async () => {
+    await page.locator(SEL.iconPickerSearchInput).first().fill(query, { timeout: 10_000 });
+    const labels = page.locator(`${SEL.iconPickerItem} ${SEL.iconPickerItemLabel}`);
+    await expect
+      .poll(
+        async () => {
+          const names = await labels.allTextContents();
+          return names.length > 0 && names.every((name) => name.includes(query));
+        },
+        { message: `the icon picker should only list icons matching "${query}"`, timeout: 10_000 },
+      )
+      .toBe(true);
+  });
+}
+
+export function iconPickerItem(page: Page, iconName: string): Locator {
+  const exactName = new RegExp(`^\\s*${iconName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+  return page
+    .locator(SEL.iconPickerItem)
+    .filter({ has: page.locator(SEL.iconPickerItemLabel, { hasText: exactName }) })
+    .first();
+}
+
+/**
+ * Clicks the image or the text of an icon picker cell exactly once, like a user
+ * would, and asserts that this single click closed the modal. No retry and no
+ * dispatchEvent: a second click would hide the bug of #1545. The button is held
+ * down as long as a human press, so the change detection triggered by the
+ * search bar blur on mousedown runs before mouseup, as it does for a user.
+ */
+export async function pickIconWithOneClick(page: Page, iconName: string, target: 'image' | 'text'): Promise<void> {
+  await test.step(`Pick "${iconName}" with one click on its ${target}`, async () => {
+    const item = iconPickerItem(page, iconName);
+    await expect(item, `the icon picker should list ${iconName}`).toBeVisible({ timeout: 10_000 });
+    const part = item.locator(target === 'image' ? SEL.iconPickerItemImage : SEL.iconPickerItemLabel).first();
+    await expect(part, `the ${target} of ${iconName} should be visible`).toBeVisible({ timeout: 10_000 });
+    await part.click({ delay: 150, timeout: 10_000 });
+    await expect(
+      page.locator(SEL.iconPickerModal),
+      `one click on the ${target} of ${iconName} should close the icon picker`,
+    ).toHaveCount(0, { timeout: 5_000 });
+  });
+}
+
+export async function expectButtonIconName(page: Page, iconName: string): Promise<void> {
+  await test.step(`Assert the Button icon is ${iconName}`, async () => {
+    await expect(
+      page.locator(SEL.buttonIconNameInput).first(),
+      'the Button icon field should show the icon picked in the modal',
+    ).toHaveValue(iconName, { timeout: 10_000 });
+  });
+}
+
+export async function expectButtonIconFieldReadOnly(page: Page): Promise<void> {
+  await test.step('Assert the Button icon field is read-only', async () => {
+    await openButtonIconStyleSection(page);
+    await expect(
+      page.locator(SEL.buttonIconNameInput).first(),
+      'the Button icon field only opens the picker: a typed name was never applied, so it must not be editable',
+    ).not.toBeEditable({ timeout: 10_000 });
   });
 }
 
