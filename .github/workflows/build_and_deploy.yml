@@ -754,8 +754,8 @@ jobs:
   e2e_tests:
     # The continuous release/dispatch path runs Chromium only. The scheduled
     # Firefox phase below starts after every Chromium shard has completed.
-    # Chromium uses all 16 test accounts (shard N drives testuserN): Firefox never
-    # runs at the same time within a run, so its accounts (9-16) are free here.
+    # Eight shards, not more: 16 parallel shards (2.2.0-beta346) saturated the shared
+    # test server (XHR p95 2.6 s -> 12.7 s) and 16 tests failed on server-side timeouts.
     needs: prepare_e2e_test_users
     if: ${{ always() && needs.prepare_e2e_test_users.result == 'success' }}
     runs-on: ubuntu-latest
@@ -770,8 +770,6 @@ jobs:
     # Keyed per account rather than per workflow so that builds, deploys and GitHub releases
     # are never cancelled or skipped (a workflow-level group drops pending runs, and with them
     # the release of their tag). A run dispatched against another endpoint uses its own group.
-    # The groups match the Firefox shards' (e2e-shards.yml) for accounts 9-16, so a push
-    # during the nightly Firefox phase cancels those nightly shards, as for any overlap.
     concurrency:
       group: c8oforms-e2e-${{ github.event.inputs.endpoint || 'default' }}-user-${{ matrix.shard }}
       cancel-in-progress: true
@@ -780,14 +778,14 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.61.0-noble
     env:
-      E2E_SHARD_TOTAL: 16
+      E2E_SHARD_TOTAL: 8
     strategy:
       fail-fast: false
-      max-parallel: 16
+      max-parallel: 8
       matrix:
         browser: [chromium]
         # Shard N drives testuserN, the Nth account of C8OFORMS_TEST_USERS.
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1043,7 +1041,7 @@ jobs:
       - name: Generate e2e regression report
         working-directory: tests
         env:
-          EXPECTED_E2E_RESULT_SHARDS: ${{ github.event_name == 'schedule' && '24' || '16' }}
+          EXPECTED_E2E_RESULT_SHARDS: ${{ github.event_name == 'schedule' && '16' || '8' }}
           E2E_REOPEN_ISSUES: false
           RELEASE_TAG: ${{ github.ref_name }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
