@@ -68,8 +68,8 @@ No known product gap is currently tracked in this catalog.
 | --- | --- | --- |
 | CMP-DATE-001 | `functional-components-values.spec.ts` / `CMP-DATE-001 - Date alternate display format runtime rendering contract` (`fixme`) | Define the expected viewer value for alternate Date display formats and timezone-sensitive rendering. |
 | CMP-TIME-001 | `functional-components-values.spec.ts` / `CMP-TIME-001 - Time alternate display format runtime rendering contract` (`fixme`) | Define the expected viewer value for 12-hour/seconds display formats and hour-cycle behavior. |
-| SRC-006 | `functional-sources.spec.ts` / `SRC-006 - JavaScript source filter runtime behavior contract` (`fixme`) | Define whether JavaScript filter values must filter viewer rows or only persist authored source code. |
-| SRC-010 | `functional-sources.spec.ts` / `SRC-010 - Baserow source picker isolates configured users` | Set a primary MCP token and `C8OFORMS_FUNCTIONAL_SECONDARY_MCP_TOKEN`; the secondary Studio user can be explicit or auto-provisioned with `CONVERTIGO_ADMIN_PASSWORD`. |
+| SRC-006 | `functional-sources-select.spec.ts` / `SRC-006 - JavaScript source filter runtime behavior contract` (`fixme`) | Define whether JavaScript filter values must filter viewer rows or only persist authored source code. |
+| SRC-010 | `functional-sources-select.spec.ts` / `SRC-010 - Baserow source picker isolates configured users` | Set a primary MCP token and `C8OFORMS_FUNCTIONAL_SECONDARY_MCP_TOKEN`; the secondary Studio user can be explicit or auto-provisioned with `CONVERTIGO_ADMIN_PASSWORD`. |
 | X-003 | `functional-transverse.spec.ts` / `X-003 - mobile Preview button opens the viewer` (`fixme`) | Expose or define a user-clickable mobile Preview entry point. |
 
 ## Playwright Implementation Rules
@@ -296,8 +296,9 @@ Location, Business logic.
    for Text, Checkbox, Radio, Select, Slider, Date, Time.
 4. `functional-components-media.spec.ts`: Import file, Camera, Barcode,
    Signature, Location, and other media/input components.
-5. `functional-sources.spec.ts`: SRC-001 to SRC-010 with ensure-created Baserow
-   fixtures.
+5. `functional-sources-select.spec.ts`, `functional-sources-grid.spec.ts` and
+   `functional-sources-chart-map.spec.ts`: SRC-001 to SRC-010 with ensure-created
+   Baserow fixtures.
 6. `functional-visibility.spec.ts`: VIS-001 to VIS-006.
 7. `functional-navigation.spec.ts`: NAV-001 to NAV-004.
 8. `functional-workflows.spec.ts`: WF-001 to WF-010.

@@ -286,10 +286,22 @@ comment: Process a tick (Refresh define in caf)
           				}
           				return filters == null ? {} : filters;
           			};
+          			// Rows of a request issued before a delete made from this client answered may still
+          			// hold the deleted forms (recorded by formListChanged in selectorPage): drop them, so a
+          			// late response never brings a deleted card back. At worst this hides forms that are
+          			// gone anyway; requests issued after the delete are left untouched.
+          			const withoutRemovedForms = (docs, requestId) => {
+          				const removed = page.local.removedFormIds;
+          				if (removed == null || !Array.isArray(docs) || Number(requestId) > removed.upTo) {
+          					return docs;
+          				}
+          				return docs.filter((doc) => doc == null || removed.ids.indexOf(doc._id) < 0);
+          			};
           			const applyExecuteViewResponse = (
           				response,
           				currentRequestId,
-          				pagination
+          				pagination,
+          				contextKey
           			) => {
           				if (
           					currentRequestId !==
@@ -488,12 +500,18 @@ comment: Process a tick (Refresh define in caf)
           
           				page.local.alreadyFinished = true;
           				page.local.loadingError = false;
-          				page.local.spinner = false;
           
           				page.ref.detectChanges();
           
           setTimeout(() => {
-              page["list"] = docs;
+              // Filtered here, when applied, not above: a delete may have answered since.
+              page["list"] = withoutRemovedForms(docs, currentRequestId);
+              // Stamped with the rows it describes, and cleared in the same change
+              // detection pass: clearing the spinner earlier let the empty state flash
+              // over the previous list on every refresh that went from empty to filled.
+              page.local.listContextKey = contextKey;
+              page.local.spinner = false;
+              page.local.refreshing = false;
               page.local.done = true;
               page.ref.detectChanges();
               requestAnimationFrame(() => {
@@ -638,6 +656,126 @@ comment: Process a tick (Refresh define in caf)
           //							})
           //					}
           //				}
+          				// --- Live refresh coalescing ------------------------------------------------
+          				// The changes feed is the shared c8oforms_fs feed: every save the user can see
+          				// raises an event. Calling execQuery() per event bumps requestCounter, which
+          				// invalidates the response in flight, then starts another request. When another
+          				// tab of the same account autosaves every ~2s while the server answers in
+          				// 15-30s, no response is ever applied and the list stays on its skeletons.
+          				// Rule: at most one live refresh in flight, at most one queued behind it.
+          				const LIVE_REFRESH_DEBOUNCE_MS = 250;
+          				// A C8oPromise is not guaranteed to settle. Without a deadline a hung request
+          				// would freeze every later live refresh, which is worse than the defect fixed
+          				// here, so the gate reopens on its own after this delay.
+          				const LIVE_REFRESH_MAX_WAIT_MS = 45000;
+          
+          				const liveRefreshState = () => {
+          					if (page.local.liveRefresh == null) {
+          						page.local.liveRefresh = {timer: null, expiryTimer: null, queued: false, reset: false};
+          					}
+          					return page.local.liveRefresh;
+          				};
+          
+          				// Called wherever the feed is cancelled: the timer belongs to this page
+          				// instance and to this invocation, and must never outlive either.
+          				const clearLiveRefreshTimer = () => {
+          					const state = liveRefreshState();
+          					if (state.timer != null) {
+          						clearTimeout(state.timer);
+          					}
+          					if (state.expiryTimer != null) {
+          						clearTimeout(state.expiryTimer);
+          					}
+          					state.timer = null;
+          					state.expiryTimer = null;
+          					state.queued = false;
+          					state.reset = false;
+          				};
+          
+          				const requestIsInFlight = () => {
+          					if (page.local.inFlightRequestId == null) {
+          						return false;
+          					}
+          					if (Date.now() - Number(page.local.inFlightSince || 0) > LIVE_REFRESH_MAX_WAIT_MS) {
+          						page.local.inFlightRequestId = null;
+          						return false;
+          					}
+          					return true;
+          				};
+          
+          				const markRequestStarted = (requestId) => {
+          					page.local.inFlightRequestId = requestId;
+          					page.local.inFlightSince = Date.now();
+          				};
+          
+          				// Keyed on the request id, never on a boolean: requestCounter is also advanced
+          				// from searchApp/searchForm, so a request can be superseded without ever owning
+          				// the gate again. Only the request that took the gate may release it.
+          				const markRequestFinished = (requestId) => {
+          					if (page.local.inFlightRequestId !== requestId) {
+          						return;
+          					}
+          					page.local.inFlightRequestId = null;
+          					const state = liveRefreshState();
+          					if (state.queued) {
+          						state.queued = false;
+          						if (state.expiryTimer != null) {
+          							clearTimeout(state.expiryTimer);
+          							state.expiryTimer = null;
+          						}
+          						scheduleLiveRefresh(state.reset);
+          					}
+          				};
+          
+          				const scheduleLiveRefresh = (reset) => {
+          					const state = liveRefreshState();
+          					if (reset === true) {
+          						state.reset = true;
+          					}
+          					if (state.timer != null) {
+          						return;
+          					}
+          					state.timer = setTimeout(() => {
+          						state.timer = null;
+          						// The page may have been left or re-rooted meanwhile: never issue a query
+          						// nor a detectChanges() against a destroyed view.
+          						if (page.local.live == null || page["closing"] === true) {
+          							return;
+          						}
+          						if (requestIsInFlight()) {
+          							state.queued = true;
+          							// Replayed by markRequestFinished. The request in flight may never settle and
+          							// the deadline is only read when a refresh is attempted: attempt one just
+          							// after it, or a local change would wait for an unrelated feed event.
+          							if (state.expiryTimer == null) {
+          								const waited = Date.now() - Number(page.local.inFlightSince || 0);
+          								state.expiryTimer = setTimeout(() => {
+          									state.expiryTimer = null;
+          									if (state.queued) {
+          										state.queued = false;
+          										scheduleLiveRefresh(state.reset);
+          									}
+          								}, Math.max(LIVE_REFRESH_MAX_WAIT_MS - waited, 0) + LIVE_REFRESH_DEBOUNCE_MS);
+          							}
+          							return;
+          						}
+          						const resetPagination = state.reset;
+          						state.reset = false;
+          						// No forced resetPagination: a live refresh re-issues the page the user is
+          						// reading instead of sending them back to page 1 behind their back.
+          						execQuery({resetPagination: resetPagination, live: true});
+          					}, LIVE_REFRESH_DEBOUNCE_MS);
+          				};
+          
+          				// Identity of the view on screen. Serialised with sorted keys so that two
+          				// equivalent objects always produce the same string.
+          				const listContextKey = (ddoc, folder, filters) => JSON.stringify(
+          					{ddoc: ddoc, folder: folder, filters: filters},
+          					(key, value) => (value != null && typeof value === "object" && !Array.isArray(value))
+          						? Object.keys(value).sort().reduce((sorted, name) => { sorted[name] = value[name]; return sorted; }, {})
+          						: value
+          				);
+          
           				let execQuery = (
           					options = {}
           				) => {
@@ -646,6 +784,10 @@ comment: Process a tick (Refresh define in caf)
           				
           					const currentRequestId =
           						page.local.requestCounter;
+          
+          					// Taken before the search delegation below, so the search path is inside
+          					// the gate too: it is the one that used to restart on every change event.
+          					markRequestStarted(currentRequestId);
           						
           					const paginationContext =
           						ensurePaginationState();
@@ -730,7 +872,11 @@ comment: Process a tick (Refresh define in caf)
           								error,
           								pagination
           							);
-          						});
+          						})
+          						.then(
+          							() => markRequestFinished(currentRequestId),
+          							() => markRequestFinished(currentRequestId)
+          						);
           				
           						return;
           					}
@@ -781,8 +927,28 @@ comment: Process a tick (Refresh define in caf)
           						}
           					};
           				
+          					const contextKey = listContextKey(currentDdoc, folder, filters);
+          
+          					/*
+          					 * Skeletons are skipped only for a live refresh of the SAME view as the one
+          					 * on screen. The key is stamped when the rows are applied, not when the
+          					 * request starts, so it describes what is actually displayed: after a failed
+          					 * or superseded query it still names the previous view and the skeletons come
+          					 * back, instead of leaving another view rows visible with no loading cue.
+          					 */
+          					const silentRefresh =
+          						options["live"] === true &&
+          						page.local.listContextKey === contextKey &&
+          						page["list"] != null &&
+          						page["list"].length > 0;
+          
+          					// Drives the thin progress cue above the results: the only signal that the
+          					// list is updating when the skeletons are skipped.
+          					page.local.refreshing = silentRefresh;
+          					page.local.refreshingRequestId = currentRequestId;
+          
           					pagination.loading = true;
-          					page.local.spinner = true;
+          					page.local.spinner = !silentRefresh;
           					page.local.loadingError = false;
           				
           					page.ref.detectChanges();
@@ -802,13 +968,23 @@ comment: Process a tick (Refresh define in caf)
           						response: any,
           						parameters: any
           					) => {
+          						markRequestFinished(currentRequestId);
+          
           						return applyExecuteViewResponse(
           							response,
           							currentRequestId,
-          							pagination
+          							pagination,
+          							contextKey
           						);
           					})
           					.fail((error) => {
+          						markRequestFinished(currentRequestId);
+          						// Only the request that turned the cue on may turn it off: a superseded request
+          						// failing late must not hide the cue of the one now running.
+          						if (page.local.refreshingRequestId === currentRequestId) {
+          							page.local.refreshing = false;
+          						}
+          
           						if (
           							currentRequestId !==
           							page.local.requestCounter
@@ -829,6 +1005,18 @@ comment: Process a tick (Refresh define in caf)
                                   vars != null &&
                                   vars["resetPagination"] === true
                           });
+          				// Entry point for the actions that change the list from this client (delete,
+          				// duplicate, import): showing their result must not depend on the changes feed.
+          				// Same debounced, gated and silent path as a live change, so a local action and
+          				// the feed event it also raises end up in a single request. Reassigned by every
+          				// invocation, like the feed itself, so it always drives the current query.
+          				// reveal: a form was added (duplicate, import). Ids are creation timestamps and the
+          				// edition list sorts on them, newest first, so that list goes back to page 1 where
+          				// the new form is; any other list keeps the page being read.
+          				page.local.requestListRefresh = (options: any = {}) => scheduleLiveRefresh(
+          					options.resetPagination === true ||
+          					(options.reveal === true && getCurrentDdoc() == "formsV2")
+          				);
           				// live changes
           				let p = Pouch["default"];
           				const header = {
@@ -891,6 +1079,9 @@ comment: Process a tick (Refresh define in caf)
           				try{
           					let dbChanges = new p(page.c8o.fullSyncEndpoint+"/c8oforms_fs", remotePouchHeader);
           					console.log(dbChanges);
+          					// This shared action re-subscribes on every user action, so a timer armed by
+          					// the previous invocation would fire inside this one with a stale closure.
+          					clearLiveRefreshTimer();
           					if(page.local.live && page.local.live.cancel != undefined){
           						try{
           							await page.local.live.cancel();
@@ -920,28 +1111,24 @@ comment: Process a tick (Refresh define in caf)
           						console.log(change);
           					
           						if (
-          							page.local["ddoc"] ==
+          							getCurrentDdoc() ==
           								"formsV2" &&
           							(
           								isValidTimestamp(change.id) ||
           								change.id.indexOf("folder_") == 0
           							)
           						) {
-          							execQuery({
-          								resetPagination: true
-          							});
+          							scheduleLiveRefresh(false);
           						}
           						else if (
-          							page.local["ddoc"] ==
+          							getCurrentDdoc() ==
           								"published_formsV2" &&
           							(
           								isValidPublishTimestamp(change.id) ||
           								change.id.indexOf("folder_") == 0
           							)
           						) {
-          							execQuery({
-          								resetPagination: true
-          							});
+          							scheduleLiveRefresh(false);
           						}
           					})
           				}

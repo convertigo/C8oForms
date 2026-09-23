@@ -1,17 +1,8 @@
-import { test } from '@playwright/test';
+import { test } from './fixtures';
 import {
   assertBaserowSourcePickerIsolationThroughUi,
-  assertMissingGridSourceTableErrorThroughUi,
-  configureChartBaserowTableAndAssertPersistenceThroughUi,
-  configureGridBaserowTableAndAssertViewerRowsThroughUi,
-  configureMapBaserowTableAndAssertPersistenceThroughUi,
   configureSelectBaserowTableAndAssertPersistenceThroughUi,
   configureSelectSourceFilterJavaScriptPaletteValueThroughUi,
-  exerciseChartSourceTypeAndHeightThroughUi,
-  exerciseGridFilterSortSelectionAndReloadThroughUi,
-  exerciseGridSourceFooterAndPaginationThroughUi,
-  exerciseGridTypedBaserowFormattingThroughUi,
-  exerciseMapBaserowMarkersThroughUi,
   exerciseSourcePaletteSectionsCollapseAndDragThroughUi,
   filterSelectBaserowSourceByHiddenTextColumnThroughUi,
   openSourceSelectionPanelFromSelectThroughUi,
@@ -25,7 +16,9 @@ import {
 } from './helpers/functional-studio';
 import { ensureFunctionalUserIfPossible } from './helpers/functional-users';
 
-test.describe('No-Code Studio functional sources contract', () => {
+// Select and Source Palette part of the sources contract; Grid lives in
+// functional-sources-grid.spec.ts and Chart/Map in functional-sources-chart-map.spec.ts.
+test.describe('No-Code Studio functional sources contract - Select and palette', () => {
   test.use({
     viewport: { width: 1920, height: 1080 },
   });
@@ -37,67 +30,11 @@ test.describe('No-Code Studio functional sources contract', () => {
     await openSourceSelectionPanelFromSelectThroughUi(page);
   });
 
-  test('SRC-002 - configure a Baserow table for Grid', async ({ page }) => {
-    test.setTimeout(420_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await configureGridBaserowTableAndAssertViewerRowsThroughUi(page);
-  });
-
-  test('CMP-GRID-001 - Grid source footer and pagination', async ({ page }) => {
-    test.setTimeout(420_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await exerciseGridSourceFooterAndPaginationThroughUi(page);
-  });
-
-  test('CMP-GRID-002 - Grid filter sort row selection and reload', async ({ page }) => {
-    test.setTimeout(420_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await exerciseGridFilterSortSelectionAndReloadThroughUi(page);
-  });
-
-  test('CMP-GRID-001 - Grid typed Baserow formatting', async ({ page }) => {
-    test.setTimeout(420_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await exerciseGridTypedBaserowFormattingThroughUi(page);
-  });
-
   test('SRC-003 - configure Select from Baserow', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await configureSelectBaserowTableAndAssertPersistenceThroughUi(page);
-  });
-
-  test('SRC-004 - configure Chart from Baserow', async ({ page }) => {
-    test.setTimeout(420_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await configureChartBaserowTableAndAssertPersistenceThroughUi(page);
-  });
-
-  test('CMP-CHART-001 - Chart source roles, type, and height', async ({ page }) => {
-    test.setTimeout(420_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await exerciseChartSourceTypeAndHeightThroughUi(page);
-  });
-
-  test('SRC-005 - configure Map from Baserow', async ({ page }) => {
-    test.setTimeout(420_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await configureMapBaserowTableAndAssertPersistenceThroughUi(page);
-  });
-
-  test('CMP-MAP-002 - Map Baserow roles and visible markers', async ({ page }) => {
-    test.setTimeout(420_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await exerciseMapBaserowMarkersThroughUi(page);
   });
 
   test('SRC-006 - filter Select source by hidden text column', async ({ page }) => {
@@ -130,13 +67,6 @@ test.describe('No-Code Studio functional sources contract', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await exerciseSourcePaletteSectionsCollapseAndDragThroughUi(page);
-  });
-
-  test('SRC-009 - missing Grid source table reports an error without loader', async ({ page }) => {
-    test.setTimeout(240_000);
-    await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await assertMissingGridSourceTableErrorThroughUi(page);
   });
 
   test('SRC-010 - Baserow source picker isolates configured users', async ({ page, browser }) => {

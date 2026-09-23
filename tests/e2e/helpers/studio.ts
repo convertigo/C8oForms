@@ -1,4 +1,4 @@
-import { Locator, Page, expect, test } from '@playwright/test';
+import { Locator, Page, Response, expect, test } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -83,6 +83,15 @@ export const SEL = {
   buttonIconNameInput: '.class1776709887054 input',
   buttonIconClearButton: 'ion-icon.class1780311333214, .class1780311333214',
   buttonRenderedIcon: 'c8oforms-itembuttonviewer ion-button ion-icon',
+  // chooseIcon shared component, opened as a modal by the Button icon field.
+  // Each virtual row holds three cells (GridCol, GridCol1, GridCol2).
+  iconPickerModal: 'ion-modal c8oforms-chooseicon',
+  iconPickerSearchInput: 'c8oforms-chooseicon ion-searchbar.class1674063111264 input',
+  iconPickerItem:
+    'c8oforms-chooseicon :is(ion-item.class1779443600106, ion-item.class1779443600116, ion-item.class1779443600126)',
+  iconPickerItemLabel: ':is(ion-label.class1779443600109, ion-label.class1779443600119, ion-label.class1779443600129)',
+  iconPickerItemImage:
+    ':is(ion-icon.class1780312500101, ion-icon.class1780312500111, ion-icon.class1780312500121, ion-img.class1779443600107, ion-img.class1779443600117, ion-img.class1779443600127)',
   selectComponent: 'c8oforms-itemselectviewver',
   radioComponent: 'c8oforms-itemradioviewver',
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
@@ -414,6 +423,8 @@ const SELECTOR_EMPTY_FORM_LIST_RE =
   /(?:No applications found|Aucune application trouvée|No se encontraron aplicaciones|Nessuna applicazione trovata)/i;
 const SELECTOR_RESULT_COUNT_RE = /(\d+)\s*(?:result\(s\)|résultat\(s\)|resultado\(s\)|risultato \(i\))/i;
 
+// Fallback settle window, used only when the SDK session probe (see
+// trackSessionProbe) was not observed.
 const SELECTOR_AUTH_GUARD_SETTLE_MS = 5_000;
 
 async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise<void> {
@@ -621,23 +632,64 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
       'Test user not configured. Copy tests/.env.example to tests/.env and set C8OFORMS_TEST_USER or C8OFORMS_TEST_USERS.',
     );
   }
-  await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (await selectorIsReadyAfterAuthGuard(page, attempt === 0 ? 8_000 : 1_000)) {
-      return;
+  const session = trackSessionProbe(page);
+  try {
+    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (await selectorIsReadyAfterAuthGuard(page, attempt === 0 ? 8_000 : 1_000, session)) {
+        return;
+      }
+      const attemptSucceeded = await loginOnce(page, user, password).catch(() => false);
+      if (attemptSucceeded || (await selectorIsReady(page, 15_000))) {
+        return;
+      }
+      session.reset();
+      await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
     }
-    const attemptSucceeded = await loginOnce(page, user, password).catch(() => false);
-    if (attemptSucceeded || (await selectorIsReady(page, 15_000))) {
-      return;
-    }
-    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
+    await expect
+      .poll(() => selectorIsReady(page, 1_000), {
+        message: 'selector page should be ready after login',
+        timeout: 30_000,
+      })
+      .toBe(true);
+  } finally {
+    session.dispose();
   }
-  await expect
-    .poll(() => selectorIsReady(page, 1_000), {
-      message: 'selector page should be ready after login',
-      timeout: 30_000,
-    })
-    .toBe(true);
+}
+
+interface SessionProbe {
+  /** `authenticated` from the latest SDK session probe, undefined until one answers. */
+  authenticated(): boolean | undefined;
+  reset(): void;
+  dispose(): void;
+}
+
+/**
+ * On start-up the Convertigo SDK asks the server whether the session is valid
+ * (POST services/user.Get). The app shows the selector only after an
+ * `authenticated: true` answer and goes straight to the login page otherwise,
+ * so that answer settles the auth guard without watching the selector for a
+ * late redirect.
+ */
+function trackSessionProbe(page: Page): SessionProbe {
+  let authenticated: boolean | undefined;
+  const onResponse = (response: Response) => {
+    if (!/\/services\/user\.Get(?:[?#]|$)/.test(response.url())) return;
+    response
+      .json()
+      .then((body: { authenticated?: unknown } | null) => {
+        authenticated = body?.authenticated === true;
+      })
+      .catch(() => undefined);
+  };
+  page.on('response', onResponse);
+  return {
+    authenticated: () => authenticated,
+    reset: () => {
+      authenticated = undefined;
+    },
+    dispose: () => page.off('response', onResponse),
+  };
 }
 
 async function loginOnce(page: Page, user: string, password: string): Promise<boolean> {
@@ -652,7 +704,17 @@ async function loginOnce(page: Page, user: string, password: string): Promise<bo
   const submit = await firstVisibleLocator(page, SEL.loginReveal, 'login submit button');
   await submit.click({ timeout: 20_000 }).catch(() => undefined);
   await waitForIonicLoading(page, 20_000);
-  return selectorIsReady(page, 20_000);
+  // The login page stays on screen while the sign-in request is in flight. Reading
+  // it as a failure (selectorIsReady) made login() reload './' mid-sign-in, and the
+  // next openLoginForm then waited 30 s for a login button while the app had
+  // already moved on to the selector: ~30 s lost on every cold login.
+  const startedAt = Date.now();
+  do {
+    if (await selectorCandidateIsReady(page, 1_000)) {
+      return true;
+    }
+  } while (Date.now() - startedAt < 20_000);
+  return false;
 }
 
 async function selectorIsReady(page: Page, timeout: number): Promise<boolean> {
@@ -662,7 +724,7 @@ async function selectorIsReady(page: Page, timeout: number): Promise<boolean> {
   return selectorCandidateIsReady(page, timeout);
 }
 
-async function selectorIsReadyAfterAuthGuard(page: Page, timeout: number): Promise<boolean> {
+async function selectorIsReadyAfterAuthGuard(page: Page, timeout: number, session: SessionProbe): Promise<boolean> {
   const startedAt = Date.now();
   let readySince: number | null = null;
   do {
@@ -671,6 +733,9 @@ async function selectorIsReadyAfterAuthGuard(page: Page, timeout: number): Promi
     }
 
     if (await selectorCandidateIsReady(page, 250)) {
+      if (session.authenticated() === true) {
+        return true;
+      }
       readySince ??= Date.now();
       if (Date.now() - readySince >= SELECTOR_AUTH_GUARD_SETTLE_MS) {
         return true;
@@ -711,7 +776,8 @@ async function openLoginForm(page: Page): Promise<void> {
       return;
     }
 
-    const reveal = await firstVisibleLocatorOrNull(page, SEL.loginReveal, attempt === 0 ? 30_000 : 5_000);
+    const reveal = await loginRevealOrSelector(page, attempt === 0 ? 30_000 : 5_000);
+    if (reveal === 'selector') return;
     if (!reveal) break;
     await reveal.click({ timeout: 10_000 }).catch(async () => {
       await reveal.click({ force: true, timeout: 5_000 }).catch(() => undefined);
@@ -723,6 +789,25 @@ async function openLoginForm(page: Page): Promise<void> {
     await page.waitForTimeout(500);
   }
   throw new Error(`login form did not open from ${page.url()}`);
+}
+
+/**
+ * Wait for the login button, or return 'selector' as soon as the app shows the
+ * selector instead (a sign-in still in flight can land there while we wait).
+ */
+async function loginRevealOrSelector(page: Page, timeout: number): Promise<Locator | 'selector' | null> {
+  const startedAt = Date.now();
+  do {
+    const reveal = await firstVisibleLocatorOrNull(page, SEL.loginReveal, 0);
+    if (reveal) {
+      return reveal;
+    }
+    if (ROUTE.selector.test(page.url()) && (await page.locator(SEL.selectorPageRoot).first().isVisible())) {
+      return 'selector';
+    }
+    await page.waitForTimeout(100);
+  } while (Date.now() - startedAt < timeout);
+  return firstVisibleLocatorOrNull(page, SEL.loginReveal, 0);
 }
 
 async function fillInputValue(page: Page, selector: string, value: string, description: string): Promise<void> {
@@ -3370,6 +3455,81 @@ export async function expectButtonDefaultIconName(page: Page, expectedIcon = 'bu
       page.locator(SEL.buttonIconNameInput).first(),
       `new Button components should default to the available ${expectedIcon} icon`,
     ).toHaveValue(expectedIcon, { timeout: 15_000 });
+  });
+}
+
+export async function openButtonIconPicker(page: Page): Promise<void> {
+  await test.step('Open the Button icon picker', async () => {
+    await openButtonIconStyleSection(page);
+    await page.locator(SEL.buttonIconNameInput).first().click({ timeout: 10_000 });
+    await expect(
+      page.locator(SEL.iconPickerModal).first(),
+      'clicking the Button icon field should open the icon picker modal',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function searchIconPicker(page: Page, query: string): Promise<void> {
+  await test.step(`Search "${query}" in the icon picker`, async () => {
+    await page.locator(SEL.iconPickerSearchInput).first().fill(query, { timeout: 10_000 });
+    const labels = page.locator(`${SEL.iconPickerItem} ${SEL.iconPickerItemLabel}`);
+    await expect
+      .poll(
+        async () => {
+          const names = await labels.allTextContents();
+          return names.length > 0 && names.every((name) => name.includes(query));
+        },
+        { message: `the icon picker should only list icons matching "${query}"`, timeout: 10_000 },
+      )
+      .toBe(true);
+  });
+}
+
+export function iconPickerItem(page: Page, iconName: string): Locator {
+  const exactName = new RegExp(`^\\s*${iconName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+  return page
+    .locator(SEL.iconPickerItem)
+    .filter({ has: page.locator(SEL.iconPickerItemLabel, { hasText: exactName }) })
+    .first();
+}
+
+/**
+ * Clicks the image or the text of an icon picker cell exactly once, like a user
+ * would, and asserts that this single click closed the modal. No retry and no
+ * dispatchEvent: a second click would hide the bug of #1545. The button is held
+ * down as long as a human press, so the change detection triggered by the
+ * search bar blur on mousedown runs before mouseup, as it does for a user.
+ */
+export async function pickIconWithOneClick(page: Page, iconName: string, target: 'image' | 'text'): Promise<void> {
+  await test.step(`Pick "${iconName}" with one click on its ${target}`, async () => {
+    const item = iconPickerItem(page, iconName);
+    await expect(item, `the icon picker should list ${iconName}`).toBeVisible({ timeout: 10_000 });
+    const part = item.locator(target === 'image' ? SEL.iconPickerItemImage : SEL.iconPickerItemLabel).first();
+    await expect(part, `the ${target} of ${iconName} should be visible`).toBeVisible({ timeout: 10_000 });
+    await part.click({ delay: 150, timeout: 10_000 });
+    await expect(
+      page.locator(SEL.iconPickerModal),
+      `one click on the ${target} of ${iconName} should close the icon picker`,
+    ).toHaveCount(0, { timeout: 5_000 });
+  });
+}
+
+export async function expectButtonIconName(page: Page, iconName: string): Promise<void> {
+  await test.step(`Assert the Button icon is ${iconName}`, async () => {
+    await expect(
+      page.locator(SEL.buttonIconNameInput).first(),
+      'the Button icon field should show the icon picked in the modal',
+    ).toHaveValue(iconName, { timeout: 10_000 });
+  });
+}
+
+export async function expectButtonIconFieldReadOnly(page: Page): Promise<void> {
+  await test.step('Assert the Button icon field is read-only', async () => {
+    await openButtonIconStyleSection(page);
+    await expect(
+      page.locator(SEL.buttonIconNameInput).first(),
+      'the Button icon field only opens the picker: a typed name was never applied, so it must not be editable',
+    ).not.toBeEditable({ timeout: 10_000 });
   });
 }
 

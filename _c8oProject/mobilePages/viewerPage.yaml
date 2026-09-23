@@ -2964,18 +2964,7 @@ scriptContent:
         	 * @param id id of target grid
         	 */
         	public showGridOverlayById(id) {
-        		try {
-        			this.local.gridOverlays[id] = true;
-        			for (let grid of this["all_comp1608286885281"][''_results'']) {
-        				if (grid.myGrid.agGrid._nativeElement.id == id + "") {
-        					grid.myGrid.agGrid.api.showLoadingOverlay();
-        				}
-        			}
-        		}
-        		catch (e) {
-        			this.c8o.log.error("an error occured while trying to show an overlay for grid:" + id);
-        		}
-        
+        		this.setGridOverlayById(id, true);
         	}
         
         	/**
@@ -2983,30 +2972,49 @@ scriptContent:
         	 * @param id id of target grid
         	 */
         	public hideGridOverlayById(id) {
+        		this.setGridOverlayById(id, false);
+        	}
+        
+        	/**
+        	 * Records the loading overlay state of a grid in local.gridOverlays and applies it to its AG Grid when it exists.
+        	 * A grid whose AG Grid does not exist yet shows the loading overlay itself once it is ready
+        	 * (restoreGridLoadingOverlay in itemGridViewer, #1540).
+        	 * @param id id of target grid
+        	 * @param loading true to show the loading overlay, false to hide it
+        	 */
+        	public setGridOverlayById(id, loading) {
         		try {
-        			this.local.gridOverlays[id] = false;
-        			for (let grid of this["all_comp1608286885281"][''_results'']) {
-        				if (grid.myGrid.agGrid._nativeElement.id == id + "") {
-        					grid.myGrid.agGrid.api.hideOverlay();
-        				}
+        			this.local.gridOverlays[id] = loading;
+        			let api = this.getGridInstance(id)?.api;
+        			if (api == null || api.isDestroyed?.()) {
+        				return;
+        			}
+        			if (loading) {
+        				api.showLoadingOverlay();
+        			}
+        			else {
+        				api.hideOverlay();
         			}
         		}
         		catch (e) {
-        			this.c8o.log.error("an error occured while trying to hide an overlay for grid:" + id);
+        			this.c8o.log.error("an error occured while trying to " + (loading ? "show" : "hide") + " an overlay for grid:" + id, e);
         		}
         	}
         
+        	/**
+        	 * Returns the AG Grid of a grid with its given id in arg, or undefined while it does not exist
+        	 * A grid viewer creates its AG Grid only once the AG Grid locale is loaded: the grids without one are skipped.
+        	 * @param id id of target grid
+        	 */
         	public getGridInstance(id) {
-        		try {
-        			for (let grid of this["all_comp1608286885281"][''_results'']) {
-        				if (grid.myGrid.agGrid._nativeElement.id == id + "") {
-        					return grid.myGrid.agGrid;
-        				}
+        		let grids = this["all_comp1608286885281"]?.toArray?.() ?? [];
+        		for (let grid of grids) {
+        			let agGrid = grid?.myGrid?.agGrid;
+        			if (agGrid?._nativeElement?.id == id + "") {
+        				return agGrid;
         			}
         		}
-        		catch (e) {
-        			this.c8o.log.error("an error occured while trying to hide an overlay for grid:" + id);
-        		}
+        		return undefined;
         	}
         
         	public isGroupDefaultValueTs(item: any): boolean {
@@ -11951,9 +11959,10 @@ scriptContent:
         			if (this.removeHtmlCache.size >= 2048) {
         				this.removeHtmlCache.clear();
         			}
-        			const tmp = document.createElement("DIV");
+        			// #local-files: an inert <template> fetches nothing (a live element would try to load a file:// image)
+        			const tmp = document.createElement("template");
         			tmp.innerHTML = str;
-        			text = tmp.textContent || tmp.innerText || "";
+        			text = tmp.content.textContent || "";
         			this.removeHtmlCache.set(key, text);
         		}
         		return text;
@@ -12612,10 +12621,24 @@ scriptContent:
         			if (this.trustedHtmlCache.size >= 1024) {
         				this.trustedHtmlCache.clear();
         			}
-        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(html);
+        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(this.removeLocalFileReferences(html));
         			this.trustedHtmlCache.set(key, trusted);
         		}
         		return trusted;
+        	}
+        	/**
+        	 * #local-files: references to files of the author machine (file:///C:/Users/...) cannot load anywhere else and only
+        	 * produce a console error at every display. Images and media using one are removed, any other file: attribute
+        	 * (href, data, poster) is dropped and the element is kept. Same rule as the tinyMce component of
+        	 * lib_ExtendedComponents_ui_ngx, which applies it when content is pasted or loaded into the editor.
+        	 */
+        	public removeLocalFileReferences(html: any): any {
+        		if (typeof html !== "string" || !/file:/i.test(html)) {
+        			return html;
+        		}
+        		const fileUrl = "(?:\"\\s*file:[^\"]*\"|''\\s*file:[^'']*''|file:[^\\s>]*)";
+        		const result = html.replace(new RegExp("<(?:img|source|embed)\\b[^>]*\\bsrc\\s*=\\s*" + fileUrl + "[^>]*>", "gi"), "");
+        		return result.replace(new RegExp("\\s(?:src|href|data|poster)\\s*=\\s*" + fileUrl, "gi"), "");
         	}
             /*End_c8o_PageFunction*/
         '

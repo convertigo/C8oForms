@@ -754,9 +754,25 @@ jobs:
   e2e_tests:
     # The continuous release/dispatch path runs Chromium only. The scheduled
     # Firefox phase below starts after every Chromium shard has completed.
+    # Eight shards, not more: 16 parallel shards (2.2.0-beta346) saturated the shared
+    # test server (XHR p95 2.6 s -> 12.7 s) and 16 tests failed on server-side timeouts.
     needs: prepare_e2e_test_users
     if: ${{ always() && needs.prepare_e2e_test_users.result == 'success' }}
     runs-on: ubuntu-latest
+    # One test account can serve only one run at a time. Each shard drives a dedicated
+    # account on a shared server, and two tag pushes a few minutes apart start two full
+    # pipelines against the same accounts: on 2026-09-22 runs 35724167463 and 35726156673
+    # overlapped for an hour, one run's shard 3 autosaved a form 205 times while the other
+    # run's shard 3, logged in as the same testuser3, was loading the application selector,
+    # whose live FullSync feed restarted its query on every save and never finished loading.
+    # 19 tests failed instead of 2. The newest run wins: its shard cancels the older run's
+    # shard for the same account, whose results are moot once a newer build is deployed.
+    # Keyed per account rather than per workflow so that builds, deploys and GitHub releases
+    # are never cancelled or skipped (a workflow-level group drops pending runs, and with them
+    # the release of their tag). A run dispatched against another endpoint uses its own group.
+    concurrency:
+      group: c8oforms-e2e-${{ github.event.inputs.endpoint || 'default' }}-user-${{ matrix.shard }}
+      cancel-in-progress: true
     # The image must match the @playwright/test version in tests/package.json
     # (browsers are pinned per Playwright version). Bump both together.
     container:
@@ -767,31 +783,9 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        include:
-          - browser: chromium
-            shard: 1
-            user_index: 1
-          - browser: chromium
-            shard: 2
-            user_index: 2
-          - browser: chromium
-            shard: 3
-            user_index: 3
-          - browser: chromium
-            shard: 4
-            user_index: 4
-          - browser: chromium
-            shard: 5
-            user_index: 5
-          - browser: chromium
-            shard: 6
-            user_index: 6
-          - browser: chromium
-            shard: 7
-            user_index: 7
-          - browser: chromium
-            shard: 8
-            user_index: 8
+        browser: [chromium]
+        # Shard N drives testuserN, the Nth account of C8OFORMS_TEST_USERS.
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -800,6 +794,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The job runs as root in the container while the checkout belongs to the
+          # runner user, so git ignores the repository ("dubious ownership") and
+          # `origin` does not resolve: the timings were never restored and every
+          # shard plan fell back to the static weights of shard-specs.mjs.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir -p tests/dist/sharding
           if git ls-remote --exit-code --heads origin refs/heads/badges >/dev/null; then
             git fetch --no-tags --depth=1 origin refs/heads/badges
@@ -822,10 +821,10 @@ jobs:
         env:
           TEST_NOCODE_ENDPOINT: ${{ github.event.inputs.endpoint || secrets.TEST_NOCODE_ENDPOINT }}
           C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com,testuser5-convertigo@yopmail.com,testuser6-convertigo@yopmail.com,testuser7-convertigo@yopmail.com,testuser8-convertigo@yopmail.com,testuser9-convertigo@yopmail.com,testuser10-convertigo@yopmail.com,testuser11-convertigo@yopmail.com,testuser12-convertigo@yopmail.com,testuser13-convertigo@yopmail.com,testuser14-convertigo@yopmail.com,testuser15-convertigo@yopmail.com,testuser16-convertigo@yopmail.com
-          C8OFORMS_TEST_USER_INDEX: ${{ matrix.user_index }}
+          C8OFORMS_TEST_USER_INDEX: ${{ matrix.shard }}
         run: node ci/ensure-test-users.mjs --emit-mcp-token
 
-      - name: Run e2e tests (${{ matrix.browser }} shard ${{ matrix.shard }}/8)
+      - name: Run e2e tests (${{ matrix.browser }} shard ${{ matrix.shard }}/${{ env.E2E_SHARD_TOTAL }})
         working-directory: tests
         # The container's default shell is POSIX sh (no `pipefail`); force bash.
         shell: bash
@@ -840,7 +839,7 @@ jobs:
           CONVERTIGO_ADMIN_PASSWORD: ${{ secrets.TEST_NOCODE_PASSWORD }}
           C8OFORMS_BROWSER: ${{ matrix.browser }}
           C8OFORMS_TEST_USERS: testuser-convertigo@yopmail.com,testuser2-convertigo@yopmail.com,testuser3-convertigo@yopmail.com,testuser4-convertigo@yopmail.com,testuser5-convertigo@yopmail.com,testuser6-convertigo@yopmail.com,testuser7-convertigo@yopmail.com,testuser8-convertigo@yopmail.com,testuser9-convertigo@yopmail.com,testuser10-convertigo@yopmail.com,testuser11-convertigo@yopmail.com,testuser12-convertigo@yopmail.com,testuser13-convertigo@yopmail.com,testuser14-convertigo@yopmail.com,testuser15-convertigo@yopmail.com,testuser16-convertigo@yopmail.com
-          C8OFORMS_TEST_USER_INDEX: ${{ matrix.user_index }}
+          C8OFORMS_TEST_USER_INDEX: ${{ matrix.shard }}
           C8OFORMS_PRIMARY_TEST_USER: testuser-convertigo@yopmail.com
           C8OFORMS_PRIMARY_TEST_PASSWORD: testuser-convertigo@yopmail.com
           C8OFORMS_SHARD_DEBUG: 1
