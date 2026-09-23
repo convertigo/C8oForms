@@ -8288,6 +8288,72 @@ scriptContent:
         			return indexedPalette;
         		}
         
+        		const getTopicLabel = (topic: any): string => {
+        			try {
+        				return normalize(
+        					this.translate.instant(topic?.name || "")
+        				);
+        			}
+        			catch (e) {
+        				return normalize(topic?.name);
+        			}
+        		};
+        
+        		const getObjectLabel = (object: any): string => {
+        			try {
+        				return normalize(
+        					this.translate.instant(object?.name || "")
+        				);
+        			}
+        			catch (e) {
+        				return normalize(object?.name);
+        			}
+        		};
+        
+        		const getObjectDescription = (object: any): string => {
+        			try {
+        				if (object?.custom) {
+        					return normalize(object?.description);
+        				}
+        
+        				const meta = this.getMetaFromPalette(object?.type);
+        
+        				if (meta?.description) {
+        					return normalize(
+        						this.translate.instant(meta.description)
+        					);
+        				}
+        			}
+        			catch (e) {
+        			}
+        
+        			return "";
+        		};
+        
+        		const hasStrongMatch = indexedPalette.some((topic) => {
+        			if (topic == null) {
+        				return false;
+        			}
+        
+        			if (getTopicLabel(topic).includes(q)) {
+        				return true;
+        			}
+        
+        			const sourceObjects = Array.isArray(topic.objects)
+        				? topic.objects
+        				: [];
+        
+        			return sourceObjects.some((object) => {
+        				const objectLabel = getObjectLabel(object);
+        				const type = normalize(object?.type);
+        
+        				return (
+        					objectLabel.includes(q) ||
+        					type.includes(q)
+        				);
+        			});
+        		});
+        
         		return indexedPalette
         			.map((topic) => {
         				if (topic == null) {
@@ -8298,19 +8364,39 @@ scriptContent:
         					? topic.objects
         					: [];
         
+        				const topicLabel = getTopicLabel(topic);
+        
+        				// Preserve the historical behavior:
+        				// matching a topic returns all components from this topic.
+        				if (topicLabel.includes(q)) {
+        					return {
+        						...topic,
+        						objects: sourceObjects
+        					};
+        				}
+        
         				const objects = sourceObjects.filter((object) => {
-        					let objectLabel = "";
+        					const objectLabel = getObjectLabel(object);
+        					const type = normalize(object?.type);
         
-        					try {
-        						objectLabel = normalize(
-        							this.translate.instant(object?.name || "")
-        						);
-        					}
-        					catch (e) {
-        						objectLabel = normalize(object?.name);
+        					const strongMatch =
+        						objectLabel.includes(q) ||
+        						type.includes(q);
+        
+        					if (strongMatch) {
+        						return true;
         					}
         
-        					return objectLabel.includes(q);
+        					// Description is a fallback only.
+        					// This avoids noisy matches when a label/type/topic
+        					// already provides a more relevant result.
+        					if (!hasStrongMatch) {
+        						const description = getObjectDescription(object);
+        
+        						return description.includes(q);
+        					}
+        
+        					return false;
         				});
         
         				return objects.length > 0
