@@ -480,6 +480,14 @@ scriptContent:
         	private navMemoScratch: any[] = new Array(17);
         	private navMemoState: any = null;
         	private tabsClassMapCache: any = null;
+        	// #html-stability: DomSanitizer.bypassSecurityTrustHtml() returns a NEW SafeHtml wrapper on every call.
+        	// Called inline in an [innerHTML] binding, it made Angular re-set innerHTML on EVERY change-detection
+        	// pass: the HTML was re-parsed and its images re-fetched each time. One wrapper is kept per HTML string,
+        	// so the binding only changes when the HTML does. See trustHtml().
+        	private trustedHtmlCache: Map<string, any> = new Map();
+        	// #html-stability: removeHTML() is called from item templates on every change-detection pass. Each call
+        	// created a DIV and parsed the HTML. The result is a pure function of the string, so it is cached.
+        	private removeHtmlCache: Map<string, string> = new Map();
         	/*End_c8o_PageDeclaration*/
         /*Begin_c8o_PageConstructor*/
         		//		console.log(this.global.settings);
@@ -5766,9 +5774,19 @@ scriptContent:
         	}
         
         	public removeHTML(str) {
-        		var tmp = document.createElement("DIV");
-        		tmp.innerHTML = str;
-        		return tmp.textContent || tmp.innerText || "";
+        		// #html-stability: cached per input; see removeHtmlCache. The key keeps null and undefined apart from strings.
+        		const key = (str === undefined ? "u:" : str === null ? "n:" : "s:") + str;
+        		let text = this.removeHtmlCache.get(key);
+        		if (text === undefined) {
+        			if (this.removeHtmlCache.size >= 2048) {
+        				this.removeHtmlCache.clear();
+        			}
+        			var tmp = document.createElement("DIV");
+        			tmp.innerHTML = str;
+        			text = tmp.textContent || tmp.innerText || "";
+        			this.removeHtmlCache.set(key, text);
+        		}
+        		return text;
         	}
         	public getElementByID(id: any, form = this.form.formulaire) {
         		for (let i in form) {
@@ -9733,6 +9751,19 @@ scriptContent:
         		});
         
         		await toast.present();
+        	}
+        	/** #html-stability: the one stable SafeHtml for a given HTML string; see trustedHtmlCache. */
+        	public trustHtml(html: any): any {
+        		const key = html == null ? "" : "" + html;
+        		let trusted = this.trustedHtmlCache.get(key);
+        		if (trusted === undefined) {
+        			if (this.trustedHtmlCache.size >= 1024) {
+        				this.trustedHtmlCache.clear();
+        			}
+        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(html);
+        			this.trustedHtmlCache.set(key, trusted);
+        		}
+        		return trusted;
         	}
         	/*End_c8o_PageFunction*/
         '
@@ -19137,7 +19168,7 @@ title: Title for editor
                                       attrValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: 'script:(this.form.pages[this.local.currentIndex].desc != '''' && this.form.pages[this.local.currentIndex].desc != undefined)? this.router.sanitizer.bypassSecurityTrustHtml(this.transform$toHtml(this.form.pages[this.local.currentIndex].desc)) : this.router.sanitizer.bypassSecurityTrustHtml(this.translate.instant(''descform''))'
+                                          - MobileSmartSourceType: 'script:(this.form.pages[this.local.currentIndex].desc != '''' && this.form.pages[this.local.currentIndex].desc != undefined)? this.trustHtml(this.transform$toHtml(this.form.pages[this.local.currentIndex].desc)) : this.trustHtml(this.translate.instant(''descform''))'
                                       isEnabled: false
                                     ↓Style [ngx.components.UIStyle-1775136866646]: 
                                       styleContent: 
@@ -25971,6 +26002,7 @@ title: Title for editor
                                                                     apply_source_formatting: false,
                                                                     verify_html: false,
                                                                     file_picker_types: ''image'',
+                                                                    images_file_types: ''jpeg,jpg,jpe,jfi,jif,jfif,png,gif,bmp,webp,svg'',
                                                                     images_upload_handler: images_upload_handler.bind(this),
                                                                    convert_urls: false
                                                                 }'
@@ -31070,7 +31102,7 @@ title: Title for editor
                                         attrValue: 
                                           - xmlizable: 
                                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                            - MobileSmartSourceType: 'script:(this.form.pages[this.local.currentIndex].desc != '''' && this.form.pages[this.local.currentIndex].desc != undefined)? this.router.sanitizer.bypassSecurityTrustHtml(this.transform$toHtml(this.form.pages[this.local.currentIndex].desc)) : this.router.sanitizer.bypassSecurityTrustHtml(this.translate.instant(''descform''))'
+                                            - MobileSmartSourceType: 'script:(this.form.pages[this.local.currentIndex].desc != '''' && this.form.pages[this.local.currentIndex].desc != undefined)? this.trustHtml(this.transform$toHtml(this.form.pages[this.local.currentIndex].desc)) : this.trustHtml(this.translate.instant(''descform''))'
                                         isEnabled: false
                                       ↓Style [ngx.components.UIStyle-1650357060251]: 
                                         styleContent: 
@@ -35897,7 +35929,7 @@ title: Title for editor
                                       attrValue: 
                                         - xmlizable: 
                                           - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                          - MobileSmartSourceType: 'script:(this.form.pages[this.local.currentIndex].desc != '''' && this.form.pages[this.local.currentIndex].desc != undefined)? this.router.sanitizer.bypassSecurityTrustHtml(this.transform$toHtml(this.form.pages[this.local.currentIndex].desc)) : this.router.sanitizer.bypassSecurityTrustHtml(this.translate.instant(''descform''))'
+                                          - MobileSmartSourceType: 'script:(this.form.pages[this.local.currentIndex].desc != '''' && this.form.pages[this.local.currentIndex].desc != undefined)? this.trustHtml(this.transform$toHtml(this.form.pages[this.local.currentIndex].desc)) : this.trustHtml(this.translate.instant(''descform''))'
                                       isEnabled: false
                                     ↓Style [ngx.components.UIStyle-1775139583515]: 
                                       styleContent: 
@@ -44483,6 +44515,7 @@ title: Title for editor
                                                                     apply_source_formatting: false,
                                                                     verify_html: false,
                                                                     file_picker_types: ''image'',
+                                                                    images_file_types: ''jpeg,jpg,jpe,jfi,jif,jfif,png,gif,bmp,webp,svg'',
                                                                     images_upload_handler: images_upload_handler.bind(this),
                                                                    convert_urls: false
                                                                 }'
@@ -52398,6 +52431,7 @@ title: Title for editor
                                                                       apply_source_formatting: false,
                                                                       verify_html: false,
                                                                       file_picker_types: ''image'',
+                                                                      images_file_types: ''jpeg,jpg,jpe,jfi,jif,jfif,png,gif,bmp,webp,svg'',
                                                                       images_upload_handler: images_upload_handler.bind(this),
                                                                      convert_urls: false
                                                                   }'

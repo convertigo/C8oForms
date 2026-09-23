@@ -11,6 +11,12 @@ scriptContent:
         	public odtExporting: boolean = false;
         	public odsExporting: boolean = false;
         	public exportMenuId: string = "ag-grid-export-" + Math.random().toString(36).slice(2, 10);
+        	// #grid-stability: an AG Grid input must keep a STABLE reference.
+        	// This was an object literal in the template, so a new defaultColDef was allocated on
+        	// EVERY change-detection pass: the grid''s ngOnChanges fired on every pass, its onChanges
+        	// handler ends with markForCheck, which schedules the next pass -- a loop at frame rate
+        	// that also re-ran the column sizing (hence the repeated AG Grid resetRowHeights warning).
+        	private agGridDefaultColDef: any = {autoHeight: true, hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false};
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		/*End_c8o_CompConstructor*/
@@ -31,6 +37,10 @@ scriptContent:
         /*Begin_c8o_CompAfterViewChecked*/
         		/*End_c8o_CompAfterViewChecked*/
         /*Begin_c8o_CompFunction*/
+        	/** #grid-stability: the one stable defaultColDef instance; see agGridDefaultColDef. */
+        	public getAgGridDefaultColDef(): any {
+        		return this.agGridDefaultColDef;
+        	}
         	
         	public updateGridValues(){
         		let founded = false;
@@ -404,7 +414,25 @@ scriptContent:
                 }
                 return this.getGridDefaultSampleColumnDefs();
             }
+            /**
+             * #grid-stability: bound to the grid''s [columnDefs] input, so it is called on every
+             * change-detection pass. Returning a freshly built array each time made ngOnChanges
+             * fire on every pass and kept the grid re-rendering; the defs are cached against
+             * their own signature instead, exactly like getGridPreviewColumns above.
+             */
             public getGridEditorColumnDefs() {
+                const columns = this.buildGridEditorColumnDefs();
+                if (this.local == null) {
+                    return columns;
+                }
+                const signature = JSON.stringify(columns);
+                if (this.local.gridEditorColumnDefsSignature != signature || !Array.isArray(this.local.gridEditorColumnDefs)) {
+                    this.local.gridEditorColumnDefsSignature = signature;
+                    this.local.gridEditorColumnDefs = columns;
+                }
+                return this.local.gridEditorColumnDefs;
+            }
+            private buildGridEditorColumnDefs() {
                 if (this.hasGridConfiguredSource()) {
                     const sourcedColumns = this.getGridStoredSourceColumnDefs();
                     return sourcedColumns.length > 0 ? sourcedColumns : this.getGridDefaultSampleColumnDefs();
@@ -1998,7 +2026,7 @@ scriptContent:
         varValue: 
           - xmlizable: 
             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-            - MobileSmartSourceType: 'script:{autoHeight: true, hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false}'
+            - MobileSmartSourceType: script:this.getAgGridDefaultColDef()
       ↓columnDefs [ngx.components.UIUseVariable-1608287020789]: 
         comment: 'Array of columnDef {headerName: ''headerName'', field: ''fieldName''} objects'
         varValue: 

@@ -6,10 +6,6 @@
      * @param vars  , the object which holds variables key-value pairs
      */
     CloseLoadingAction(page: C8oPageBase, props, vars) : Promise<any> {
-        
-		page.global.c8oLoadingOptions.isOpen.set(false);
-		        
-        return new Promise((resolve, reject) => {
-            resolve()
-        });
+		const loading = page.global["_c8o_loading"];
+		return loading ? loading.dismiss().catch(() => undefined) : Promise.resolve();
     }

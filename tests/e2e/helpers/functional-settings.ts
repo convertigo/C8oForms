@@ -191,28 +191,38 @@ export async function verifyGdprViewerToastConfigurationThroughUi(page: Page): P
   let restoreGdprConfig: RestoreGdprConfig | undefined;
   let formId = '';
   let bodyError: unknown;
+  let legacyToast: GdprLegacySymbol = { exists: false, value: '', status: 'inactive' };
 
   try {
-    await test.step('Assert the modern Toast configuration is not locked by the legacy symbol', async () => {
+    await test.step('Read whether the legacy C8Oforms.GDRP-TOAST symbol locks the Toast configuration', async () => {
       // The engine-wide symbol C8Oforms.GDRP-TOAST takes precedence over the stored
       // configuration BY DESIGN: getGDRPtoast.yaml short-circuits on
-      // `else if (legacyToastExists) { text = legacyToastValue; }` before it ever reads
-      // the document, and the product says so in its own UI
+      // `else if (legacyToastExists) { text = legacyToastValue; }` before it ever reads the
+      // document, and the product says so in its own UI
       // (admin_gdpr_legacy_toast_symbol_explanation: "The global C8Oforms.GDRP-TOAST symbol
       // exists in Convertigo. The modern Toast message configuration is therefore locked.").
-      // The presence of the NAME is what locks it - admin_gdrp_get.yaml's
-      // c8oFormsLegacySymbolStatus only calls symbolsGetNames().contains(...) - so neither
-      // the stored `symbols.toast` nor an empty value can unlock it. This scenario is
-      // therefore only meaningful on a server where that symbol is absent. Check it in
-      // 2 seconds instead of failing after two minutes of UI work on a misleading assertion.
-      const admin = await createFunctionalAdminSequenceClient();
-      const legacyToastSymbolActive = await gdprLegacyToastSymbolIsActive(admin);
+      // The presence of the NAME is what locks it - c8oFormsLegacySymbolStatus in
+      // admin_gdrp_get.yaml only checks symbolsGetNames().contains(...).
+      // The scenario therefore verifies whichever contract applies on this server: without
+      // the symbol, the configured toast must reach the published viewer; with it, the legacy
+      // text must be shown and the configured toast must NOT get through.
+      legacyToast = await readGdprLegacyToastSymbol(await createFunctionalAdminSequenceClient());
       expect(
-        legacyToastSymbolActive,
-        'the server-wide symbol C8Oforms.GDRP-TOAST must not be defined: while it exists the product deliberately locks the modern Toast configuration, so no configured viewer toast can reach the published viewer. Remove that global symbol from the Convertigo server to run this scenario.',
-      ).toBe(false);
+        legacyToast.status,
+        `the C8Oforms.GDRP-TOAST status must be readable to know which contract applies; legacy=${JSON.stringify(legacyToast)}`,
+      ).not.toBe('error');
+      if (legacyToast.exists) {
+        // Green here means "the lock holds", not "the configured toast works": say so in the
+        // report so the missing coverage of the configured path cannot hide behind a pass.
+        test.info().annotations.push({
+          type: 'coverage-gap',
+          description:
+            'C8Oforms.GDRP-TOAST is defined on this server: only the legacy lock was verified. The configured toast_viewers_description path was NOT exercised.',
+        });
+      }
     });
 
+    // Configured in both cases: under the legacy lock this is the value that must be ignored.
     await test.step('Set the GDPR viewer toast configuration', async () => {
       restoreGdprConfig = await setGdprViewerToastForTest(toastText);
     });
@@ -223,17 +233,20 @@ export async function verifyGdprViewerToastConfigurationThroughUi(page: Page): P
       await publishCurrentFormWithPwa(page, 'anonymous');
     });
 
-    await test.step('Open the published viewer and verify the configured GDPR toast appears', async () => {
+    const verifyTitle = legacyToast.exists
+      ? 'Open the published viewer and verify the legacy symbol keeps the configured toast locked'
+      : 'Open the published viewer and verify the configured GDPR toast appears';
+    await test.step(verifyTitle, async () => {
       await openPublishedViewer(page, formId);
       await expect(page.locator(SEL.viewerPage), 'published viewer should render for GDPR toast checks').toBeVisible({
         timeout: 60_000,
       });
-      await expect
-        .poll(async () => visibleToastMessages(page).then((messages) => messages.some((message) => message.includes(toastText))), {
-          message: `published viewer should show the configured GDPR toast "${toastText}"`,
-          timeout: 30_000,
-        })
-        .toBe(true);
+
+      if (legacyToast.exists) {
+        await expectLegacyGdprToastLocksConfiguredToast(page, legacyToast, toastText);
+      } else {
+        await expectConfiguredGdprToastShown(page, toastText);
+      }
     });
   } catch (error) {
     bodyError = error;
@@ -342,7 +355,11 @@ async function setGdprConfigForTest(updateConfig: (config: GdprConfig) => void):
       return;
     }
     restored = true;
-    await writeGdprConfig(admin, previous);
+    // Restore on a FRESH session. The one opened above sat idle for the whole UI journey and
+    // the shared engine can drop it meanwhile: run 35345420391 restored with it and got
+    // "Authentication required" (admin_gdrp_upsert is authenticatedContextRequired), which
+    // left the test red after its assertions had run.
+    await writeGdprConfig(await createFunctionalAdminSequenceClient(), previous);
   };
 }
 
@@ -426,12 +443,82 @@ function normalizedStudioLanguage(value: string): StudioLanguage {
 // admin_gdrp_get returns a `legacy` node built by c8oFormsLegacySymbolStatus, which reports
 // whether each engine-wide GDPR symbol NAME exists. getGDRPtoast.yaml keys its short-circuit on
 // exactly this value, so it is the authoritative "is the modern configuration locked?" signal.
-async function gdprLegacyToastSymbolIsActive(admin: FunctionalAdminSequenceClient): Promise<boolean> {
+type GdprLegacySymbol = {
+  exists: boolean;
+  value: string;
+  status: string;
+};
+
+async function readGdprLegacyToastSymbol(admin: FunctionalAdminSequenceClient): Promise<GdprLegacySymbol> {
   const response = await admin.callSequence('admin_gdrp_get', {});
   const document = asRecord(response.document);
   const legacy = asRecord(response.legacy) ?? asRecord(document?.legacy) ?? {};
   const toast = asRecord(legacy.toast) ?? {};
-  return toast.exists === true || toast.exists === 'true';
+  return {
+    exists: toast.exists === true || toast.exists === 'true',
+    value: typeof toast.value === 'string' ? toast.value : '',
+    status: typeof toast.status === 'string' ? toast.status : '',
+  };
+}
+
+async function expectConfiguredGdprToastShown(page: Page, toastText: string): Promise<void> {
+  await expect
+    .poll(async () => visibleToastMessages(page).then((messages) => messages.some((message) => message.includes(toastText))), {
+      message: `published viewer should show the configured GDPR toast "${toastText}"`,
+      timeout: 30_000,
+    })
+    .toBe(true);
+}
+
+// The published viewer asks getGDRPtoast (type=viewers), which calls admin_gdrp_get and, while
+// the legacy symbol exists, returns legacy.toast.value unchanged - the very field
+// readGdprLegacyToastSymbol reads. presentToast() hands it to ion-toast as plain text, and only
+// when it is non-empty. The CI traces show the string arriving intact (390 chars, including
+// "« sensible »" and "<mail dpo>"), so the comparison is exact, modulo whitespace.
+async function expectLegacyGdprToastLocksConfiguredToast(
+  page: Page,
+  legacy: GdprLegacySymbol,
+  toastText: string,
+): Promise<void> {
+  const legacyText = collapseWhitespace(legacy.value);
+  if (legacyText === '') {
+    // An empty legacy value still locks the configuration, and the viewer then shows no GDPR
+    // toast at all: there is no positive signal to wait for, so only a fixed window can be
+    // watched. Weaker than the non-empty case - not reachable on test-nocode today.
+    expect(
+      await toastNeverShows(page, toastText, 10_000),
+      'the configured viewer toast must not reach the published viewer while C8Oforms.GDRP-TOAST exists (empty value)',
+    ).toBe(true);
+    return;
+  }
+
+  await expect
+    .poll(async () => (await visibleToastMessages(page)).map(collapseWhitespace), {
+      message: `published viewer should show exactly the legacy C8Oforms.GDRP-TOAST text "${legacyText.slice(0, 80)}..."`,
+      timeout: 30_000,
+    })
+    .toContain(legacyText);
+  // The viewer presents a single GDPR toast (page.local.gdprViewerToastShown), so once the legacy
+  // one is up, the configured text could only be there if the lock had failed.
+  expect(
+    (await visibleToastMessages(page)).some((message) => message.includes(toastText)),
+    'the configured viewer toast must not reach the published viewer while C8Oforms.GDRP-TOAST exists',
+  ).toBe(false);
+}
+
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+async function toastNeverShows(page: Page, text: string, windowMs: number): Promise<boolean> {
+  const deadline = Date.now() + windowMs;
+  while (Date.now() < deadline) {
+    if ((await visibleToastMessages(page)).some((message) => message.includes(text))) {
+      return false;
+    }
+    await page.waitForTimeout(500);
+  }
+  return true;
 }
 
 function gdprData(response: Record<string, unknown>): Record<string, unknown> {

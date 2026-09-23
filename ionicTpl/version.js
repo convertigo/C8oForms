@@ -2,7 +2,6 @@
 /**
  * Allow us to set package.json version number into c8osdk
  */
-const jq = require('node-jq');
 const fs = require('fs')
 const path = require('path');
 const yaml = require('js-yaml');

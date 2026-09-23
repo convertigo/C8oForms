@@ -54,12 +54,16 @@ export async function loginAsAdminWithUsernamePassword(page: Page): Promise<void
 }
 
 export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page): Promise<void> {
-  const groupName = `functional_admin_group_${Date.now()}`;
+  const groupName = `${ADMIN_GROUP_PREFIX}${Date.now()}`;
   let currentUserAcl = '';
   let addedUserAcl = '';
   let addedUserLabel = '';
   let expectedMemberCount = 1;
   try {
+    await test.step('Remove temporary groups left behind by earlier interrupted runs', async () => {
+      await deleteStaleAdminGroups(page);
+    });
+
     await test.step('Open the Admin Groups management page', async () => {
       await gotoWithTransientRetry(page, './admin/dashboard-groups');
       await expect(page.locator(ADMIN_SEL.groupsPage).first(), 'Admin Groups page should be visible').toBeVisible({
@@ -486,6 +490,65 @@ async function adminGroupListEntry(page: Page, groupName: string, includeChildre
   const response = await c8oCall(page, 'admin_users_get_by_group_v2', includeChildren ? { targetGroup: groupName } : {});
   const values = adminResultValues(response);
   return values.find((entry) => stringValue(entry.value) === groupName) ?? null;
+}
+
+// This test names its group functional_admin_group_<Date.now()> and deletes it in `finally`.
+// When the test dies on its timeout, Playwright abandons the test body and closes the
+// browser context, so that cleanup never runs (or its page.request calls fail and are
+// swallowed) and the group is left on the server.
+// The Add-user-to-group modal (myaggrid4) has no search box and renders ~14 rows, in CouchDB
+// view-key order: C8O_TEST, DSI, functional_admin_group_*, functional_group_member_*,
+// functional_share_group_*, RH. On 2026-09-21 the server listed 200 groups, 13 of them stale
+// functional_admin_group_* leftovers that sorted AHEAD of the new group and filled the band.
+// Swept, the new group is the 3rd row. The ~185 functional_group_member_/functional_share_group_
+// leftovers (leaked the same way by functional-publication-sharing.ts) sort after this prefix
+// and do not affect this test. So this relies on fewer than ~10 groups sorting before
+// 'functional_admin_group_'.
+// Only groups this test created, and only those older than STALE_ADMIN_GROUP_AGE_MS, are
+// removed, so a run in flight in another job is never touched.
+const ADMIN_GROUP_PREFIX = 'functional_admin_group_';
+const STALE_ADMIN_GROUP_AGE_MS = 30 * 60_000;
+const STALE_ADMIN_GROUP_SWEEP_BUDGET_MS = 90_000;
+const STALE_ADMIN_GROUP_SWEEP_CONCURRENCY = 8;
+
+async function deleteStaleAdminGroups(page: Page): Promise<void> {
+  const response = await c8oCall(page, 'admin_groups_get', {});
+  const now = Date.now();
+  const stale = [...new Set(groupNames(response))].filter((name) => {
+    if (!name.startsWith(ADMIN_GROUP_PREFIX)) {
+      return false;
+    }
+    const createdAt = Number(name.slice(ADMIN_GROUP_PREFIX.length));
+    return Number.isFinite(createdAt) && createdAt > 0 && now - createdAt > STALE_ADMIN_GROUP_AGE_MS;
+  });
+
+  // Bounded so a large backlog or a slow server cannot eat the test budget: each batch races
+  // the time left (its deletes swallow their own errors, so one that loses the race finishes
+  // harmlessly in the background). Leftovers are collected by the next run; the steady state
+  // is zero or one stale group.
+  const deadline = Date.now() + STALE_ADMIN_GROUP_SWEEP_BUDGET_MS;
+  for (let start = 0; start < stale.length; start += STALE_ADMIN_GROUP_SWEEP_CONCURRENCY) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      break;
+    }
+    const batch = stale.slice(start, start + STALE_ADMIN_GROUP_SWEEP_CONCURRENCY);
+    await Promise.race([Promise.all(batch.map((name) => deleteTemporaryAdminGroup(page, name))), page.waitForTimeout(remaining)]);
+  }
+
+  if (stale.length === 0) {
+    return;
+  }
+  // deleteTemporaryAdminGroup swallows errors, so count what is really gone rather than what
+  // was attempted: a sweep that silently failed would otherwise surface minutes later as a
+  // misleading "Add user to group modal should list the temporary group".
+  const staleNames = new Set(stale);
+  const left = groupNames(await c8oCall(page, 'admin_groups_get', {}).catch(() => ({}))).filter((name) => staleNames.has(name));
+  if (left.length > 0) {
+    console.warn(
+      `ADM-001 stale group sweep: ${stale.length - left.length}/${stale.length} removed, ${left.length} left for the next run: ${left.join(', ')}`,
+    );
+  }
 }
 
 async function deleteTemporaryAdminGroup(page: Page, groupName: string): Promise<void> {
