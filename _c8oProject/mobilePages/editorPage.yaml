@@ -574,19 +574,34 @@ scriptContent:
         				if (targetToReplace == null || html == null) {
         					return false;
         				}
-        				let liveTarget = targetToReplace;
-        				const fakeId = liveTarget.getAttribute?.("fakeId");
-        				if (fakeId != null && fakeId !== "") {
-        					liveTarget = document.getElementsByClassName(fakeId)?.[0] || liveTarget;
+        				// look for the badge in editor bodies only: the canvas can render a copy of it with the
+        				// same fakeId class, e.g. for a component nested in Horizontal layouts (#1527), and the
+        				// editor may have been re-created while the tree was open (#1381)
+        				const fakeId = targetToReplace.getAttribute?.("fakeId");
+        				const findBadgeIn = (candidate) => {
+        					const body = candidate == null || candidate.removed ? null : candidate.getBody?.();
+        					if (body == null) {
+        						return null;
+        					}
+        					if (body.contains(targetToReplace)) {
+        						return targetToReplace;
+        					}
+        					return fakeId != null && fakeId !== "" ? body.getElementsByClassName(fakeId)?.[0] ?? null : null;
+        				};
+        				const editorGlobal = window["hugerte"] || window["tinymce"];
+        				let liveEditor = editor;
+        				let liveTarget = findBadgeIn(editor);
+        				if (liveTarget == null) {
+        					for (const candidate of editorGlobal?.get?.() || []) {
+        						liveTarget = findBadgeIn(candidate);
+        						if (liveTarget != null) {
+        							liveEditor = candidate;
+        							break;
+        						}
+        					}
         				}
         				if (liveTarget == null || liveTarget.parentNode == null) {
         					return false;
-        				}
-        				let liveEditor = editor;
-        				const body = liveTarget.closest?.(".mce-content-body");
-                                        var editorGlobal = window["hugerte"] || window["tinymce"];
-                                        if (body?.id != null && editorGlobal?.get != null) {
-                                            liveEditor = editorGlobal.get(body.id) || liveEditor;
         				}
         				const doc = liveEditor?.getDoc?.() || document;
         				const div = doc.createElement("div");
