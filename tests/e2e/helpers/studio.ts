@@ -106,6 +106,8 @@ export const SEL = {
   sliderStepInput: 'c8oforms-textinputsetting.class1776351300022 input, .class1776351300022 input',
   businessLogicComponent: 'c8oforms-itemactionbusinesslogicviewer',
   gridComponent: 'c8oforms-itemgridviewer',
+  // itemGridEditor.yaml — Source selection ToggleSwitch: from local data / from a data source
+  gridSourceChoiceToggle: 'c8oforms-toggleswitch.class1775845500002',
   gridFooterSetting: '.class1782121400000',
   gridPaginationSetting: '.class1782121400010',
   gridRowsPerPageSetting: '.class1782121400030',
@@ -2864,6 +2866,13 @@ export async function visibleDataGridRow(page: Page, text: string, timeout = 45_
   return row;
 }
 
+/** Rendered height, in CSS pixels, of the row of `grid` that shows `text`. */
+export async function dataGridRowHeight(grid: Locator, text: string, timeout = 45_000): Promise<number> {
+  const row = grid.locator('.ag-center-cols-container .ag-row').filter({ hasText: text }).first();
+  await expect(row, `the Data Grid row ${text} should render`).toBeVisible({ timeout });
+  return row.evaluate((element) => element.getBoundingClientRect().height);
+}
+
 /**
  * Header labels of a Data Grid exactly as rendered. Playwright `hasText` matches case-insensitively,
  * so it cannot tell a source column `Etat de la saisie` from the title-cased `Etat De La Saisie` (#1554).
@@ -4137,6 +4146,23 @@ export async function configureGridBaserowSource(page: Page, source: BaserowGrid
   await configureGridBaserowTable(page, source, pickerTimeout);
 }
 
+/**
+ * Source selection of the open Data Grid configuration: "From local data" (sourceEnabled false). The rows then
+ * come from the application itself, e.g. a Business logic action that writes them.
+ */
+export async function setGridLocalDataSource(page: Page): Promise<void> {
+  await test.step('Set the Data Grid source to local data', async () => {
+    await openConfigurationSection(page);
+    await openConfigTabById(page, 'tab_selector_choice_source');
+    const localData = page.locator(`${SEL.gridSourceChoiceToggle}:visible button.c8o-btn`).first();
+    await expect(localData, 'the Data Grid local data option should be visible').toBeVisible({ timeout: 15_000 });
+    await localData.click({ timeout: 10_000 });
+    await expect(localData, 'the Data Grid local data option should be selected').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+  });
+}
+
 export async function configureGridBaserowTable(
   page: Page,
   source: BaserowGridSourceOptions,
@@ -5023,6 +5049,44 @@ async function openBaserowActionVariableJavaScriptMode(page: Page, column: strin
   await visibleMonacoEditor(page, `Baserow Add Row mapping ${column} JavaScript editor`);
 }
 
+/**
+ * Replaces the whole code of the visible Monaco editor. The code is typed on a single line: Monaco auto-closes
+ * brackets and quotes and typing the closing character overtypes them, but a typed newline re-indents and
+ * leaves the auto-closed tail behind.
+ */
+async function replaceVisibleMonacoCode(page: Page, code: string, description: string): Promise<void> {
+  expect(code, `${description} code should fit on one line`).not.toContain('\n');
+  const editor = await visibleMonacoEditor(page, `${description} JavaScript editor`);
+  const lines = editor.locator('.view-lines');
+  const editorCode = () => lines.innerText().then(normalizeVisibleText);
+  // The JavaScript mode opens on a code template that Monaco loads after it shows up: clearing the editor
+  // before the template arrives would leave the template in front of the typed code.
+  await expect
+    .poll(editorCode, { message: `${description} JavaScript editor should show its code template`, timeout: 10_000 })
+    .not.toBe('');
+  await expect
+    .poll(
+      async () => {
+        await editor.click();
+        await page.keyboard.press('ControlOrMeta+A');
+        await page.keyboard.press('Delete');
+        return editorCode();
+      },
+      { message: `${description} JavaScript editor should be empty before typing`, timeout: 10_000 },
+    )
+    .toBe('');
+  await page.keyboard.type(code);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Tab');
+  await expect
+    .poll(editorCode, {
+      message: `${description} JavaScript editor should contain exactly the typed code`,
+      timeout: 10_000,
+    })
+    .toBe(normalizeVisibleText(code));
+  await page.waitForTimeout(1_000);
+}
+
 async function visibleMonacoEditor(page: Page, description: string): Promise<Locator> {
   const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last();
   await expect(editor, description).toBeVisible({ timeout: 15_000 });
@@ -5213,6 +5277,28 @@ async function openButtonFlowActionConfig(
     await expect(action, `${actionName} action card should be visible in the flow`).toBeVisible({ timeout: 15_000 });
     await action.click();
     await page.waitForTimeout(1_000);
+  });
+}
+
+/** Adds a Business logic action with a one-line JavaScript code to the Button workflow, then closes it. */
+export async function addButtonFlowBusinessLogicAction(
+  page: Page,
+  technicalId: string,
+  code: string,
+  flowName?: string | RegExp,
+): Promise<void> {
+  await openButtonFlowActionConfig(page, {
+    flowName,
+    icon: PALETTE_ICON.businessLogic,
+    actionCardSelector: SEL.flowBusinessLogicActionCard,
+    actionName: 'Business logic',
+  });
+  await test.step('Write the Business logic JavaScript code', async () => {
+    await setTechnicalId(page, technicalId);
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'Business logic JavaScript mode', 10_000, true);
+    await confirmAlertIfVisible(page);
+    await replaceVisibleMonacoCode(page, code, 'Business logic');
+    await closeComponentConfig(page);
   });
 }
 
