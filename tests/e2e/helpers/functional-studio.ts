@@ -272,7 +272,7 @@ async function openApplicationSettings(page: Page): Promise<void> {
   });
 }
 
-async function openSelectorCardMenu(page: Page, title: string): Promise<void> {
+export async function openSelectorCardMenu(page: Page, title: string): Promise<void> {
   await expectNoCodeDashboardReady(page);
   await expectSelectorApplicationVisible(page, title);
   await dismissSelectorPopovers(page);
@@ -333,7 +333,7 @@ async function openSelectorCardMenu(page: Page, title: string): Promise<void> {
   });
 }
 
-async function clickSelectorPopoverItem(page: Page, itemSelector: string, description: string): Promise<void> {
+export async function clickSelectorPopoverItem(page: Page, itemSelector: string, description: string): Promise<void> {
   const popover = page.locator(FUNCTIONAL_SEL.selectorPopover).last();
   await expect(popover, `${description} popover should be visible`).toBeVisible({ timeout: 10_000 });
   const item = popover.locator(itemSelector).last();
@@ -341,7 +341,7 @@ async function clickSelectorPopoverItem(page: Page, itemSelector: string, descri
   await item.click({ timeout: 10_000 }).catch(async () => item.dispatchEvent('click'));
 }
 
-async function openSelectorApplicationFromCard(page: Page, title: string): Promise<void> {
+export async function openSelectorApplicationFromCard(page: Page, title: string): Promise<void> {
   await expectNoCodeDashboardReady(page);
   await expectSelectorApplicationVisible(page, title);
   await dismissSelectorPopovers(page);
@@ -433,7 +433,7 @@ async function openSelectorFolderFromCard(page: Page, title: string): Promise<vo
   await page.waitForTimeout(1_500);
 }
 
-async function dismissSelectorPopovers(page: Page): Promise<void> {
+export async function dismissSelectorPopovers(page: Page): Promise<void> {
   const popover = page.locator(FUNCTIONAL_SEL.selectorPopover).last();
   for (let attempt = 0; attempt < 3; attempt++) {
     if (!(await popover.isVisible({ timeout: 500 }).catch(() => false))) {

@@ -20,7 +20,7 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 71 deja co
 | [ ] | [#1390](https://github.com/convertigo/C8oForms/issues/1390) | open | enhancement | Tabs buttons configuration should support Wrap/Scroll in Header/Footer and allow vertical placement (Left/Right) |  |
 | [ ] | [#1386](https://github.com/convertigo/C8oForms/issues/1386) | open | enhancement | Buttons configuration can only be set per Page; no option to configure buttons globally for the whole application |  |
 | [ ] | [#1362](https://github.com/convertigo/C8oForms/issues/1362) | open | enhancement | Flow list chooser not accurate with new layout and not usable with long lists |  |
-| [ ] | [#1359](https://github.com/convertigo/C8oForms/issues/1359) | open | enhancement | Version history with restore capability needed for applications |  |
+| [x] | [#1359](https://github.com/convertigo/C8oForms/issues/1359) | open | enhancement | Version history with restore capability needed for applications | `tests/e2e/issue-1359.spec.ts` |
 | [ ] | [#1350](https://github.com/convertigo/C8oForms/issues/1350) | open | enhancement | Search app by user should allow filtering only applications where I am a collaborator |  |
 | [ ] | [#1245](https://github.com/convertigo/C8oForms/issues/1245) | open | enhancement | Redesign the “Create Empty App” button for better clarity and visual appeal |  |
 | [ ] | [#1184](https://github.com/convertigo/C8oForms/issues/1184) | open | enhancement | Disable Warning on Mode Switch Aa to JS |  |
