@@ -430,11 +430,7 @@ async function baserowWorkspaceFrame(page: Page): Promise<Frame | null> {
     if (!frame.url().includes('baserow.convertigo.net')) {
       continue;
     }
-    const text = await frame
-      .locator('body')
-      .innerText({ timeout: 2_000 })
-      .then(normalize)
-      .catch(() => '');
+    const text = await renderedFrameText(frame);
     if (/Add new\.\.\.|This workspace is empty|Databases|Table/i.test(text) && !/Authenticating/i.test(text)) {
       return frame;
     }
@@ -443,11 +439,7 @@ async function baserowWorkspaceFrame(page: Page): Promise<Frame | null> {
 }
 
 async function noCodeDatabaseWorkspaceUsable(frame: Frame): Promise<boolean> {
-  const text = await frame
-    .locator('body')
-    .innerText({ timeout: 2_000 })
-    .then(normalize)
-    .catch(() => '');
+  const text = await renderedFrameText(frame);
   return /Add new\.\.\.|This workspace is empty|Databases|Table/i.test(text) && !/Authenticating/i.test(text);
 }
 
@@ -464,11 +456,7 @@ async function noCodeDatabaseWorkspaceUsable(frame: Frame): Promise<boolean> {
 //  - no OTHER configured test account's data is reachable from it.
 // A real leak now fails with a named culprit instead of an opaque `false`.
 async function noCodeDatabaseWorkspaceIsolation(frame: Frame): Promise<string> {
-  const text = await frame
-    .locator('body')
-    .innerText({ timeout: 2_000 })
-    .then(normalize)
-    .catch(() => '');
+  const text = await renderedFrameText(frame);
   if (!noCodeDatabaseTextIsReady(text)) {
     return 'not-ready';
   }
@@ -498,12 +486,28 @@ async function baserowFrameContainsText(page: Page, expectedText: string): Promi
     return false;
   }
   const expected = normalize(expectedText).toLowerCase();
-  const text = await frame
-    .locator('body')
-    .innerText({ timeout: 2_000 })
-    .then((value) => normalize(value).toLowerCase())
-    .catch(() => '');
+  const text = (await renderedFrameText(frame)).toLowerCase();
   return text.includes(expected);
+}
+
+/**
+ * Text the embedded Baserow workspace shows, or '' while its document is not rendered.
+ * An unrendered body answers innerText with its textContent (HTML spec), and Firefox
+ * then returns Baserow's window.__NUXT__ state script: every workspace, database and
+ * table name of the account. The shared SOURCE_WORKSPACE has a SOURCE_TABLE named like
+ * NOCODE_DATABASE, so DASH-001 "found" its database there, skipped creating it and
+ * failed on an empty workspace (Firefox nightly, 23 Sept 2026).
+ */
+async function renderedFrameText(frame: Frame): Promise<string> {
+  const text = frame
+    .evaluate(() => (document.body && document.body.getClientRects().length > 0 ? document.body.innerText : ''))
+    .then(normalize)
+    .catch(() => '');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<string>((resolve) => {
+    timer = setTimeout(() => resolve(''), 2_000);
+  });
+  return Promise.race([text, timeout]).finally(() => clearTimeout(timer));
 }
 
 async function clickTextInFrame(frame: Frame, text: string): Promise<void> {

@@ -17,10 +17,20 @@ import { login } from './helpers/studio';
  *
  * Specs that need this import { test, expect } from './fixtures' instead of
  * '@playwright/test'.
+ *
+ * Tests share cookies, localStorage and permissions with the rest of the worker,
+ * so a spec stays on '@playwright/test' (a fresh context per test) when it needs
+ * a signed-out start (login form, forgotten password), signs out, or signs in as
+ * another user: login() returns early on an already signed-in context and never
+ * switches identity. It also stays there when it drives a UI that follows the
+ * browser locale, which is fr-FR here: the embedded Baserow workspace of
+ * functional-dashboard is matched on its English labels ("Add new...").
+ * Tests that change shared state (localStorage 'lang', permissions) restore it
+ * before they end.
  */
 type WorkerFixtures = { pwaContext: BrowserContext };
 
-export const test = base.extend<Record<string, never>, WorkerFixtures>({
+export const test = base.extend<{}, WorkerFixtures>({
   pwaContext: [
     async ({ playwright, browserName }, use, workerInfo) => {
       const userDataDir = mkdtempSync(join(tmpdir(), `c8o-pwa-${browserName}-w${workerInfo.workerIndex}-`));

@@ -1,4 +1,4 @@
-import { Locator, Page, expect, test } from '@playwright/test';
+import { Locator, Page, Response, expect, test } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -423,6 +423,8 @@ const SELECTOR_EMPTY_FORM_LIST_RE =
   /(?:No applications found|Aucune application trouvée|No se encontraron aplicaciones|Nessuna applicazione trovata)/i;
 const SELECTOR_RESULT_COUNT_RE = /(\d+)\s*(?:result\(s\)|résultat\(s\)|resultado\(s\)|risultato \(i\))/i;
 
+// Fallback settle window, used only when the SDK session probe (see
+// trackSessionProbe) was not observed.
 const SELECTOR_AUTH_GUARD_SETTLE_MS = 5_000;
 
 async function expectRoute(page: Page, route: RegExp, timeout = 30_000): Promise<void> {
@@ -630,23 +632,64 @@ export async function login(page: Page, credentials: LoginCredentials = CURRENT_
       'Test user not configured. Copy tests/.env.example to tests/.env and set C8OFORMS_TEST_USER or C8OFORMS_TEST_USERS.',
     );
   }
-  await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (await selectorIsReadyAfterAuthGuard(page, attempt === 0 ? 8_000 : 1_000)) {
-      return;
+  const session = trackSessionProbe(page);
+  try {
+    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (await selectorIsReadyAfterAuthGuard(page, attempt === 0 ? 8_000 : 1_000, session)) {
+        return;
+      }
+      const attemptSucceeded = await loginOnce(page, user, password).catch(() => false);
+      if (attemptSucceeded || (await selectorIsReady(page, 15_000))) {
+        return;
+      }
+      session.reset();
+      await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
     }
-    const attemptSucceeded = await loginOnce(page, user, password).catch(() => false);
-    if (attemptSucceeded || (await selectorIsReady(page, 15_000))) {
-      return;
-    }
-    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 }).catch(() => undefined);
+    await expect
+      .poll(() => selectorIsReady(page, 1_000), {
+        message: 'selector page should be ready after login',
+        timeout: 30_000,
+      })
+      .toBe(true);
+  } finally {
+    session.dispose();
   }
-  await expect
-    .poll(() => selectorIsReady(page, 1_000), {
-      message: 'selector page should be ready after login',
-      timeout: 30_000,
-    })
-    .toBe(true);
+}
+
+interface SessionProbe {
+  /** `authenticated` from the latest SDK session probe, undefined until one answers. */
+  authenticated(): boolean | undefined;
+  reset(): void;
+  dispose(): void;
+}
+
+/**
+ * On start-up the Convertigo SDK asks the server whether the session is valid
+ * (POST services/user.Get). The app shows the selector only after an
+ * `authenticated: true` answer and goes straight to the login page otherwise,
+ * so that answer settles the auth guard without watching the selector for a
+ * late redirect.
+ */
+function trackSessionProbe(page: Page): SessionProbe {
+  let authenticated: boolean | undefined;
+  const onResponse = (response: Response) => {
+    if (!/\/services\/user\.Get(?:[?#]|$)/.test(response.url())) return;
+    response
+      .json()
+      .then((body: { authenticated?: unknown } | null) => {
+        authenticated = body?.authenticated === true;
+      })
+      .catch(() => undefined);
+  };
+  page.on('response', onResponse);
+  return {
+    authenticated: () => authenticated,
+    reset: () => {
+      authenticated = undefined;
+    },
+    dispose: () => page.off('response', onResponse),
+  };
 }
 
 async function loginOnce(page: Page, user: string, password: string): Promise<boolean> {
@@ -661,7 +704,17 @@ async function loginOnce(page: Page, user: string, password: string): Promise<bo
   const submit = await firstVisibleLocator(page, SEL.loginReveal, 'login submit button');
   await submit.click({ timeout: 20_000 }).catch(() => undefined);
   await waitForIonicLoading(page, 20_000);
-  return selectorIsReady(page, 20_000);
+  // The login page stays on screen while the sign-in request is in flight. Reading
+  // it as a failure (selectorIsReady) made login() reload './' mid-sign-in, and the
+  // next openLoginForm then waited 30 s for a login button while the app had
+  // already moved on to the selector: ~30 s lost on every cold login.
+  const startedAt = Date.now();
+  do {
+    if (await selectorCandidateIsReady(page, 1_000)) {
+      return true;
+    }
+  } while (Date.now() - startedAt < 20_000);
+  return false;
 }
 
 async function selectorIsReady(page: Page, timeout: number): Promise<boolean> {
@@ -671,7 +724,7 @@ async function selectorIsReady(page: Page, timeout: number): Promise<boolean> {
   return selectorCandidateIsReady(page, timeout);
 }
 
-async function selectorIsReadyAfterAuthGuard(page: Page, timeout: number): Promise<boolean> {
+async function selectorIsReadyAfterAuthGuard(page: Page, timeout: number, session: SessionProbe): Promise<boolean> {
   const startedAt = Date.now();
   let readySince: number | null = null;
   do {
@@ -680,6 +733,9 @@ async function selectorIsReadyAfterAuthGuard(page: Page, timeout: number): Promi
     }
 
     if (await selectorCandidateIsReady(page, 250)) {
+      if (session.authenticated() === true) {
+        return true;
+      }
       readySince ??= Date.now();
       if (Date.now() - readySince >= SELECTOR_AUTH_GUARD_SETTLE_MS) {
         return true;
@@ -720,7 +776,8 @@ async function openLoginForm(page: Page): Promise<void> {
       return;
     }
 
-    const reveal = await firstVisibleLocatorOrNull(page, SEL.loginReveal, attempt === 0 ? 30_000 : 5_000);
+    const reveal = await loginRevealOrSelector(page, attempt === 0 ? 30_000 : 5_000);
+    if (reveal === 'selector') return;
     if (!reveal) break;
     await reveal.click({ timeout: 10_000 }).catch(async () => {
       await reveal.click({ force: true, timeout: 5_000 }).catch(() => undefined);
@@ -732,6 +789,25 @@ async function openLoginForm(page: Page): Promise<void> {
     await page.waitForTimeout(500);
   }
   throw new Error(`login form did not open from ${page.url()}`);
+}
+
+/**
+ * Wait for the login button, or return 'selector' as soon as the app shows the
+ * selector instead (a sign-in still in flight can land there while we wait).
+ */
+async function loginRevealOrSelector(page: Page, timeout: number): Promise<Locator | 'selector' | null> {
+  const startedAt = Date.now();
+  do {
+    const reveal = await firstVisibleLocatorOrNull(page, SEL.loginReveal, 0);
+    if (reveal) {
+      return reveal;
+    }
+    if (ROUTE.selector.test(page.url()) && (await page.locator(SEL.selectorPageRoot).first().isVisible())) {
+      return 'selector';
+    }
+    await page.waitForTimeout(100);
+  } while (Date.now() - startedAt < timeout);
+  return firstVisibleLocatorOrNull(page, SEL.loginReveal, 0);
 }
 
 async function fillInputValue(page: Page, selector: string, value: string, description: string): Promise<void> {

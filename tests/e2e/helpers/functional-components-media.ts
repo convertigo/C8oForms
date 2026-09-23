@@ -433,37 +433,43 @@ export async function exerciseLocationAcceptedPermissionValueAndSubmitThroughUi(
     await closeComponentConfig(page);
   });
 
-  await test.step('Open Preview with accepted geolocation permission and verify the produced GPS value', async () => {
-    const origin = new URL(page.url()).origin;
-    await page.context().grantPermissions(['geolocation'], { origin });
-    await page.context().setGeolocation(mockedPosition);
+  try {
+    await test.step('Open Preview with accepted geolocation permission and verify the produced GPS value', async () => {
+      const origin = new URL(page.url()).origin;
+      await page.context().grantPermissions(['geolocation'], { origin });
+      await page.context().setGeolocation(mockedPosition);
 
-    await openPreview(page, LOCATION_COMPONENT);
-    const component = await visibleLocationComponent(page, technicalId);
-    await expect(component, 'Location component should initially show no GPS value before clicking the action').toContainText('n/a', {
-      timeout: 30_000,
+      await openPreview(page, LOCATION_COMPONENT);
+      const component = await visibleLocationComponent(page, technicalId);
+      await expect(component, 'Location component should initially show no GPS value before clicking the action').toContainText('n/a', {
+        timeout: 30_000,
+      });
+
+      const button = locationActionButton(component);
+      await expect(button, 'Location component should expose a get-position action button').toBeVisible({ timeout: 15_000 });
+      await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+
+      await expect(component, 'Location component should render the mocked latitude after permission is accepted').toContainText(
+        String(mockedPosition.latitude),
+        { timeout: 30_000 },
+      );
+      await expect(component, 'Location component should render the mocked longitude after permission is accepted').toContainText(
+        String(mockedPosition.longitude),
+        { timeout: 30_000 },
+      );
     });
 
-    const button = locationActionButton(component);
-    await expect(button, 'Location component should expose a get-position action button').toBeVisible({ timeout: 15_000 });
-    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
-
-    await expect(component, 'Location component should render the mocked latitude after permission is accepted').toContainText(
-      String(mockedPosition.latitude),
-      { timeout: 30_000 },
-    );
-    await expect(component, 'Location component should render the mocked longitude after permission is accepted').toContainText(
-      String(mockedPosition.longitude),
-      { timeout: 30_000 },
-    );
-  });
-
-  await test.step('Submit the response with the produced Location value', async () => {
-    await submitViewerForm(page);
-    await expect(page.locator(SEL.responseCompletedPage), 'Location response completion page should render').toBeAttached({
-      timeout: 60_000,
+    await test.step('Submit the response with the produced Location value', async () => {
+      await submitViewerForm(page);
+      await expect(page.locator(SEL.responseCompletedPage), 'Location response completion page should render').toBeAttached({
+        timeout: 60_000,
+      });
     });
-  });
+  } finally {
+    // The spec runs on the worker's shared browser context (./fixtures): revoke the
+    // grant so later tests do not inherit the mocked position.
+    await page.context().clearPermissions();
+  }
 }
 
 async function expectPublishedMediaResponseStored(

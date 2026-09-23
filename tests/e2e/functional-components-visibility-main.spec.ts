@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from './fixtures';
 import { configureVisibilityOnMainComponentTypesThroughUi } from './helpers/functional-components-common';
 import { createBlankApplicationThroughUi, loginWithUsernamePassword } from './helpers/functional-studio';
 
