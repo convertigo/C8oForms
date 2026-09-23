@@ -137,7 +137,7 @@ see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/78fb392c8cfa
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/feature/#1475#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager_ui_ngx</b></summary><blockquote><p>
@@ -146,7 +146,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#re
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager_ui_ngx
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/8.4.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/feature/#1475#readme)
 </p></blockquote></details>
 
 <details><summary><b>libApexCharts</b></summary><blockquote><p>
