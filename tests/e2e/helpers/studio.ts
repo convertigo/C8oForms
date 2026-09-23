@@ -9567,8 +9567,15 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
   return inlineEditor;
 }
 
+// The editor iframe title is localized ("Zone de Texte Riche" in fr-FR): match
+// its class. Only the visible editor counts: the canvas behind it can render
+// copies of the same badges (#1527).
+function visibleRichTextFrame(page: Page) {
+  return page.locator(`${SEL.richTextEditorFrame}:visible`).last().contentFrame();
+}
+
 async function clickTinyMcePathBadgeEditButton(page: Page): Promise<void> {
-  const frameBadge = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('svg[id^="clickable-"]').first();
+  const frameBadge = visibleRichTextFrame(page).locator('svg[id^="clickable-"]').first();
   if (await frameBadge.isVisible({ timeout: 3_000 }).catch(() => false)) {
     await frameBadge.click();
     return;
@@ -9580,13 +9587,14 @@ async function clickTinyMcePathBadgeEditButton(page: Page): Promise<void> {
 }
 
 async function tinyMcePathBadgePaths(page: Page): Promise<string[]> {
-  const frameBody = page.frameLocator('iframe[title="Rich Text Area"]').last().locator('body');
+  const frameBody = visibleRichTextFrame(page).locator('body');
   if (await frameBody.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    return frameBody.evaluate((body) =>
+    const framePaths = await frameBody.evaluate((body) =>
       Array.from(body.querySelectorAll<HTMLElement>('[c8opath]'))
         .map((element) => element.getAttribute('c8opath') ?? '')
         .filter(Boolean),
     );
+    if (framePaths.length > 0) return framePaths;
   }
 
   const inlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
@@ -10669,6 +10677,29 @@ async function openLayoutChildEditor(
   if (await childEditorOpened()) return;
 
   throw new Error(`Could not open editor for layout child #${index}`);
+}
+
+/**
+ * Open the own editor of the layout child rendering `componentSelector`, in the
+ * layout(s) matched by `layoutSelector` (a nested layout too). The child host
+ * has no box of its own, so its card is the hover and click target; the last
+ * matching card is the innermost one.
+ */
+export async function openLayoutChildEditorByComponent(
+  page: Page,
+  layoutSelector: string,
+  componentSelector: string,
+): Promise<void> {
+  const card = page
+    .locator(`${layoutSelector} ${SEL.layoutChildCard}`)
+    .filter({ has: page.locator(componentSelector) })
+    .last();
+  await expect(card, `layout child ${componentSelector} should be visible`).toBeVisible({ timeout: 15_000 });
+  await page.mouse.move(5, 5);
+  await card.hover();
+  const box = await card.boundingBox();
+  if (!box) throw new Error(`layout child ${componentSelector} has no box`);
+  await openLayoutChildEditor(page, card, box, 0);
 }
 
 /**
