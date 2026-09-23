@@ -15,6 +15,7 @@ scriptContent:
         	// pass: the HTML was re-parsed and its images re-fetched each time. One wrapper is kept per HTML string,
         	// so the binding only changes when the HTML does. See trustHtml().
         	private trustedHtmlCache: Map<string, any> = new Map();
+        	private buttonLabelTextCache: Map<string, string> = new Map();
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		this.subscription = this.inputChangeSubject.pipe(
@@ -76,9 +77,20 @@ scriptContent:
         		if (html == "") {
         			return "";
         		}
-        		let div = document.createElement("div");
-        		div.innerHTML = html;
-        		return div.innerText || div.textContent || "";
+        		// #local-files: bound in the template, so this ran on every change-detection pass, and it parsed the label
+        		// into a live <div>: a file:// image stored in a label was fetched (and refused) again at every pass. The
+        		// label is now parsed once per value, through an inert <template> that fetches nothing.
+        		let text = this.buttonLabelTextCache.get(html);
+        		if (text === undefined) {
+        			if (this.buttonLabelTextCache.size >= 256) {
+        				this.buttonLabelTextCache.clear();
+        			}
+        			const template = document.createElement("template");
+        			template.innerHTML = html;
+        			text = template.content.textContent || "";
+        			this.buttonLabelTextCache.set(html, text);
+        		}
+        		return text;
         	}
         	
         	public isButtonAdvancedDisplayMode(): boolean {
@@ -192,10 +204,24 @@ scriptContent:
         			if (this.trustedHtmlCache.size >= 1024) {
         				this.trustedHtmlCache.clear();
         			}
-        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(html);
+        			trusted = this.router.sanitizer.bypassSecurityTrustHtml(this.removeLocalFileReferences(html));
         			this.trustedHtmlCache.set(key, trusted);
         		}
         		return trusted;
+        	}
+        	/**
+        	 * #local-files: references to files of the author machine (file:///C:/Users/...) cannot load anywhere else and only
+        	 * produce a console error at every display. Images and media using one are removed, any other file: attribute
+        	 * (href, data, poster) is dropped and the element is kept. Same rule as the tinyMce component of
+        	 * lib_ExtendedComponents_ui_ngx, which applies it when content is pasted or loaded into the editor.
+        	 */
+        	public removeLocalFileReferences(html: any): any {
+        		if (typeof html !== "string" || !/file:/i.test(html)) {
+        			return html;
+        		}
+        		const fileUrl = "(?:\"\\s*file:[^\"]*\"|''\\s*file:[^'']*''|file:[^\\s>]*)";
+        		const result = html.replace(new RegExp("<(?:img|source|embed)\\b[^>]*\\bsrc\\s*=\\s*" + fileUrl + "[^>]*>", "gi"), "");
+        		return result.replace(new RegExp("\\s(?:src|href|data|poster)\\s*=\\s*" + fileUrl, "gi"), "");
         	}
         	/*End_c8o_CompFunction*/
         	'

@@ -1,28 +1,25 @@
-import { test } from '@playwright/test';
+import { test } from './fixtures';
 import {
   changeUserLanguageThroughSettings,
-  assertSelectorFiltersThroughUi,
   createApplicationFromFirstTemplateThroughUi,
   createBlankApplicationThroughUi,
   createFolderAndValidateTitleThroughUi,
   currentUserLanguageFromSettings,
   deleteApplicationCancelThenConfirmThroughUi,
   duplicateApplicationAndAssertCopyThroughUi,
-  expectInvalidUsernamePasswordLoginRejected,
-  expectForgottenPasswordModalOpensAndCloses,
   expectNoCodeDashboardReady,
-  expectProtectedRouteRedirectsToLogin,
   expectStoredStudioLanguage,
   loginWithUsernamePassword,
-  logoutFromNoCodeDashboard,
   moveApplicationIntoFolderAndAssertThroughUi,
   reloadDashboardAndExpectSessionPersists,
   renameApplicationAndAssertPersistenceThroughUi,
   reopenExistingApplicationFromSelectorThroughUi,
   searchApplicationsByNameVariantsThroughUi,
 } from './helpers/functional-studio';
-import { loginAsAdminWithUsernamePassword } from './helpers/functional-admin';
 
+// Runs on the worker's shared, already signed-in browser context (./fixtures).
+// Tests that need a signed-out context or another identity (login form, logout,
+// admin) live in functional-authoring-identity.spec.ts on a fresh context.
 test.describe('No-Code Studio functional authoring', () => {
   // Every authoring journey creates an application through the UI and reloads the
   // selector, which costs 60-90s on a loaded CI server. Without a budget these
@@ -31,17 +28,6 @@ test.describe('No-Code Studio functional authoring', () => {
   // instead of naming the deadline. The two tests below that already declare
   // their own budget keep it - test.setTimeout() overrides this default.
   test.describe.configure({ timeout: 180_000 });
-
-  test('AUTH-001 - log in with the current username/password test user', async ({ page }) => {
-    await loginWithUsernamePassword(page);
-    await expectNoCodeDashboardReady(page);
-  });
-
-  test('AUTH-002 - log out and redirect protected routes to login', async ({ page }) => {
-    await loginWithUsernamePassword(page);
-    await logoutFromNoCodeDashboard(page);
-    await expectProtectedRouteRedirectsToLogin(page);
-  });
 
   test('AUTH-003 - keep the session after reloading the dashboard', async ({ page }) => {
     await loginWithUsernamePassword(page);
@@ -61,14 +47,6 @@ test.describe('No-Code Studio functional authoring', () => {
     } finally {
       await changeUserLanguageThroughSettings(page, originalLanguage);
     }
-  });
-
-  test('AUTH-005 - reject invalid username/password credentials', async ({ page }) => {
-    await expectInvalidUsernamePasswordLoginRejected(page);
-  });
-
-  test('AUTH-006 - open and close the forgotten password modal', async ({ page }) => {
-    await expectForgottenPasswordModalOpensAndCloses(page);
   });
 
   test('APP-001 - create a blank application', async ({ page }) => {
@@ -113,12 +91,6 @@ test.describe('No-Code Studio functional authoring', () => {
     test.setTimeout(150_000);
     await loginWithUsernamePassword(page);
     await searchApplicationsByNameVariantsThroughUi(page);
-  });
-
-  test('APP-009 - selector filters', async ({ page }) => {
-    test.setTimeout(240_000);
-    await loginAsAdminWithUsernamePassword(page);
-    await assertSelectorFiltersThroughUi(page);
   });
 
   test('APP-010 - open an existing application from selector', async ({ page }) => {

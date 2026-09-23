@@ -16,6 +16,20 @@ on:
 jobs:
   shards:
     runs-on: ubuntu-latest
+    # One test account can serve only one run at a time. Each shard drives a dedicated
+    # account on a shared server, and two tag pushes a few minutes apart start two full
+    # pipelines against the same accounts: on 2026-09-22 runs 35724167463 and 35726156673
+    # overlapped for an hour, one run's shard 3 autosaved a form 205 times while the other
+    # run's shard 3, logged in as the same testuser3, was loading the application selector,
+    # whose live FullSync feed restarted its query on every save and never finished loading.
+    # 19 tests failed instead of 2. The newest run wins: its shard cancels the older run's
+    # shard for the same account, whose results are moot once a newer build is deployed.
+    # Keyed per account rather than per workflow so that builds, deploys and GitHub releases
+    # are never cancelled or skipped (a workflow-level group drops pending runs, and with them
+    # the release of their tag). A run dispatched against another endpoint uses its own group.
+    concurrency:
+      group: c8oforms-e2e-${{ inputs.endpoint || 'default' }}-user-${{ inputs.browser == 'firefox' && matrix.firefox_user_index || matrix.chromium_user_index }}
+      cancel-in-progress: true
     container:
       image: mcr.microsoft.com/playwright:v1.61.0-noble
       # Firefox refuses to start as root when GitHub mounts /github/home for
@@ -60,6 +74,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Mark the checkout as safe so git sees the repository whatever user the
+          # container runs as (see the same step in build_and_deploy.yml).
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir -p tests/dist/sharding
           if git ls-remote --exit-code --heads origin refs/heads/badges >/dev/null; then
             git fetch --no-tags --depth=1 origin refs/heads/badges

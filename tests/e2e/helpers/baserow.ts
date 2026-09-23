@@ -33,6 +33,8 @@ export interface BaserowColumnSpec {
   name: string;
   type: string;
   baserowOptions?: Json;
+  /** Formula expression, for `formula` fields. */
+  formula?: string;
   values?: Array<string | Json>;
   description?: string;
   required?: boolean;

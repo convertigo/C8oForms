@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { createBlankApplicationThroughUi, loginWithUsernamePassword } from './helpers/functional-studio';
 import {
   PALETTE_ICON,
@@ -39,15 +39,25 @@ test.describe('No-Code Studio functional transverse contract', () => {
   test('X-001 - multilingual selector smoke uses i18n-neutral selectors', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
+    const originalLanguage = await page.evaluate(() => window.localStorage.getItem('lang'));
 
-    for (const language of SMOKE_LANGUAGES) {
-      await reloadStudioWithLanguage(page, language);
-      await expect(page.locator(SEL.selectorPageRoot).first(), `selector page should render in ${language}`).toBeVisible({
-        timeout: 30_000,
-      });
-      await expect(page.locator(SEL.blankFormCard).first(), `blank application entry should render in ${language}`).toBeVisible({
-        timeout: 30_000,
-      });
+    try {
+      for (const language of SMOKE_LANGUAGES) {
+        await reloadStudioWithLanguage(page, language);
+        await expect(page.locator(SEL.selectorPageRoot).first(), `selector page should render in ${language}`).toBeVisible({
+          timeout: 30_000,
+        });
+        await expect(page.locator(SEL.blankFormCard).first(), `blank application entry should render in ${language}`).toBeVisible({
+          timeout: 30_000,
+        });
+      }
+    } finally {
+      // The spec runs on the worker's shared browser context (./fixtures): put back
+      // the language the following tests start with.
+      await page.evaluate((value) => {
+        if (value === null) window.localStorage.removeItem('lang');
+        else window.localStorage.setItem('lang', value);
+      }, originalLanguage);
     }
   });
 

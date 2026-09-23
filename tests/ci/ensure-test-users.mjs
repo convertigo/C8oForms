@@ -2,6 +2,12 @@
 
 import { appendFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import {
+  deleteDocs,
+  findAll,
+  pruneStaleMcpTokens,
+  removeOrphanHiddenPublicationGroups,
+} from './test-account-cleanup.mjs';
 
 const DEFAULT_USERS = [
   'testuser-convertigo@yopmail.com',
@@ -363,63 +369,81 @@ function shouldResetUserData() {
 // so each CI run starts from a clean, light account (a bloated FullSync makes
 // the editor slow to load). Runs as admin (engine TEST_PLATFORM_PRIVATE), which
 // can query/delete across the per-user FullSync ACL. The user's settings doc
-// (C8Oreserved_) and shared design/template docs are preserved.
+// (C8Oreserved_) and shared design/template docs are preserved. Then drop what
+// the document purge leaves behind: the hidden groups of the deleted
+// publications and the MCP tokens of earlier runs (test-account-cleanup.mjs).
 async function cleanupUserData(endpoint, user) {
+  const fullsync = adminFullSync(endpoint);
   let total = 0;
   for (const db of FULLSYNC_DATA_DBS) {
-    const docs = await findUserOwnedDocs(endpoint, db, user);
+    const docs = await findUserOwnedDocs(fullsync, db, user);
     if (docs.length === 0) continue;
-    await bulkDeleteDocs(endpoint, db, docs);
+    await deleteDocs(fullsync, db, docs);
     total += docs.length;
   }
   console.log(`reset ${total} leftover document(s) for ${user}`);
+
+  await bestEffort(`hidden publication groups of ${user}`, async () => {
+    const { groups, memberships } = await removeOrphanHiddenPublicationGroups(fullsync, user);
+    console.log(`removed ${groups} orphan hidden publication group(s), ${memberships} membership(s), for ${user}`);
+  });
+  await bestEffort(`MCP tokens of ${user}`, async () => {
+    const dropped = await pruneStaleMcpTokens(fullsync, user);
+    console.log(`dropped ${dropped} MCP token(s) older than 12 h for ${user}`);
+  });
 }
 
 // Ownership is split: edition/published/folders/anonymous carry creator == user,
 // but PWA documents (published_<id>_pwa_document) have no creator and only
 // ~c8oAcl == user, while anonymous docs (published_<id>_anonymous) carry creator
 // but a hashed ~c8oAcl. Matching on EITHER catches every owned doc type.
-async function findUserOwnedDocs(endpoint, db, user) {
-  const found = [];
-  let bookmark = null;
-  for (let page = 0; page < 1000; page++) {
-    const body = {
-      selector: { $or: [{ creator: user }, { '~c8oAcl': user }] },
-      fields: ['_id', '_rev'],
-      limit: 500,
-    };
-    if (bookmark) body.bookmark = bookmark;
-    const response = await fetch(`${endpoint}/fullsync/${db}/_find`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(adminCookie ? { Cookie: adminCookie } : {}) },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(`FullSync _find on ${db} failed for ${user}: ${response.status} ${(await response.text()).slice(0, 300)}`);
-    }
-    const json = await response.json();
-    // Never delete the user settings doc, shared design docs, or the hand-seeded
-    // #1421 fixture (not recreated by CI).
-    const docs = (json.docs || []).filter(
-      (d) => !d._id.startsWith('C8Oreserved_') && !d._id.startsWith('_design') && !PRESERVED_DOC_IDS.has(d._id),
-    );
-    found.push(...docs);
-    bookmark = json.bookmark;
-    if (!json.docs || json.docs.length < 500) break;
-  }
-  return found;
+async function findUserOwnedDocs(fullsync, db, user) {
+  const docs = await findAll(fullsync, db, { $or: [{ creator: user }, { '~c8oAcl': user }] }, ['_id', '_rev']);
+  // Never delete the user settings doc, shared design docs, or the hand-seeded
+  // #1421 fixture (not recreated by CI).
+  return docs.filter(
+    (d) => !d._id.startsWith('C8Oreserved_') && !d._id.startsWith('_design') && !PRESERVED_DOC_IDS.has(d._id),
+  );
 }
 
-async function bulkDeleteDocs(endpoint, db, docs) {
-  const payload = { docs: docs.map((d) => ({ _id: d._id, _rev: d._rev, _deleted: true })) };
-  const response = await fetch(`${endpoint}/fullsync/${db}/_bulk_docs`, {
+// The account housekeeping reaches state the document purge leaves behind: a
+// failure there is reported but must not keep the e2e shards from running.
+async function bestEffort(what, action) {
+  try {
+    await action();
+  } catch (error) {
+    console.log(`::warning::could not clean up ${what}: ${error?.message ?? error}`);
+  }
+}
+
+function adminFullSync(endpoint) {
+  return {
+    get: (db, id) => getDocument(endpoint, db, id),
+    find: (db, body) => fullSyncPost(endpoint, db, '_find', body),
+    bulkDocs: (db, docs) => fullSyncPost(endpoint, db, '_bulk_docs', { docs }),
+    put: async (db, doc) => {
+      const { response, text } = await fullSyncRequest(endpoint, db, doc._id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc),
+      });
+      if (!response.ok) {
+        throw new Error(`FullSync PUT ${db}/${doc._id} failed: ${response.status} ${text.slice(0, 300)}`);
+      }
+    },
+  };
+}
+
+async function fullSyncPost(endpoint, db, path, body) {
+  const response = await fetch(`${endpoint}/fullsync/${db}/${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(adminCookie ? { Cookie: adminCookie } : {}) },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(`FullSync _bulk_docs delete on ${db} failed: ${response.status} ${(await response.text()).slice(0, 300)}`);
+    throw new Error(`FullSync ${path} on ${db} failed: ${response.status} ${(await response.text()).slice(0, 300)}`);
   }
+  return response.json();
 }
 
 function patchSucceeded(json) {
