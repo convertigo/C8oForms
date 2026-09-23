@@ -21,13 +21,13 @@ import {
  * Regression test for https://github.com/convertigo/C8oForms/issues/1555
  * "Grid row height differs between Baserow and local Formula data sources"
  *
- * Found in 2.2.0-beta342, still present in 2.2.0-beta347. Not fixed in a release yet.
+ * Found in 2.2.0-beta342, still present in 2.2.0-beta347, fixed in 2.2.0-beta348.
  *
  * Root cause: the Data Grid rows are auto height (autoHeight in itemGridViewer's defaultColDef). The cells of
  * a Baserow source are html cells: formssource_GetTableData renders them in a flex <div>. The cells of a local
  * grid (source "From local data") went through the TextCellRenderer that viewerPage registers for local grids,
  * which wraps the text in a <p>: its default 16px top and bottom margins made every local row 59px high
- * instead of 27px. The local fix (92e42139, not released yet) renders the same flex <div> as the Baserow
+ * instead of 27px. Fix 92e42139 (merged into NGX by b60ee6b3) renders the same flex <div> as the Baserow
  * cells, without a <p>.
  *
  * The ticket fills the local grid from a Formula. A Formula runs before the viewer creates the local grid, so
