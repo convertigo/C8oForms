@@ -7189,10 +7189,10 @@ comment
 
 </p></blockquote></details>
 
-<details><summary><b>clean_outputs</b> : Clean the generated files</summary><blockquote><p>
+<details><summary><b>clean_csv</b> : Clean the generated files</summary><blockquote><p>
 
 
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") clean_outputs
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") clean_csv
 
 Clean the generated files. Can be used in a Convertigo scheduled job to automate the process. Variables : 'max_time' => delete only files older than x ms. 'all' => Delete all files in folder even in a max_time is defined. 'target' => Folder path containing the files to delete. Can use "./",  ".//" or absolute path syntax.
 

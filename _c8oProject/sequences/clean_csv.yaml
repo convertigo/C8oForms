@@ -1,7 +1,7 @@
 accessibility: Private
 comment: 'Clean the generated files. Can be used in a Convertigo scheduled job to automate the process. Variables : ''max_time'' => delete only files older than x ms. ''all'' => Delete all files in folder even in a max_time is defined. ''target'' => Folder path containing the files to delete. Can use "./",  ".//" or absolute path syntax.'
 ↓jIf [steps.IfStep-1789984279265]: 
-  condition: target == null || target == ""
+  condition: target == null || target == "" || target != ".//csv"
   ↓Return [steps.ReturnStep-1789984279268]: 
 ↓init [steps.SimpleStep-1789984279271]: 
   expression: now = (new Date()).getTime();
@@ -26,8 +26,30 @@ comment: 'Clean the generated files. Can be used in a Convertigo scheduled job t
           - java.lang.String: 
             - ↑value: ./@lastModified
     variableName: lastModified
+  ↓fileName [steps.SimpleSourceStep-1790264164377]: 
+    sourceDefinition: 
+      - xmlizable: 
+        - ↑classname: com.twinsoft.convertigo.beans.common.XMLVector
+        - com.twinsoft.convertigo.beans.common.XMLVector: 
+          - java.lang.String: 
+            - ↑value: 1789984279277
+          - java.lang.String: 
+            - ↑value: ./text()
+    variableName: fileName
+  ↓checkFilePolicy [steps.SimpleStep-1790264242894]: 
+    expression: |
+      'var isFileRemovable = true;
+      
+      if (fileName == ".gitkeep") {
+      	isFileRemovable = false;
+      }
+      
+      if (!fileName.toLowerCase().endsWith(".csv")) {
+      	isFileRemovable = false;
+      }
+      '
   ↓jIf [steps.IfStep-1789984279283]: 
-    condition: all == "true" || (now - lastModified > max_time)
+    condition: (all == "true" && isFileRemovable) || ((now - lastModified > max_time) && isFileRemovable)
     ↓Copy [steps.XMLCopyStep-1789984279286]: 
       sourceDefinition: 
         - xmlizable: 
@@ -54,6 +76,13 @@ comment: 'Clean the generated files. Can be used in a Convertigo scheduled job t
     value: true
   ↓target [variables.TestCaseVariable-1789984279308]: 
     value: .//outputs
+↓Test_Case1 [core.TestCase]: 
+  ↓max_time [variables.TestCaseVariable-1790264599506]: 
+    value: 86400000
+  ↓all [variables.TestCaseVariable-1790264599509]: 
+    value: true
+  ↓target [variables.TestCaseVariable-1790264599512]: 
+    value: .//csv
 ↓Test_Case_1 [core.TestCase]: 
   ↓max_time [variables.TestCaseVariable-1789984279312]: 
     value: 86400
