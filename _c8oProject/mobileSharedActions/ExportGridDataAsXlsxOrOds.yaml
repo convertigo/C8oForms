@@ -4,9 +4,7 @@
       - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
       - com.twinsoft.convertigo.beans.common.FormatedContent: 
         →: |
-          '//		const api = vars.agGrid.api;
-          //		try {
-          	function prepareGridExport(agGrid: any, filePrefix?: string): any {
+          '	function prepareGridExport(agGrid: any, filePrefix?: string): any {
           		const api = agGrid?.api;
           
           		if (
@@ -39,7 +37,6 @@
           			return value ?? "";
           		};
           
-          //		const columns: any[] = api.getAllDisplayedColumns() || [];
           		const columns: any[] = (api.getAllDisplayedColumns() || []).filter((column: any) => {
           			const colDef = column.getColDef?.() || {};
           		
@@ -81,27 +78,54 @@
           
           		api.forEachNodeAfterFilterAndSort((node: any) => {
           			const row: any = {};
-          			console.log(node)
           			columns.forEach((column: any, index: number) => {
           				const colDef = column.getColDef?.() || {};
-          				console.log(column, colDef)
           				let value: any;
-          //				console.log(
-          //					"XLSX RAW",
-          //					headers[index],
-          //					{
-          //						cellDataType: colDef.cellDataType,
-          //						raw: api.getValue?.(column.getColId?.(), node),
-          //						formatted: typeof api.getCellValue === "function"
-          //							? api.getCellValue({
-          //								rowNode: node,
-          //								colKey: column,
-          //								useFormatter: true
-          //							})
-          //							: undefined
-          //					}
-          //				);
+          				const rawValue = api.getValue?.(
+          					column.getColId?.(),
+          					node
+          				);
+          				if (colDef.headerName === "Budget") {
+          					let formattedValue: any;
+          					let filterValue: any;
           
+          					try {
+          						formattedValue = colDef.valueFormatter?.({
+          							value: rawValue,
+          							data: node.data,
+          							node: node,
+          							colDef: colDef,
+          							column: column,
+          							api: api,
+          							context: api.getGridOption?.("context")
+          						});
+          					}
+          					catch (e) {
+          						formattedValue = "ERROR";
+          					}
+          
+          					try {
+          						filterValue = colDef.filterValueGetter?.({
+          							data: node.data,
+          							node: node,
+          							colDef: colDef,
+          							column: column,
+          							api: api,
+          							context: api.getGridOption?.("context")
+          						});
+          					}
+          					catch (e) {
+          						filterValue = "ERROR";
+          					}
+          
+          					console.log("BUDGET EXPORT", {
+          						rawValue,
+          						nodeData: node.data,
+          						directNodeValue: node.data?.[colDef.field],
+          						formattedValue,
+          						filterValue
+          					});
+          				}
           				if (colDef.cellDataType === "object") {
           					value = api.getValue?.(
           						column.getColId?.(),
@@ -114,30 +138,37 @@
           					);
           				}
           				else {
-          					// For standard cells, preserve the displayed/formatted value.
-          					if (typeof api.getCellValue === "function") {
-          						try {
-          							value = api.getCellValue({
-          								rowNode: node,
-          								colKey: column,
-          								useFormatter: true
-          							});
+          					if (rawValue == null || rawValue === "") {
+          						value = "";
+          					}
+          					else if (colDef.cellDataType === "number") {
+          						const numericValue = Number(rawValue);
+          
+          						value = Number.isFinite(numericValue)
+          							? numericValue
+          							: rawValue;
+          					}
+          					else if (colDef.cellDataType === "boolean") {
+          						if (typeof rawValue === "boolean") {
+          							value = rawValue;
           						}
-          						catch (e) {
-          							value = undefined;
+          						else if (rawValue === "true") {
+          							value = true;
+          						}
+          						else if (rawValue === "false") {
+          							value = false;
+          						}
+          						else {
+          							value = rawValue;
           						}
           					}
-          
-          					if (value === undefined) {
-          						value = api.getValue?.(
-          							column.getColId?.(),
-          							node
-          						);
+          					else {
+          						value = rawValue;
           
           						if (typeof colDef.valueFormatter === "function") {
           							try {
           								value = colDef.valueFormatter({
-          									value: value,
+          									value: rawValue,
           									data: node.data,
           									node: node,
           									colDef: colDef,
@@ -147,6 +178,7 @@
           								});
           							}
           							catch (e) {
+          								value = rawValue;
           							}
           						}
           					}
@@ -195,87 +227,24 @@
           			sheetName: "Export"
           		};
           	}	
-          //			const api = vars.agGrid.api;
-          			console.log(''EXPPORT'',vars)
           			const api = vars.ag_grid.api
           			// Colonnes actuellement affichées, dans l''ordre du Grid
           			const columns = api.getAllDisplayedColumns();
           	
           			const exportData = [];
           			
-          			vars.component.xlsxExporting = true;
-          			try {
-          			    resolve(prepareGridExport(vars.ag_grid, vars.file_prefix));
+          			const exportingFlag = vars.book_type + "Exporting";
+          
+          			if (vars.component) {
+          				vars.component[exportingFlag] = true;
           			}
-          			catch (error) {
-          			    vars.component.xlsxExporting = false;
-          			    reject(error);
-          			}
-          			
-          //			const getGridExportValue = (params) => {
-          //				console.log(params)
-          //				if (
-          //					params.column.getColDef().cellDataType === "object" &&
-          //					params.value
-          //				) {
-          //					return (
-          //						params.value.value?.value ??
-          //						params.value.value?.[0]?.value ??
-          //						params.value.value
-          //					);
-          //				}
-          //	
-          //				return params.value;
-          //			};
-          //	
-          //			api.forEachNodeAfterFilterAndSort((node) => {
-          //				const row: any = {};
-          //	
-          //				columns.forEach((column) => {
-          //					const colDef = column.getColDef();
-          //	
-          //					// Header réellement affiché dans AG Grid
-          //					const header =
-          //						api.getDisplayNameForColumn(column, "csv") ||
-          //						colDef.headerName ||
-          //						colDef.field ||
-          //						column.getColId();
-          //	
-          //					// Valeur du Grid
-          //					let value;
-          //	
-          //					if (typeof api.getCellValue === "function") {
-          //						value = api.getCellValue({
-          //							rowNode: node,
-          //							colKey: column,
-          //							useFormatter: true
-          //						});
-          //					} else {
-          //						value = api.getValue(
-          //							column.getColId(),
-          //							node
-          //						);
-          //						console.log(value)
-          //					}
-          //	
-          //					value = getGridExportValue({
-          //						value,
-          //						column,
-          //						node,
-          //						api,
-          //						colDef
-          //					});
-          //	
-          //					row[header] = value ?? "";
-          //				});
-          //	
-          //				exportData.push(row);
-          //			});
-          //			console.log(exportData)
-          //			resolve(exportData);
-          //		} catch(e) {
-          //			console.error(e)
-          //		}
+          
+          			resolve(
+          				prepareGridExport(
+          					vars.ag_grid,
+          					vars.file_prefix
+          				)
+          			)
           '
   ↓CallSequence [ngx.components.UIDynamicAction-1789649925945]: 
     beanData: '{"ionBean":"CallSequenceAction","requestable":"plain:lib_MicrosoftExcel.ExportDataToSheet"}'
@@ -316,12 +285,18 @@
               			const link = document.createElement("a");
               			link.href = url;
               			link.target = "_self";
+              			link.download = ''export.''+vars.book_type;
               
               			document.body.appendChild(link);
               			link.click();
               			document.body.removeChild(link);
               		}
               		vars.component.xlsxExporting = false;
+              		const exportingFlag = vars.book_type + "Exporting";
+              
+              		if (vars.component) {
+              			vars.component[exportingFlag] = false;
+              		}
               		resolve();
               '
       ↓url_path [ngx.components.UIControlVariable-1789649925963]: 

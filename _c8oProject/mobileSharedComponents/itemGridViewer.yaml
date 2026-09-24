@@ -8,7 +8,6 @@ scriptContent:
         /*Begin_c8o_CompDeclaration*/
         	public xlsxExporting: boolean = false;
         	public csvExporting: boolean = false;
-        	public odtExporting: boolean = false;
         	public odsExporting: boolean = false;
         	public exportMenuId: string = "ag-grid-export-" + Math.random().toString(36).slice(2, 10);
         	// #grid-stability: an AG Grid input must keep a STABLE reference.
@@ -632,9 +631,7 @@ scriptContent:
         		return (
         			this.xlsxExporting ||
         			this.csvExporting ||
-        			this.odsExporting ||
-        			this.odtExporting
-        			
+        			this.odsExporting
         		)
         	}
         	/*End_c8o_CompFunction*/
@@ -1142,7 +1139,7 @@ scriptContent:
             beanData: |
               '{
                "ionBean": "Button",
-               "Disabled": "script:this.xlsxExporting",
+               "Disabled": "script:this.isFileExporting()",
                "IonColor": "plain:light",
                "IonFill": "plain:solid",
                "IonSize": "plain:small"
@@ -1253,9 +1250,12 @@ scriptContent:
                       //--padding-top	//Top padding of the button
                       //--ripple-color	//Color of the button ripple effect
                       //--transition	//Transition of the button
+                      transition: 300ms linear;
                       &::part(native) {
                       	border-radius: 4px !important;
                       	height: 31.5px;
+                      	text-wrap: nowrap !important;
+                      	transition: 300ms linear;
                       }
                       '
             ↓Attr1 [ngx.components.UIAttribute-1789741529939]: 
@@ -1315,72 +1315,53 @@ scriptContent:
                             →: |
                               '		
                               		page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                              		if (vars.agGrid && vars.agGrid != '''') {
+                              		if (vars.agGrid && vars.agGrid !== "") {
                               			page.csvExporting = true;
                               
-                              			try {
-                              				const now = new Date();
+                              			setTimeout(() => {
+                              				try {
+                              					vars.agGrid.api.exportDataAsCsv({
+                              						fileName: "export.csv",
                               
-                              				const stamp = [
-                              					now.getFullYear(),
-                              					String(now.getMonth() + 1).padStart(2, "0"),
-                              					String(now.getDate()).padStart(2, "0"),
-                              					"_",
-                              					String(now.getHours()).padStart(2, "0"),
-                              					String(now.getMinutes()).padStart(2, "0"),
-                              					String(now.getSeconds()).padStart(2, "0")
-                              				].join("");
+                              						processCellCallback: (params) => {
+                              							if (
+                              								params.column.getColDef().cellDataType === "object" &&
+                              								params.value
+                              							) {
+                              								return params?.value?.type === "html"
+                              									? (
+                              										params.value.value?.value ??
+                              										params.value.value?.[0]?.value ??
+                              										params.value.value ??
+                              										""
+                              									)
+                              									: (
+                              										params.value.displayValue ??
+                              										params.value.value?.value ??
+                              										params.value.value?.[0]?.value ??
+                              										params.value.value ??
+                              										""
+                              									);
+                              							}
                               
-                              				const safePrefix =
-                              					String(page.item?.id || "grid")
-                              						.normalize("NFD")
-                              						.replace(/[\u0300-\u036f]/g, "")
-                              						.replace(/[^A-Za-z0-9_-]+/g, "_")
-                              						.replace(/^_+|_+$/g, "")
-                              						.slice(0, 64) || "grid";
-                              
-                              				const unique = Math.random()
-                              					.toString(36)
-                              					.slice(2, 8);
-                              					
-                              				vars.agGrid.api.exportDataAsCsv({
-                              					fileName: (
-                              						safePrefix +
-                              						"_" +
-                              						stamp +
-                              						"_" +
-                              						unique +	
-                              						".csv"
-                              					),
-                              					processCellCallback: (params) => {
-                              //						console.log(params)
-                              						if (
-                              							params.column.getColDef().cellDataType === "object" &&
-                              							params.value
-                              						) {
-                              							return (params?.value?.type == ''html'') ? (
-                              								params.value.value?.value ??
-                              								params.value.value?.[0]?.value ??
-                              								params.value.value ??
-                              								""
-                              							) : (
-                              								params.value.displayValue ??
-                              								params.value.value?.value ??
-                              								params.value.value?.[0]?.value ??
-                              								params.value.value ??
-                              								""
-                              							);
+                              							return params.value ?? "";
                               						}
+                              					});
                               
-                              						return params.value ?? "";
-                              					}
-                              				});
-                              			}
-                              			finally {
-                              				page.csvExporting = false;
-                              			}
+                              					resolve(null);
+                              				}
+                              				catch (error) {
+                              					reject(error);
+                              				}
+                              				finally {
+                              					page.csvExporting = false;
+                              				}
+                              			}, 0);
+                              
+                              			return;
                               		}
-                              		resolve(null);		
+                              
+                              		resolve(null);
                               '
                       comment: Preserves the existing immediate AG Grid CSV export path.
                       ↓agGrid [ngx.components.UIControlVariable-1789653751731]: 
@@ -1389,216 +1370,6 @@ scriptContent:
                             - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
                             - MobileSmartSourceType: script:this.myGrid.agGrid
                   ↓Attr3 [ngx.components.UIAttribute-1789655197062]: 
-                    attrName: class
-                    attrValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: plain:initial-viewer
-              ↓Directive [ngx.components.UIControlDirective-1789662373657]: 
-                directiveName: If
-                directiveSource: 
-                  - xmlizable: 
-                    - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                    - MobileSmartSourceType: script:this?.odt_button
-                ↓Odt [ngx.components.UIDynamicElement-1789662403407]: 
-                  beanData: |
-                    '{
-                     "ionBean": "ListItem",
-                     "Button": "plain:true",
-                     "Lines": "plain:none",
-                     "Disabled": "script:this.xlsxExporting"
-                    }'
-                  tagName: ion-item
-                  ↓Icon [ngx.components.UIDynamicElement-1789662403410]: 
-                    beanData: |
-                      '{
-                       "ionBean": "Icon",
-                       "IconName": "script:''document-text-outline''",
-                       "IconSlot": "plain:start"
-                      }'
-                    tagName: ion-icon
-                  ↓Text [ngx.components.UIText-1789662403415]: 
-                    textValue: 
-                      - xmlizable: 
-                        - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                        - MobileSmartSourceType: script:this.gridExportText('Grid_ExportOdt')
-                  ↓Event [ngx.components.UIControlEvent-1789662403418]: 
-                    ↓Error_Handler [ngx.components.UIActionErrorEvent-1789662403421]: 
-                      ↓ResetExportState [ngx.components.UICustomAction-1789662403424]: 
-                        actionValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                            - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                              →: |
-                                		if (vars.component != null) {
-                                		    vars.component.xlsxExporting = false;
-                                		    resolve(vars.component.gridExportText('Grid_ExportFailed'));
-                                		    return;
-                                		}
-                                		resolve('Excel export failed');		
-                                
-                        comment: Releases the XLSX loading state and returns a localized safe error message.
-                        ↓component [ngx.components.UIControlVariable-1789662403427]: 
-                          varValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:this
-                        ↓Toast [ngx.components.UIDynamicAction-1789662403430]: 
-                          beanData: |
-                            '{
-                             "ionBean": "ToastAction",
-                             "IonColor": "plain:danger",
-                             "message": "script:parent.out"
-                            }'
-                    ↓PrepareData [ngx.components.UICustomAction-1789662403433]: 
-                      actionValue: 
-                        - xmlizable: 
-                          - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                          - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                            →: |
-                              'page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                              const component = vars.component;
-                              if (component == null || component.xlsxExporting) {
-                                  resolve(null);
-                                  return;
-                              }
-                              component.xlsxExporting = true;
-                              try {
-                                  resolve(component.prepareGridExport(vars.agGrid, vars.filePrefix));
-                              }
-                              catch (error) {
-                                  component.xlsxExporting = false;
-                                  reject(error);
-                              }'
-                      comment: Builds a normalized visible/filtered/sorted/formatted data set and a unique filename.
-                      isEnabled: false
-                      ↓agGrid [ngx.components.UIControlVariable-1789662403436]: 
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.ag_grid
-                      ↓component [ngx.components.UIControlVariable-1789662403439]: 
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this
-                      ↓filePrefix [ngx.components.UIControlVariable-1789662403442]: 
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.file_prefix
-                      ↓CallSequence [ngx.components.UIDynamicAction-1789662403445]: 
-                        beanData: |
-                          '{
-                           "ionBean": "CallSequenceAction",
-                           "requestable": "plain:lib_MicrosoftExcel.ExportDataToSheet",
-                           "noLoading": "plain:true"
-                          }'
-                        ↓data [ngx.components.UIControlVariable-1789662403448]: 
-                          varValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:JSON.stringify(parent.out.rows)
-                        ↓file_name [ngx.components.UIControlVariable-1789662403451]: 
-                          varValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:parent.out.fileName
-                        ↓sheet_name [ngx.components.UIControlVariable-1789662403454]: 
-                          varValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: script:parent.out.sheetName
-                        ↓book_type [ngx.components.UIControlVariable-1789662403457]: 
-                          varValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                              - MobileSmartSourceType: plain:xlsx
-                        ↓Download [ngx.components.UICustomAction-1789662403460]: 
-                          actionValue: 
-                            - xmlizable: 
-                              - ↑classname: com.twinsoft.convertigo.beans.common.FormatedContent
-                              - com.twinsoft.convertigo.beans.common.FormatedContent: 
-                                →: |
-                                  'page.c8o.log.debug(''[MB] ''+ props.actionFunction +'': ''+ props.actionName);
-                                  const component = vars.component;
-                                  const url = vars.url_path;
-                                  if (!url) {
-                                      if (component != null) { component.xlsxExporting = false; }
-                                      reject(new Error(''Excel export did not return a download URL''));
-                                      return;
-                                  }
-                                  try {
-                                      const link = document.createElement(''a'');
-                                      link.href = url;
-                                      link.target = ''_self'';
-                                      link.rel = ''noopener'';
-                                      link.download = vars.file_name || '''';
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
-                                      if (component != null) { component.xlsxExporting = false; }
-                                      resolve(null);
-                                  }
-                                  catch (error) {
-                                      if (component != null) { component.xlsxExporting = false; }
-                                      reject(error);
-                                  }'
-                          comment: Downloads the exact URL returned by lib_MicrosoftExcel and always releases the local loading state.
-                          ↓url_path [ngx.components.UIControlVariable-1789662403463]: 
-                            varValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:parent.out?.file?.url_path
-                          ↓file_name [ngx.components.UIControlVariable-1789662403466]: 
-                            varValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:stack['PrepareData'].out?.fileName
-                          ↓component [ngx.components.UIControlVariable-1789662403469]: 
-                            varValue: 
-                              - xmlizable: 
-                                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                                - MobileSmartSourceType: script:this
-                    ↓InvokeSharedAction [ngx.components.UIDynamicInvoke-1789662403472]: 
-                      beanData: '{"ionBean":"InvokeAction"}'
-                      stack: C8Oforms.MobileApplication.Application.ExportGridDataAsOdt
-                      ↓ag_grid [ngx.components.UIControlVariable-1789662403475]: 
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.myGrid.agGrid
-                      ↓ClosePopover [ngx.components.UIDynamicAction-1789662403478]: 
-                        beanData: '{"ionBean":"ClosePopoverAction"}'
-                      ↓file_prefix [ngx.components.UIControlVariable-1789662403481]: 
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this.item?.id
-                      ↓component [ngx.components.UIControlVariable-1789662403484]: 
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:this
-                      ↓input_filename [ngx.components.UIControlVariable-1789664289339]: 
-                        comment: Plain ODT template filename used for the Grid export.
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:'template_table.odt'
-                      ↓marker [ngx.components.UIControlVariable-1789664289341]: 
-                        comment: Text marker present in the ODT template and replaced by the generated table. Defaults to __c8o_grid.
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:'__c8o_grid'
-                      ↓bin_url [ngx.components.UIControlVariable-1789664289343]: 
-                        comment: Optional explicit URL of the secure C8Oforms .bin wrapper. Leave empty for automatic resolution.
-                        varValue: 
-                          - xmlizable: 
-                            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                            - MobileSmartSourceType: script:null
-                  ↓Attr3 [ngx.components.UIAttribute-1789662403487]: 
                     attrName: class
                     attrValue: 
                       - xmlizable: 
@@ -2633,9 +2404,6 @@ scriptContent:
 ↓csv_button [ngx.components.UICompVariable-1789654385642]: 
   autoEmit: true
   value: true
-↓odt_button [ngx.components.UICompVariable-1789654403188]: 
-  autoEmit: true
-  value: false
 ↓ods_button [ngx.components.UICompVariable-1789734880650]: 
   autoEmit: true
   value: true

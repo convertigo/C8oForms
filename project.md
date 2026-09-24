@@ -59,15 +59,6 @@ Reference to ngx-chips
 see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/feature/#1525#readme)
 </p></blockquote></details>
 
-<details><summary><b>lib_fill_odt_pdf</b></summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_fill_odt_pdf
-
-
-see [readme](https://github.com/convertigo/c8oprj-lib-odftoolkit/tree/master#readme)
-</p></blockquote></details>
-
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
 
 
@@ -110,7 +101,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/c5b6ad2ce020f
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_MicrosoftExcel
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-excel/tree/8.2.X#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-excel/tree/feature/#1499#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_OAuth</b></summary><blockquote><p>
@@ -8069,60 +8060,6 @@ Email address targeted by the sequence.
 
 </p></blockquote></details>
 
-<details><summary><b>GetOdtTemplateDirectory</b> : Secure ODT Grid export wrapper</summary><blockquote><p>
-
-
-## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") GetOdtTemplateDirectory
-
-Secure ODT Grid export wrapper. Validates a plain template filename, confines it to C8Oforms/templates/odf, invokes lib_fill_odt_pdf.u_fill_odt server-side and returns its attachment.
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;break_before
-</td>
-<td>
-Table break behavior passed to lib_fill_odt_pdf.u_fill_odt.
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;markers
-</td>
-<td>
-JSON marker definitions passed to lib_fill_odt_pdf.u_fill_odt.
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;output_filename
-</td>
-<td>
-Relative output ODT path passed to lib_fill_odt_pdf.u_fill_odt.
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;template_name
-</td>
-<td>
-Plain ODT template filename used for the Grid export.
-</td>
-</tr>
-</table>
-
-</p></blockquote></details>
-
 <details><summary><b>GetSequences</b> : List sequences</summary><blockquote><p>
 
 
@@ -10485,76 +10422,6 @@ comment
 </td>
 <td>
 
-</td>
-</tr>
-</table>
-
-</p></blockquote></details>
-
-<details><summary><b>ExportGridDataAsOdt</b> : Exports the current AG Grid state through a secure C8Oforms server-side ODT wrapper</summary><blockquote><p>
-
-
-### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") ExportGridDataAsOdt
-
-Exports the current AG Grid state through a secure C8Oforms server-side ODT wrapper.
-
-<span style="color:DarkGoldenRod">Variables</span>
-
-<table>
-<tr>
-<th>
-name
-</th>
-<th>
-comment
-</th>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;ag_grid
-</td>
-<td>
-AG Grid component instance exposing the api property.
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;bin_url
-</td>
-<td>
-Optional explicit URL of the secure C8Oforms .bin wrapper. Leave empty for automatic resolution.
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;component
-</td>
-<td>
-Calling component used to expose the odtExporting loading flag.
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;file_prefix
-</td>
-<td>
-Readable prefix used to generate the downloaded ODT filename.
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;input_filename
-</td>
-<td>
-Plain ODT template filename used for the Grid export, for example grid_export.odt.
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;marker
-</td>
-<td>
-Text marker present in the ODT template and replaced by the generated table. Defaults to __c8o_grid.
 </td>
 </tr>
 </table>
@@ -17686,14 +17553,6 @@ this.formsSubmit[item['name']]
 <tr>
 <td>
 <img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;ods_button
-</td>
-<td>
-
-</td>
-</tr>
-<tr>
-<td>
-<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uicompvariable_16x16.png?raw=true "  alt="UICompVariable" >&nbsp;odt_button
 </td>
 <td>
 
