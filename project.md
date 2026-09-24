@@ -12,7 +12,6 @@ Convertigo No Code Studio
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") BaserowIntegration
 
 
-see [readme](https://github.com/convertigo/c8oprj-baserowintegration/tree/master#readme)
 </p></blockquote></details>
 
 <details><summary><b>C8Oforms_PWAs</b></summary><blockquote><p>
@@ -39,7 +38,7 @@ see [documentation](http://localhost:18080/convertigo/xsd/couchdb/CouchDb.xsd)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Actions_C8Oforms
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/master#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/2db79067c2ecefd2c30d831068143561d35abb24#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_BaseRow</b></summary><blockquote><p>
@@ -48,7 +47,6 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/mast
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_BaseRow
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
@@ -57,7 +55,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ExtendedComponents_ui_ngx
 
 Reference to ngx-chips
-see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.4.0.0_legacy#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/7a76a6f028cd4e52c572b61a8bd1872c92742e41#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
@@ -84,7 +82,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/a
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Geocoding_ui_ngx
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/8.1.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/390cab78135158123afee330fc48421414aa804a#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Leaflet</b></summary><blockquote><p>
@@ -93,7 +91,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/8.1.
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Leaflet
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/8.4.0.0_legacy#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/1fde30c64e9700d91dca18260a520f8a4ed88cff#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_OAuth</b></summary><blockquote><p>
@@ -111,7 +109,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/cd8291aeb883ec2
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ProductTour
 
 
-see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/8.4.0_legacy#readme)
+see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/b46eec298a1dc7f12679e880fec68616acf630bb#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager</b> : Reference to secured login library</summary><blockquote><p>
@@ -120,7 +118,7 @@ see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/8.4.0_legacy
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/781fa8b2349f42ed67c788349c779995909b9848#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager_ui_ngx</b></summary><blockquote><p>
@@ -129,7 +127,6 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#re
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager_ui_ngx
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/8.4.0_legacy#readme)
 </p></blockquote></details>
 
 <details><summary><b>libApexCharts</b></summary><blockquote><p>
@@ -138,7 +135,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/8
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") libApexCharts
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/8.4.0.0_legacy#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/af72e7f53c845a70e050b60b708f76b1480eced2#readme)
 </p></blockquote></details>
 </p></blockquote></details>
 
