@@ -12,6 +12,11 @@ scriptContent:
         	// handler ends with markForCheck, which schedules the next pass -- a loop at frame rate
         	// that also re-ran the column sizing (hence the repeated AG Grid resetRowHeights warning).
         	private agGridDefaultColDef: any = {autoHeight: true, hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false};
+        	// Stable [ngStyle] references. Keys contain every resolved Box property consumed by each method.
+        	private gridBoxStyleCacheKey: any[] = null;
+        	private gridBoxStyleCacheValue: any = null;
+        	private gridThemeStyleCacheKey: any[] = null;
+        	private gridThemeStyleCacheValue: any = null;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		/*End_c8o_CompConstructor*/
@@ -613,170 +618,77 @@ scriptContent:
         		return ("" + value).replace(/\s*!important\s*/ig, "").trim();
         	}
         
-        	private getGridThemeLinearRgbChannel(value: any): number {
-        		const channel = Math.max(0, Math.min(255, parseFloat("" + value))) / 255;
-        		return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
-        	}
-        
-        	private getGridThemeRgbFromCssColor(value: any): any {
-        		let color = this.cleanGridThemeCssValue(value).toLowerCase();
-        		if (color == "" || color == "transparent") {
-        			return {r: 255, g: 255, b: 255};
-        		}
-        		let match = color.match(/^#([0-9a-f]{3})$/i);
-        		if (match != null) {
-        			return {
-        				r: parseInt(match[1].charAt(0) + match[1].charAt(0), 16),
-        				g: parseInt(match[1].charAt(1) + match[1].charAt(1), 16),
-        				b: parseInt(match[1].charAt(2) + match[1].charAt(2), 16)
-        			};
-        		}
-        		match = color.match(/^#([0-9a-f]{6})$/i);
-        		if (match != null) {
-        			return {
-        				r: parseInt(match[1].substring(0, 2), 16),
-        				g: parseInt(match[1].substring(2, 4), 16),
-        				b: parseInt(match[1].substring(4, 6), 16)
-        			};
-        		}
-        		match = color.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
-        		if (match != null) {
-        			return {
-        				r: Math.max(0, Math.min(255, parseFloat(match[1]))),
-        				g: Math.max(0, Math.min(255, parseFloat(match[2]))),
-        				b: Math.max(0, Math.min(255, parseFloat(match[3])))
-        			};
-        		}
-        		return null;
-        	}
-        
-        	private getGridThemeAutomaticTextColor(backgroundColor: any): string {
-        		const rgb = this.getGridThemeRgbFromCssColor(backgroundColor);
-        		if (rgb == null) {
-        			return "#000000";
-        		}
-        		const r = this.getGridThemeLinearRgbChannel(rgb.r);
-        		const g = this.getGridThemeLinearRgbChannel(rgb.g);
-        		const b = this.getGridThemeLinearRgbChannel(rgb.b);
-        		const luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
-        		const blackContrast = (luminance + 0.05) / 0.05;
-        		const whiteContrast = 1.05 / (luminance + 0.05);
-        		return blackContrast >= whiteContrast ? "#000000" : "#FFFFFF";
-        	}
-        
-        	private getGridLocalComponentBoxStyle(): any {
-        		const boxStyle = this.item?.config?.componentBoxStyle;
-        		if (boxStyle == null || typeof boxStyle != "object" || Array.isArray(boxStyle)) {
-        			return {};
-        		}
-        		const style: any = {};
-        		const margin = this.cleanGridThemeCssValue(boxStyle.margin);
-        		const padding = this.cleanGridThemeCssValue(boxStyle.padding);
-        		const backgroundColor = this.cleanGridThemeCssValue(boxStyle.backgroundColor);
-        		let textColor = this.cleanGridThemeCssValue(boxStyle.textColor);
-        		const textColorMode = this.cleanGridThemeCssValue(boxStyle.textColorMode).toLowerCase();
-        		if (textColorMode == "none" || textColorMode == "unset" || textColorMode == "default") {
-        			textColor = "";
-        		}
-        		else if (textColorMode == "auto" && (textColor == "" || textColor.toLowerCase() == "auto")) {
-        			textColor = this.getGridThemeAutomaticTextColor(backgroundColor);
-        		}
-        		else if (textColorMode == "" && ["#ffffff", "#fff", "rgb(255,255,255)"].indexOf(textColor.toLowerCase().replace(/\s+/g, "")) != -1 && backgroundColor == "") {
-        			textColor = "";
-        		}
-        		if (margin != "") {
-        			style["margin"] = margin;
-        		}
-        		if (padding != "") {
-        			style["padding"] = padding;
-        		}
-        		if (backgroundColor != "") {
-        			style["background-color"] = backgroundColor;
-        		}
-        		if (textColor != "" && textColor.toLowerCase() != "auto") {
-        			style["color"] = textColor;
-        			style["--color"] = textColor;
-        			style["--ion-text-color"] = textColor;
-        			style["--c8o-box-text-color"] = textColor;
-        		}
-        		let border = this.cleanGridThemeCssValue(boxStyle.border);
-        		const borderWidth = this.cleanGridThemeCssValue(boxStyle.borderWidth);
-        		const borderStyle = this.cleanGridThemeCssValue(boxStyle.borderStyle);
-        		const borderColor = this.cleanGridThemeCssValue(boxStyle.borderColor);
-        		if (border == "" && (borderWidth != "" || borderStyle != "" || borderColor != "")) {
-        			border = (borderWidth || "1px") + " " + (borderStyle || "solid") + " " + (borderColor || "#E5E7EB");
-        		}
-        		if (border != "") {
-        			style["border"] = border;
-        		}
-        		const borderRadius = this.cleanGridThemeCssValue(boxStyle.borderRadius);
-        		if (borderRadius != "") {
-        			style["border-radius"] = borderRadius;
-        		}
-        		const borderProperties: any = {
-        			borderWidth: "border-width",
-        			borderStyle: "border-style",
-        			borderColor: "border-color",
-        			borderTop: "border-top",
-        			borderRight: "border-right",
-        			borderBottom: "border-bottom",
-        			borderLeft: "border-left",
-        			borderTopWidth: "border-top-width",
-        			borderTopStyle: "border-top-style",
-        			borderTopColor: "border-top-color",
-        			borderRightWidth: "border-right-width",
-        			borderRightStyle: "border-right-style",
-        			borderRightColor: "border-right-color",
-        			borderBottomWidth: "border-bottom-width",
-        			borderBottomStyle: "border-bottom-style",
-        			borderBottomColor: "border-bottom-color",
-        			borderLeftWidth: "border-left-width",
-        			borderLeftStyle: "border-left-style",
-        			borderLeftColor: "border-left-color"
-        		};
-        		Object.keys(borderProperties).forEach((property) => {
-        			const value = this.cleanGridThemeCssValue(boxStyle[property]);
-        			if (value != "") {
-        				style[borderProperties[property]] = value;
-        			}
-        		});
-        		return style;
-        	}
         
         	private getGridResolvedComponentBoxStyle(): any {
         		if (this.pageOwner != null && typeof this.pageOwner.getViewerItemPartBoxStyle == "function") {
         			return this.pageOwner.getViewerItemPartBoxStyle(this.item, "component") || {};
         		}
-        		return this.getGridLocalComponentBoxStyle();
+        		// Keep the editor canvas aligned with the other viewer components: Box resolution belongs to the viewer page.
+        		return {};
+        	}
+        
+        	private isSameGridStyleCacheKey(previous: any[], current: any[]): boolean {
+        		if (previous == null || previous.length != current.length) {
+        			return false;
+        		}
+        		for (let index = 0; index < current.length; index++) {
+        			if (previous[index] !== current[index]) {
+        				return false;
+        			}
+        		}
+        		return true;
         	}
         
         	public getGridBoxStyle(): any {
         		const resolved = this.getGridResolvedComponentBoxStyle();
-        		const style: any = {};
-        		const layoutProperties = ["margin", "padding"];
-        		layoutProperties.forEach((property) => {
-        			if (this.cleanGridThemeCssValue(resolved[property]) != "") {
-        				style[property] = resolved[property];
-        			}
-        		});
-        		if (Object.keys(style).length == 0) {
-        			return style;
+        		const margin = resolved["margin"];
+        		const key = [margin == null ? "" : "" + margin];
+        		if (this.isSameGridStyleCacheKey(this.gridBoxStyleCacheKey, key)) {
+        			return this.gridBoxStyleCacheValue;
         		}
-        		style["box-sizing"] = "border-box";
-        		if (style["margin"] != null) {
+        		const style: any = {};
+        		if (this.cleanGridThemeCssValue(margin) != "") {
+        			style["margin"] = margin;
+        			style["box-sizing"] = "border-box";
         			style["width"] = "auto";
         		}
+        		this.gridBoxStyleCacheKey = key;
+        		this.gridBoxStyleCacheValue = style;
         		return style;
         	}
         
         	public getGridThemeStyle(): any {
         		const resolved = this.getGridResolvedComponentBoxStyle();
-        		const style: any = {};
         		const backgroundColor = this.cleanGridThemeCssValue(resolved["background-color"]);
         		const textColor = this.cleanGridThemeCssValue(resolved["--c8o-box-text-color"] || resolved["--ion-text-color"] || resolved["color"]);
+        		const padding = resolved["padding"];
+        		const borderProperties = [
+        			"border", "border-top", "border-right", "border-bottom", "border-left",
+        			"border-width", "border-style", "border-color",
+        			"border-top-width", "border-top-style", "border-top-color",
+        			"border-right-width", "border-right-style", "border-right-color",
+        			"border-bottom-width", "border-bottom-style", "border-bottom-color",
+        			"border-left-width", "border-left-style", "border-left-color"
+        		];
+        		const borderValues = borderProperties.map((property) => resolved[property]);
+        		const borderRadius = resolved["border-radius"];
+        		// Primitive keys avoid identity churn when viewerPage returns a newly allocated resolved-style object.
+        		const key = [
+        			backgroundColor,
+        			textColor,
+        			padding == null ? "" : "" + padding,
+        			borderRadius == null ? "" : "" + borderRadius
+        		].concat(borderValues.map((value) => value == null ? "" : "" + value));
+        		if (this.isSameGridStyleCacheKey(this.gridThemeStyleCacheKey, key)) {
+        			return this.gridThemeStyleCacheValue;
+        		}
+        
+        		const style: any = {};
         		const hasBackground = backgroundColor != "";
         		const hasText = textColor != "";
         		if (hasBackground) {
+        			// Paint the host as well as AG Grid internals so Component padding remains inside the background.
+        			style["background-color"] = backgroundColor;
         			style["--ag-background-color"] = backgroundColor;
         			style["--ag-header-background-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 7%)";
         			style["--ag-header-cell-hover-background-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 12%)";
@@ -799,23 +711,25 @@ scriptContent:
         		else if (hasBackground) {
         			style["--ag-active-color"] = "var(--ag-foreground-color)";
         		}
+        		// Dimension-specific markers preserve the other Container color when only one Component color is configured.
+        		if (hasBackground) {
+        			style["--c8o-grid-component-background"] = "1";
+        		}
+        		if (hasText) {
+        			style["--c8o-grid-component-text"] = "1";
+        		}
         		if (hasBackground || hasText) {
         			style["--ag-checkbox-unchecked-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 42%)";
         			style["--ag-checkbox-indeterminate-color"] = "var(--ag-active-color)";
         		}
-        		const borderProperties = [
-        			"border", "border-top", "border-right", "border-bottom", "border-left",
-        			"border-width", "border-style", "border-color",
-        			"border-top-width", "border-top-style", "border-top-color",
-        			"border-right-width", "border-right-style", "border-right-color",
-        			"border-bottom-width", "border-bottom-style", "border-bottom-color",
-        			"border-left-width", "border-left-style", "border-left-color"
-        		];
+        		if (this.cleanGridThemeCssValue(padding) != "") {
+        			style["padding"] = padding;
+        			style["box-sizing"] = "border-box";
+        		}
         		let hasOuterBorder = false;
-        		borderProperties.forEach((property) => {
-        			const value = this.cleanGridThemeCssValue(resolved[property]);
-        			if (value != "") {
-        				style[property] = value;
+        		borderProperties.forEach((property, index) => {
+        			if (this.cleanGridThemeCssValue(borderValues[index]) != "") {
+        				style[property] = borderValues[index];
         				hasOuterBorder = true;
         			}
         		});
@@ -823,12 +737,14 @@ scriptContent:
         			style["box-sizing"] = "border-box";
         			style["--c8o-ag-root-wrapper-border"] = "none";
         		}
-        		const borderRadius = this.cleanGridThemeCssValue(resolved["border-radius"]);
-        		if (borderRadius != "") {
+        		if (this.cleanGridThemeCssValue(borderRadius) != "") {
         			style["border-radius"] = borderRadius;
         			style["--ag-wrapper-border-radius"] = borderRadius;
         			style["overflow"] = "hidden";
         		}
+        
+        		this.gridThemeStyleCacheKey = key;
+        		this.gridThemeStyleCacheValue = style;
         		return style;
         	}
         
