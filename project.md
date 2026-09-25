@@ -38,7 +38,7 @@ see [documentation](http://localhost:18080/convertigo/xsd/couchdb/CouchDb.xsd)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Actions_C8Oforms
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/master#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/hotfix/1.0.62#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_BaseRow</b></summary><blockquote><p>
@@ -47,7 +47,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-actions-c8oforms/tree/mast
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_BaseRow
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/feature/#1499#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_ExtendedComponents_ui_ngx</b> : Reference to ngx-chips</summary><blockquote><p>
@@ -56,7 +56,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-baserow/tree/8.4.x#readme)
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_ExtendedComponents_ui_ngx
 
 Reference to ngx-chips
-see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx/tree/feature/#1525#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_FullSyncGrp</b> : Reference to fs group</summary><blockquote><p>
@@ -65,7 +65,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-extended-components-ui-ngx
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_FullSyncGrp
 
 Reference to fs group
-see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/21180ee94822b2f7cda6253af5fbdb76b63c8559#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_GeneratePWAAssets</b></summary><blockquote><p>
@@ -74,7 +74,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-fullsync-grp/tree/8.0.0#re
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_GeneratePWAAssets
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/bbe8594288607077d4c297ff0b0ebd107b89013e#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Geocoding_ui_ngx</b></summary><blockquote><p>
@@ -83,7 +83,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-generate-assets-pwa/tree/8
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Geocoding_ui_ngx
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/4355d11a50996fc782564ed45ba2a12e44ff8375#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_Leaflet</b></summary><blockquote><p>
@@ -92,7 +92,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-geocoding-ui-ngx/tree/8.4.
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_Leaflet
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/c5b6ad2ce020f64a2901ca9952390319b7cb76c6#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_OAuth</b></summary><blockquote><p>
@@ -101,7 +101,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-leaflet/tree/8.4.0.0#readm
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_OAuth
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/8.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-oauth/tree/cd8291aeb883ec27b5a18adb6304a5776a22b9d4#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_ProductTour</b></summary><blockquote><p>
@@ -119,7 +119,7 @@ see [readme](https://github.com/convertigo/c8oprj-product-tour/tree/78fb392c8cfa
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager
 
 Reference to secured login library
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/feature/#1475#readme)
 </p></blockquote></details>
 
 <details><summary><b>lib_UserManager_ui_ngx</b></summary><blockquote><p>
@@ -128,7 +128,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager/tree/8.0.X#re
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") lib_UserManager_ui_ngx
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/8.4.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/feature/#1475#readme)
 </p></blockquote></details>
 
 <details><summary><b>libApexCharts</b></summary><blockquote><p>
@@ -137,7 +137,7 @@ see [readme](https://github.com/convertigo/c8oprj-lib-user-manager-ui-ngx/tree/8
 ## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/references/images/ProjectSchemaReference_16x16.png?raw=true "ProjectSchemaReference") libApexCharts
 
 
-see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/8.4.0.0#readme)
+see [readme](https://github.com/convertigo/c8oprj-lib-apexcharts-ui-ngx/tree/6a1f5165bce06f256fb13ee4dbe96173cafb041d#readme)
 </p></blockquote></details>
 </p></blockquote></details>
 
@@ -2957,6 +2957,15 @@ Language code stored on the document.
 </p></blockquote></details>
 </p></blockquote></details>
 
+<details><summary><b>c8oforms_history_fs</b> : Application history store (#1359)</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/connectors/images/fullsyncconnector_color_16x16.png?raw=true "FullSyncConnector") c8oforms_history_fs
+
+Application history store (#1359).
+Versions of the applications (entries, contents, attachment blobs), only read and written by the history sequences.
+</p></blockquote></details>
+
 <details><summary><b>c8oforms_response_fs</b> : Responses fullsync store</summary><blockquote><p>
 
 
@@ -5083,6 +5092,45 @@ Set to true to remove the Base64 fields instead of only listing impacted documen
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_CreateApplicationVersion</b> : Create an application version (#1359)</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_CreateApplicationVersion
+
+Create an application version (#1359).
+Records the current state of a draft application as a manual version with an optional label.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
+</td>
+<td>
+Identifier of the draft application.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;label
+</td>
+<td>
+Optional label of the version (120 characters at most).
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_createEmptyFolder</b> : Create empty folder</summary><blockquote><p>
 
 
@@ -5542,6 +5590,45 @@ True when targeting the responses database.
 </td>
 <td>
 Target identifier for the action.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_ExportApplicationVersion</b> : Export an application version (#1359)</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_ExportApplicationVersion
+
+Export an application version (#1359).
+Downloads one version of a draft application as a .c8oforms file, in the format of the application export.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;entryId
+</td>
+<td>
+Identifier of the version to export.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
+</td>
+<td>
+Identifier of the draft application.
 </td>
 </tr>
 </table>
@@ -6035,6 +6122,108 @@ JSON array of user ids to fetch.
 
 </p></blockquote></details>
 
+<details><summary><b>APIV2_ImportApplicationVersion</b> : Import a file as an application version (#1359)</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_ImportApplicationVersion
+
+Import a file as an application version (#1359).
+Stores an exported .c8oforms file as an import version of an existing draft application, to be restored like any other version.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
+</td>
+<td>
+Identifier of the draft application.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;label
+</td>
+<td>
+Optional label of the version, usually the file name.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;meta
+</td>
+<td>
+Content of the exported .c8oforms file (JSON text).
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_ListApplicationHistory</b> : List application versions (#1359)</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_ListApplicationHistory
+
+List application versions (#1359).
+Returns one page of the version history of a draft application, most recent first, with the hash of its current state.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;automatic
+</td>
+<td>
+false to leave the automatic versions out.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;before
+</td>
+<td>
+Cursor returned as next by the previous page (JSON array); empty for the first page.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
+</td>
+<td>
+Identifier of the draft application.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;limit
+</td>
+<td>
+Number of versions per page (1 to 50).
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>APIV2_mapper_redirect</b> : Redirect mapper call</summary><blockquote><p>
 
 
@@ -6500,6 +6689,53 @@ Number of documents fetched per Mango page during the audit.
 </td>
 <td>
 Set to true to rebuild c8oGrp based on computed expectations.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>APIV2_RestoreApplicationVersion</b> : Restore an application version (#1359)</summary><blockquote><p>
+
+
+## ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/sequences/images/genericsequence_color_16x16.png?raw=true "GenericSequence") APIV2_RestoreApplicationVersion
+
+Restore an application version (#1359).
+Replaces the draft application by one of its versions, keeping its id, URL, access rights and publication. The state it held is kept as a pre_restore version.
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;entryId
+</td>
+<td>
+Identifier of the version to restore.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;id
+</td>
+<td>
+Identifier of the draft application.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/variables/images/variable_color_16x16.png?raw=true "  alt="RequestableVariable" >&nbsp;rev
+</td>
+<td>
+Revision of the draft the caller shows; the restore is refused when the draft changed since. Empty to skip the check.
 </td>
 </tr>
 </table>
@@ -9233,6 +9469,14 @@ Admin Gdrp Config
 
 </p></blockquote></details>
 
+<details><summary><b>applicationHistoryPage</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/pagecomponent_color_16x16.png?raw=true "PageComponent") applicationHistoryPage
+
+
+</p></blockquote></details>
+
 <details><summary><b>colorPage</b></summary><blockquote><p>
 
 
@@ -10029,6 +10273,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>createApplicationVersion</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") createApplicationVersion
+
+
+</p></blockquote></details>
+
 <details><summary><b>createFormFromTemplate</b></summary><blockquote><p>
 
 
@@ -10365,6 +10617,36 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>exportApplicationVersion</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") exportApplicationVersion
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;entry
+</td>
+<td>
+Version to download, as listed by APIV2_ListApplicationHistory.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
 <details><summary><b>functionPublishAndCreatePwa</b> : used to publish or/and create/update pwa</summary><blockquote><p>
 
 
@@ -10517,6 +10799,14 @@ comment
 
 </p></blockquote></details>
 
+<details><summary><b>importApplicationVersion</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") importApplicationVersion
+
+
+</p></blockquote></details>
+
 <details><summary><b>importNg2Tooltips</b></summary><blockquote><p>
 
 
@@ -10549,6 +10839,82 @@ comment
 </td>
 <td>
 
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>loadApplicationHistory</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") loadApplicationHistory
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;automatic
+</td>
+<td>
+True or false to show or hide the automatic versions from now on; empty keeps the choice.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;more
+</td>
+<td>
+True to append the next page to the versions already shown.
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>openApplicationHistory</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") openApplicationHistory
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;fromEditor
+</td>
+<td>
+True when opened from the editor, which reloads after a restore.
+</td>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;selectedForm
+</td>
+<td>
+Draft application whose versions are shown.
 </td>
 </tr>
 </table>
@@ -11371,6 +11737,36 @@ comment
 </td>
 <td>
 
+</td>
+</tr>
+</table>
+
+</p></blockquote></details>
+
+<details><summary><b>restoreApplicationVersion</b></summary><blockquote><p>
+
+
+### ![](https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uiactionstack_color_16x16.png?raw=true "UIActionStack") restoreApplicationVersion
+
+
+
+<span style="color:DarkGoldenRod">Variables</span>
+
+<table>
+<tr>
+<th>
+name
+</th>
+<th>
+comment
+</th>
+</tr>
+<tr>
+<td>
+<img src="https://github.com/convertigo/convertigo/blob/develop/engine/src/com/twinsoft/convertigo/beans/ngx/components/images/uistackvariable_16x16.png?raw=true "  alt="UIStackVariable" >&nbsp;entry
+</td>
+<td>
+Version to restore, as listed by APIV2_ListApplicationHistory.
 </td>
 </tr>
 </table>
