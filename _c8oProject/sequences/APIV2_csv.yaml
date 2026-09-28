@@ -12,6 +12,7 @@ responseTimeout: 600
     const logLevel = "warn";
     const DEFAULT_BATCH_SIZE = 1000;
     var excludedHeaderIndexes = {};
+    var groupWidths = {};
     
     var writeCsvRow = function(writer, row, options) {
     	var stringDelimiter = options.stringDelimiter || ''"'';
@@ -36,6 +37,7 @@ responseTimeout: 600
     var buildHeaderRow = function(headers, key) {
       var headerRow = [];
       excludedHeaderIndexes = {};
+      groupWidths = {};
       if (!Array.isArray(headers)) {
         return headerRow;
       }
@@ -57,6 +59,8 @@ responseTimeout: 600
     
           if (header.type === "checkbox_group" || header.type === "radio_group") {
             var categories = header.categories || [];
+            // nb de colonnes réservées dans l’en-tête pour cette grille
+            groupWidths[idx] = Math.max(categories.length, 1);
             if (categories.length === 0) {
               // si pas de catégories, garde quand même une colonne
               headerRow.push(labelValue);
@@ -101,9 +105,17 @@ responseTimeout: 600
           case "checkbox_group":
             // On construit N cellules (N = nb de catégories)
             // col.value = tableau d’options (OK/NOK/NA/...), chacune avec un .data de longueur N
-            var nbCols = 0;
-            if (Array.isArray(col.value) && col.value.length > 0 && Array.isArray(col.value[0].data)) {
-              nbCols = col.value[0].data.length;
+            // col.value peut contenir des trous (undefined) : on les ignore
+            var subcols = Array.isArray(col.value) ? col.value : [];
+            // N = nb de colonnes de l’en-tête, pour garder l’alignement des colonnes suivantes
+            var nbCols = groupWidths[colIndex];
+            if (nbCols == null) {
+              nbCols = 0;
+              for (var s0 = 0; s0 < subcols.length; s0++) {
+                if (subcols[s0] && Array.isArray(subcols[s0].data)) {
+                  nbCols = Math.max(nbCols, subcols[s0].data.length);
+                }
+              }
             }
     
             // pré-alloue les N cellules à ""
@@ -113,10 +125,13 @@ responseTimeout: 600
     
             // remplit avec “OK|NOK|NA|...” selon data[j] == 1
             // (on concatène si plusieurs valeurs sont vraies)
-            for (var subIndex = 0; subIndex < col.value.length; subIndex++) {
-              var subcol = col.value[subIndex];
+            for (var subIndex = 0; subIndex < subcols.length; subIndex++) {
+              var subcol = subcols[subIndex];
+              if (!subcol || !Array.isArray(subcol.data)) {
+                continue;
+              }
               var optName = subcol.name || "";
-              for (var j2 = 0; j2 < subcol.data.length; j2++) {
+              for (var j2 = 0; j2 < subcol.data.length && j2 < nbCols; j2++) {
                 if (subcol.data[j2] == 1) {
                   var cellIdx = currentLineResponse.length - nbCols + j2; // les N dernières qu’on vient de pousser
                   var prev = currentLineResponse[cellIdx];
@@ -314,7 +329,7 @@ responseTimeout: 600
     }
     catch (e) {
     	console.log("error", e, logLevel);
-    	res["error"] = e;
+    	res["error"] = "" + e;
     }
     finally {
     	if (writer != null) {
