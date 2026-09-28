@@ -122,11 +122,13 @@ From the page you can:
 - see every manifest test (kind, versions, reproduction steps) and the version
   the server is currently serving;
 - **Run all** or **Run this** on a single test;
-- pick the **version**: *Latest* resolves the newest release; *Broken* targets
-  the test's `brokenVersion`; *Broken -> Latest* verifies one ticket end to end
-  by running it red on `brokenVersion`, then green on the latest release. The
-  runner checks the served version first, deploys only if it differs, then
-  confirms the right version is live before running. *Broken -> Latest* is
+- pick the **version**: *Latest* resolves the newest release; *Current (no deploy)*
+  runs against the version already served by the selected target, without
+  consulting GitHub or deploying; *Broken* targets the test's `brokenVersion`;
+  *Broken -> Latest* verifies one ticket end to end
+  by running it red on `brokenVersion`, then green on the latest release.
+  *Current* confirms the served version before each test and never deploys;
+  the other modes deploy when their target version differs. *Broken -> Latest* is
   intentionally limited to one test at a time so the red/green phases stay
   readable;
 - see and override `C8OFORMS_BASE_URL` and `C8OFORMS_APP_URL` before launching a

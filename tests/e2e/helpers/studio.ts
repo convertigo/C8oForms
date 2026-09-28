@@ -9174,6 +9174,24 @@ export async function setDescriptionText(page: Page, text: string): Promise<void
   await fillVisibleTinyMceText(page, text, 'description text editor');
 }
 
+/** Update a Text input's question in the Appearance editor. */
+export async function setTextInputQuestion(page: Page, text: string): Promise<void> {
+  await test.step(`Set Text input question to ${text}`, async () => {
+    await openStyleSection(page);
+    const questionTab = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}:visible`).first();
+    await expect(questionTab, 'Text input Question tab should be visible').toBeVisible({ timeout: 10_000 });
+    await questionTab.click();
+    const body = await visibleTinyMceBody(page);
+    await expect(body, 'Text input question editor should be visible').toBeVisible({ timeout: 15_000 });
+    if (!(await setTinyMceContentThroughApi(page, text))) {
+      await fillVisibleTinyMceText(page, text, 'Text input question editor');
+    }
+    await expect(body, 'Text input question editor should contain the new question').toContainText(text, {
+      timeout: 10_000,
+    });
+  });
+}
+
 async function setTinyMceContentThroughApi(page: Page, text: string): Promise<boolean> {
   const editorBody = await visibleTinyMceBody(page).catch(() => null);
   if (!editorBody) {

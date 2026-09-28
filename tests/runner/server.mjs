@@ -1,6 +1,6 @@
 // Tiny local dashboard to browse the regression manifest and run tests with a
-// chosen version (latest = newest release, broken = bug-report version, verify
-// = broken then latest),
+// chosen version (latest = newest release, current = already deployed release,
+// broken = bug-report version, verify = broken then latest),
 // headed and slowed down so a tester can watch. No framework — Node http + child_process.
 //
 //   cd tests && npm run runner        # then open http://127.0.0.1:8771
@@ -134,6 +134,16 @@ async function ensureDeployed(send, version, env, ctl) {
     return false;
   }
   send('log', { line: `confirmed: server now on ${version}`, cls: 'out' });
+  return true;
+}
+
+async function confirmCurrentVersion(send, version, env) {
+  const current = await servedVersion(env);
+  if (current !== version) {
+    send('log', { line: `served version changed from ${version} to ${current} — aborting without deploy`, cls: 'err' });
+    return false;
+  }
+  send('log', { line: `confirmed: using currently deployed ${version} (no deploy)`, cls: 'out' });
   return true;
 }
 
@@ -357,7 +367,15 @@ async function execute(send, params, tests, ctl) {
   // This is the guard that normal runs are actually launched on the latest
   // release, not on a stale served version.
   let latest = null;
-  if (params.version !== 'broken') {
+  let current = null;
+  if (params.version === 'current') {
+    current = await servedVersion(env);
+    if (current === 'unreachable') {
+      send('log', { line: `Could not read the deployed version at ${appBaseUrl(env)}assets/i18n/fr.json.`, cls: 'err' });
+      return send('done', { ok: false });
+    }
+    send('log', { line: `currently deployed version: ${current} (no deploy)`, cls: 'out' });
+  } else if (params.version !== 'broken') {
     latest = await resolveLatest();
     if (!latest) {
       send('log', { line: 'Could not resolve the latest release (is gh authenticated?).', cls: 'err' });
@@ -380,14 +398,18 @@ async function execute(send, params, tests, ctl) {
     return executeVerify(send, params, selected, latest, env, ctl);
   }
 
-  const targetOf = (t) => (params.version === 'broken' ? brokenVersionOf(t) : latest);
+  const targetOf = (t) => (params.version === 'broken' ? brokenVersionOf(t) : params.version === 'current' ? current : latest);
+  const ensureTarget = (target) => params.version === 'current'
+    ? confirmCurrentVersion(send, target, env)
+    : ensureDeployed(send, target, env, ctl);
 
-  // Fast path: whole suite on latest → ensure once, run once.
+  // Fast path: whole suite on one version, run once.
   if (params.ids[0] === 'all' && params.version !== 'broken') {
-    if (!(await ensureDeployed(send, latest, env, ctl))) return send('done', { ok: false });
-    if (!(await ensureFixtures(send, selected, latest, env, ctl))) return send('done', { ok: false });
+    const target = targetOf(selected[0]);
+    if (!(await ensureTarget(target))) return send('done', { ok: false });
+    if (!(await ensureFixtures(send, selected, target, env, ctl))) return send('done', { ok: false });
     if (!ctl.cancelled) {
-      send('phase', { label: `Running the whole suite on ${latest}` });
+      send('phase', { label: `Running the whole suite on ${target}` });
       send('log', { line: `playwright target: all manifest tests (${selected.length})`, cls: 'out' });
       ok = (await run(send, process.execPath, pwArgs({ spec: null, headed }), env, ctl)) === 0;
     }
@@ -408,7 +430,7 @@ async function execute(send, params, tests, ctl) {
       ok = false;
       continue;
     }
-    if (!(await ensureDeployed(send, target, env, ctl))) {
+    if (!(await ensureTarget(target))) {
       ok = false;
       continue;
     }
@@ -460,7 +482,7 @@ const server = createServer(async (req, res) => {
       const send = sse(res);
       const params = {
         ids: (url.searchParams.get('ids') || '').split(',').filter(Boolean),
-        version: ['broken', 'verify'].includes(url.searchParams.get('version')) ? url.searchParams.get('version') : 'latest',
+        version: ['broken', 'verify', 'current'].includes(url.searchParams.get('version')) ? url.searchParams.get('version') : 'latest',
         slowMo: Number(url.searchParams.get('slowMo') || 0),
         headed: url.searchParams.get('headed') !== '0',
         browser: normalizeBrowser(url.searchParams.get('browser')),
