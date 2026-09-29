@@ -19,7 +19,8 @@ dotenv.config({ path: join(testsDir, '.env') });
 const PORT = Number(process.env.RUNNER_PORT ?? 8771);
 const MANIFEST = join(testsDir, 'e2e', 'regression-manifest.json');
 const BROWSERS = new Set(['chromium', 'firefox', 'webkit']);
-const DEFAULT_BASE_URL = 'https://test-repro.convertigo.net';
+//const DEFAULT_BASE_URL = 'https://test-repro.convertigo.net';
+const DEFAULT_BASE_URL = 'https://test-nocode.convertigo.net';
 // Run Playwright via the local CLI with the current node binary, so we don't
 // depend on `npx` being on the spawned process's PATH (which breaks on Windows
 // and GUI-launched servers — `spawn npx ENOENT`).
