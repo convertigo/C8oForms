@@ -13,6 +13,162 @@ interface BaserowListedRow extends JsonRecord {
   id: number | string;
 }
 
+export interface BaserowWorkspaceTableSpec {
+  workspace: string;
+  database: string;
+  /** Extra empty databases used by layout/scroll fixtures in this workspace. */
+  additionalDatabases?: string[];
+  table: string;
+  columns: Array<{ name: string; type: string }>;
+}
+
+export interface BaserowWorkspaceTableFixture {
+  workspaceId: number;
+  databaseId: number;
+  tableId: number;
+}
+
+/**
+ * Ensure a Baserow schema while resolving databases inside an explicit
+ * workspace id. This is intentionally more specific than the name-based MCP
+ * schema helper: it supports the #1121 fixture where two workspaces must own
+ * databases with the exact same name.
+ */
+export async function ensureBaserowWorkspaceTable(
+  page: Page,
+  spec: BaserowWorkspaceTableSpec,
+): Promise<BaserowWorkspaceTableFixture> {
+  return test.step(`Ensure Baserow workspace path ${spec.workspace} / ${spec.database} / ${spec.table}`, async () => {
+    const session = await baserowApiSession(page);
+    const headers = { Authorization: `JWT ${session.accessToken}` };
+
+    const workspaces = recordArray(
+      await baserowJsonValue(
+        await page.request.get(`${session.apiBaseUrl}/api/workspaces/`, { headers }),
+        'Baserow workspace list',
+      ),
+    );
+    let workspace = workspaces.find((candidate) => candidate.name === spec.workspace);
+    if (!workspace) {
+      workspace = asRecord(
+        await baserowJsonValue(
+          await page.request.post(`${session.apiBaseUrl}/api/workspaces/`, {
+            headers,
+            data: { name: spec.workspace },
+          }),
+          `Baserow create workspace ${spec.workspace}`,
+        ),
+      );
+    }
+    const workspaceId = numericId(workspace, `Baserow workspace ${spec.workspace}`);
+
+    const applications = recordArray(
+      await baserowJsonValue(
+        await page.request.get(`${session.apiBaseUrl}/api/applications/workspace/${workspaceId}/`, { headers }),
+        `Baserow applications in workspace ${spec.workspace}`,
+      ),
+    );
+    for (const additionalDatabase of spec.additionalDatabases ?? []) {
+      if (applications.some((candidate) => candidate.name === additionalDatabase && candidate.type === 'database')) {
+        continue;
+      }
+      applications.push(
+        asRecord(
+          await baserowJsonValue(
+            await page.request.post(`${session.apiBaseUrl}/api/applications/workspace/${workspaceId}/`, {
+              headers,
+              data: { name: additionalDatabase, type: 'database' },
+            }),
+            `Baserow create filler database ${additionalDatabase} in ${spec.workspace}`,
+          ),
+        ),
+      );
+    }
+    let database = applications.find((candidate) => candidate.name === spec.database && candidate.type === 'database');
+    if (!database) {
+      database = asRecord(
+        await baserowJsonValue(
+          await page.request.post(`${session.apiBaseUrl}/api/applications/workspace/${workspaceId}/`, {
+            headers,
+            data: { name: spec.database, type: 'database' },
+          }),
+          `Baserow create database ${spec.database} in ${spec.workspace}`,
+        ),
+      );
+    }
+    const databaseId = numericId(database, `Baserow database ${spec.database} in ${spec.workspace}`);
+
+    const tables = recordArray(
+      await baserowJsonValue(
+        await page.request.get(`${session.apiBaseUrl}/api/database/tables/database/${databaseId}/`, { headers }),
+        `Baserow tables in ${spec.workspace} / ${spec.database}`,
+      ),
+    );
+    let table = tables.find((candidate) => candidate.name === spec.table);
+    if (!table) {
+      table = asRecord(
+        await baserowJsonValue(
+          await page.request.post(`${session.apiBaseUrl}/api/database/tables/database/${databaseId}/`, {
+            headers,
+            data: { name: spec.table },
+          }),
+          `Baserow create table ${spec.table}`,
+        ),
+      );
+    }
+    const tableId = numericId(table, `Baserow table ${spec.table}`);
+
+    const fieldsUrl = `${session.apiBaseUrl}/api/database/fields/table/${tableId}/`;
+    const fields = recordArray(
+      await baserowJsonValue(await page.request.get(fieldsUrl, { headers }), `Baserow fields in table ${spec.table}`),
+    );
+    for (const column of spec.columns) {
+      const existing = fields.find((candidate) => candidate.name === column.name);
+      if (!existing) {
+        fields.push(
+          asRecord(
+            await baserowJsonValue(
+              await page.request.post(fieldsUrl, { headers, data: column }),
+              `Baserow create ${column.type} field ${column.name}`,
+            ),
+          ),
+        );
+        continue;
+      }
+      expect(existing.type, `Baserow field ${column.name} in ${spec.table} should have type ${column.type}`).toBe(column.type);
+    }
+
+    const readBackFields = recordArray(
+      await baserowJsonValue(await page.request.get(fieldsUrl, { headers }), `Baserow field read-back for ${spec.table}`),
+    );
+    for (const column of spec.columns) {
+      expect(
+        readBackFields.some((candidate) => candidate.name === column.name && candidate.type === column.type),
+        `Baserow read-back should expose ${column.name} as ${column.type} in ${spec.table}`,
+      ).toBe(true);
+    }
+
+    return { workspaceId, databaseId, tableId };
+  });
+}
+
+/** Delete only the temporary Baserow workspaces created by the calling test. */
+export async function deleteBaserowWorkspaces(page: Page, workspaceIds: number[]): Promise<void> {
+  if (workspaceIds.length === 0) return;
+  await test.step('Remove temporary Baserow workspaces', async () => {
+    const session = await baserowApiSession(page);
+    const headers = { Authorization: `JWT ${session.accessToken}` };
+    for (const workspaceId of [...new Set(workspaceIds)]) {
+      const response = await page.request.delete(`${session.apiBaseUrl}/api/workspaces/${workspaceId}/`, { headers });
+      if (!response.ok() && response.status() !== 404) {
+        throw new Error(
+          `Baserow delete workspace ${workspaceId} failed: HTTP ${response.status()} ${(await response.text()).slice(0, 500)}`,
+        );
+      }
+    }
+  });
+}
+
 export async function replaceBaserowTableRows(
   page: Page,
   tableId: number | string | undefined,
@@ -219,6 +375,54 @@ async function jsonResponse(response: { ok(): boolean; status(): number; text():
     throw new Error(`${description} failed: HTTP ${response.status()} ${JSON.stringify(json).slice(0, 500)}`);
   }
   return json;
+}
+
+async function baserowJsonValue(
+  response: { ok(): boolean; status(): number; text(): Promise<string> },
+  description: string,
+): Promise<unknown> {
+  const text = await response.text();
+  let json: unknown;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`${description} returned non-JSON: HTTP ${response.status()} ${text.slice(0, 500)}`);
+  }
+  const error = isRecord(json) ? json.error : undefined;
+  if (!response.ok() || error) {
+    throw new Error(`${description} failed: HTTP ${response.status()} ${JSON.stringify(json).slice(0, 500)}`);
+  }
+  return json;
+}
+
+function recordArray(value: unknown): JsonRecord[] {
+  if (Array.isArray(value)) {
+    return value.filter(isRecord);
+  }
+  if (!isRecord(value)) {
+    return [];
+  }
+  for (const key of ['results', 'workspaces', 'applications', 'tables', 'fields']) {
+    if (Array.isArray(value[key])) {
+      return (value[key] as unknown[]).filter(isRecord);
+    }
+  }
+  return [];
+}
+
+function asRecord(value: unknown): JsonRecord {
+  if (!isRecord(value)) {
+    throw new Error(`Baserow create call returned an unexpected payload: ${JSON.stringify(value).slice(0, 300)}`);
+  }
+  return value;
+}
+
+function numericId(value: JsonRecord, description: string): number {
+  const id = Number(value.id);
+  if (!Number.isFinite(id)) {
+    throw new Error(`${description} did not expose a numeric id: ${JSON.stringify(value).slice(0, 300)}`);
+  }
+  return id;
 }
 
 function sequenceResult(json: JsonRecord): JsonRecord {

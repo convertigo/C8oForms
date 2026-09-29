@@ -17,6 +17,7 @@ import {
   openComponentsPalette,
   openPageButtonsConfig,
   openPagesPanel,
+  openPageSettingsForPage,
   openWorkflowsPanel,
   recordedToasts,
   recordToasts,
@@ -136,7 +137,7 @@ export async function renamePageWithValidationThroughUi(page: Page, validName = 
   await test.step('Select the page to rename and open page settings', async () => {
     await acceptRgpdIfVisible(page);
     await openPagesPanel(page);
-    await openPageSettingsFromPageRow(page, newPageName);
+    await openPageSettingsForPage(page, newPageName);
     await expect(page.locator(SEL.pageNameInput).first(), 'page name input should be visible').toBeVisible({
       timeout: 15_000,
     });
@@ -487,30 +488,6 @@ async function closeApplicationSettingsIfOpen(page: Page): Promise<void> {
   });
 }
 
-async function openPageSettingsFromPageRow(page: Page, pageName: string): Promise<void> {
-  const row = page.locator(SEL.pageRow).filter({ hasText: pageName }).first();
-  await expect(row, `page row ${pageName} should be visible before opening settings`).toBeVisible({ timeout: 15_000 });
-  await row.hover();
-
-  const editAction = page.locator(SEL.pageEditButton).first();
-  if (await editAction.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await editAction.click({ timeout: 10_000 }).catch(async () => editAction.dispatchEvent('click'));
-  } else {
-    const rowBox = await row.boundingBox();
-    const panelBox = await page.locator(SEL.pageSearchbar).first().boundingBox();
-    expect(rowBox, `page row ${pageName} should have a bounding box`).not.toBeNull();
-    expect(panelBox, 'Pages panel should have a bounding box').not.toBeNull();
-    if (!rowBox || !panelBox) {
-      return;
-    }
-    await page.mouse.click(panelBox.x + panelBox.width - 86, rowBox.y + rowBox.height / 2);
-  }
-
-  await expect(page.locator(SEL.pageNameInput).first(), `page settings for ${pageName} should expose the name input`).toBeVisible({
-    timeout: 15_000,
-  });
-}
-
 async function clickPageDeleteAction(page: Page, pageName: string): Promise<void> {
   await openPagesPanel(page);
   const row = page.locator(SEL.pageRow).filter({ hasText: pageName }).first();
@@ -665,7 +642,7 @@ async function dispatchPageDragDrop(page: Page, sourceName: string, targetName: 
 
 async function openPageNavigationSettingsFromPageRow(page: Page, pageName: string): Promise<void> {
   await openPagesPanel(page);
-  await openPageSettingsFromPageRow(page, pageName);
+  await openPageSettingsForPage(page, pageName);
   const navigationTab = page.locator(SEL.pageSettingsNavigationTab).first();
   await expect(navigationTab, 'page Navigation settings tab should be visible').toBeVisible({ timeout: 15_000 });
   await navigationTab.click({ timeout: 10_000 }).catch(async () => navigationTab.dispatchEvent('click'));

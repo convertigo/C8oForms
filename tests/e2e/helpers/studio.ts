@@ -21,6 +21,8 @@ export const SEL = {
   settingsMcpCreatedToken: '.class1781107109433',
   settingsMcpTokenRow: '.class1781107109455',
   settingsMcpRevokeButton: 'ion-button.class1781107109485',
+  // settingsPage.yaml — "show JavaScript mode switch warning" preference
+  settingsJsModeSwitchWarningToggle: 'c8oforms-toggleswitch.class1786454763837',
   // editor — component overlay ("click to configure")
   componentOverlay: '.class1776441955089',
   // component/action config panel tab buttons, selected by stable ids in helpers
@@ -96,6 +98,8 @@ export const SEL = {
   iconPickerItemImage:
     ':is(ion-icon.class1780312500101, ion-icon.class1780312500111, ion-icon.class1780312500121, ion-img.class1779443600107, ion-img.class1779443600117, ion-img.class1779443600127)',
   selectComponent: 'c8oforms-itemselectviewver',
+  // itemSelectEditor.yaml — Select choice Source tab selection-mode ToggleSwitch.
+  selectSelectionMode: 'c8oforms-toggleswitch.class1785157655810',
   radioComponent: 'c8oforms-itemradioviewver',
   radioGroupComponent: 'c8oforms-itemradiogroupviewver',
   sliderComponent: 'c8oforms-itemsliderviewver',
@@ -200,6 +204,12 @@ export const SEL = {
   publishedQrButton: 'page-selectorpage ion-button.class1761581105514',
   selectorSearchToggleButton: 'ion-item.form-item ion-button.btn',
   selectorSearchByNameInput: 'page-selectorpage input',
+  selectorPagination: 'c8oforms-pagination',
+  selectorPaginationPageIndicator: '.class1784217295388',
+  selectorPaginationPreviousButton: 'ion-button.class1784217295331',
+  selectorPaginationNextButton: 'ion-button.class1784217295484',
+  selectorPaginationPageSize: 'ion-select.class1784280818686',
+  selectorEmptyState: 'ion-text.class1772122480943',
   selectorFilterInlineToggleButton: 'ion-button.class1772117859505',
   selectorFilterPopoverButton: 'ion-button.class1750686602638',
   selectorFiltersPopover: 'ion-popover:not(.overlay-hidden)',
@@ -1128,6 +1138,108 @@ export async function openSettings(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Simulate a fresh device whose operating system prefers dark colors and prove
+ * that Studio does not apply the retired global dark-theme filter. The previous
+ * localStorage/data-theme values are restored so the worker context is not
+ * changed for later tests.
+ */
+export async function expectStudioToIgnoreSystemDarkTheme(page: Page): Promise<void> {
+  await test.step('Keep Studio unfiltered when the device prefers dark colors', async () => {
+    const originalTheme = await page.evaluate(() => ({
+      stored: window.localStorage.getItem('theme'),
+      attribute: document.documentElement.getAttribute('data-theme'),
+    }));
+
+    try {
+      await page.evaluate(() => window.localStorage.removeItem('theme'));
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await page.reload({ waitUntil: 'domcontentloaded' });
+
+      await expect(page.locator(SEL.editorHomeButton).first(), 'Studio editor should reload under the dark OS preference').toBeVisible({
+        timeout: 60_000,
+      });
+      await expect
+        .poll(() => page.evaluate(() => window.matchMedia('(prefers-color-scheme: dark)').matches), {
+          message: 'Playwright should expose a dark operating-system preference to Studio',
+          timeout: 10_000,
+        })
+        .toBe(true);
+
+      const ionApp = page.locator('ion-app').first();
+      await expect(ionApp, 'the rendered Studio application should be visible').toBeVisible({ timeout: 30_000 });
+      const filter = await ionApp.evaluate((element) => window.getComputedStyle(element).filter);
+      expect(filter, 'Studio should not apply the retired dark-theme inversion filter').toBe('none');
+    } finally {
+      await page
+        .evaluate(({ stored, attribute }) => {
+          if (stored == null) window.localStorage.removeItem('theme');
+          else window.localStorage.setItem('theme', stored);
+          if (attribute == null) document.documentElement.removeAttribute('data-theme');
+          else document.documentElement.setAttribute('data-theme', attribute);
+        }, originalTheme)
+        .catch(() => undefined);
+      await page.emulateMedia({ colorScheme: null }).catch(() => undefined);
+    }
+  });
+}
+
+/**
+ * Read and, when needed, change the current user's JavaScript mode-switch
+ * warning preference through the rendered Settings ToggleSwitch. Returns the
+ * value that was selected before the change so callers can restore it.
+ *
+ * The control's stable model order is `['oui', 'non']`: index 0 shows the
+ * warning, index 1 acknowledges and suppresses it. Using the priority class and
+ * button order keeps this gesture independent of the Studio language.
+ */
+export async function setJsModeSwitchWarningThroughSettingsUi(page: Page, enabled: boolean): Promise<boolean> {
+  return test.step(`${enabled ? 'Enable' : 'Disable'} the JavaScript mode-switch warning in Settings`, async () => {
+    await openSettings(page);
+    const toggle = page.locator(`${SEL.settingsJsModeSwitchWarningToggle}:visible`).first();
+    await expect(toggle, 'JavaScript mode-switch warning preference should be visible').toBeVisible({ timeout: 30_000 });
+
+    const options = toggle.locator('button.c8o-btn');
+    await expect(options, 'JavaScript mode-switch warning preference should expose two choices').toHaveCount(2, {
+      timeout: 10_000,
+    });
+    await expect
+      .poll(
+        async () => {
+          const selected = await options.evaluateAll((buttons) =>
+            buttons.map((button) => button.classList.contains('c8o-btn-selected')),
+          );
+          return selected.filter(Boolean).length;
+        },
+        {
+          message: 'exactly one JavaScript mode-switch warning preference should be selected',
+          timeout: 10_000,
+        },
+      )
+      .toBe(1);
+
+    const wasEnabled = await options.nth(0).evaluate((button) => button.classList.contains('c8o-btn-selected'));
+    if (wasEnabled === enabled) {
+      return wasEnabled;
+    }
+
+    const desired = options.nth(enabled ? 0 : 1);
+    const persisted = page.waitForResponse(
+      (response) =>
+        response.ok() &&
+        response.request().method() === 'POST' &&
+        response.request().postData()?.includes('APIV2_OverrideUserSettings') === true,
+      { timeout: 30_000 },
+    );
+    await desired.click({ timeout: 10_000 }).catch(async () => desired.dispatchEvent('click'));
+    await persisted;
+    await expect(desired, 'JavaScript mode-switch warning preference should persist').toHaveClass(/c8o-btn-selected/, {
+      timeout: 15_000,
+    });
+    return wasEnabled;
+  });
+}
+
 export function mcpTokenRow(page: Page, tokenName: string): Locator {
   return page.locator(SEL.settingsMcpTokenRow).filter({ hasText: tokenName }).first();
 }
@@ -1676,17 +1788,7 @@ async function clickEditorMoreActionsCollaborators(page: Page, modal: Locator): 
 
 export async function searchSelectorApplicationsByName(page: Page, query: string): Promise<void> {
   await test.step(`Search selector applications by name "${query}"`, async () => {
-    await expectRoute(page, ROUTE.selector);
-    await page.locator(SEL.selectorPageRoot).first().waitFor({ state: 'visible', timeout: 30_000 });
-    const visibleNameInput = page.locator(`${SEL.selectorSearchByNameInput}:visible`).first();
-    if (!(await visibleNameInput.isVisible({ timeout: 1_000 }).catch(() => false))) {
-      const toggle = page.locator(SEL.selectorSearchToggleButton).first();
-      await expect(toggle, 'selector search toggle should be visible').toBeVisible({ timeout: 15_000 });
-      await toggle.click({ timeout: 10_000 }).catch(async () => toggle.dispatchEvent('click'));
-      await expect(visibleNameInput, 'selector advanced search name input should be visible').toBeVisible({
-        timeout: 15_000,
-      });
-    }
+    const visibleNameInput = await openSelectorApplicationNameSearch(page);
 
     await visibleNameInput.fill(query);
     await fillInputValue(page, SEL.selectorSearchByNameInput, query, 'selector advanced search name input');
@@ -1697,6 +1799,241 @@ export async function searchSelectorApplicationsByName(page: Page, query: string
     }
     await waitForIonicLoading(page, 15_000);
   });
+}
+
+export type SelectorSearchSubmission = {
+  requestsWhileTyping: number;
+  totalRequests: number;
+  queries: Array<string | null>;
+};
+
+/**
+ * Type a selector application name as a user would, pause beyond the former
+ * debounce window, then submit with Enter while observing real search calls.
+ */
+export async function submitSelectorApplicationSearchAfterRapidTyping(
+  page: Page,
+  query: string,
+): Promise<SelectorSearchSubmission> {
+  return test.step(`Type selector search rapidly and submit "${query}"`, async () => {
+    const input = await openSelectorApplicationNameSearch(page);
+    const queries: Array<string | null> = [];
+    const listener = (request: { postData(): string | null }) => {
+      const postData = request.postData() ?? '';
+      if (multipartFormField(postData, '__sequence') !== 'APIV2_ExecuteView') return;
+      if (multipartFormField(postData, 'target') !== 'formsV2/search') return;
+      const dynamicParams = parseJsonRecord(multipartFormField(postData, 'dynamicParams'));
+      queries.push(stringOrNull(dynamicParams?.query));
+    };
+
+    page.on('request', listener);
+    try {
+      await input.fill('');
+      await input.pressSequentially(query, { delay: 25 });
+
+      // #1107 asked for a 300–500 ms debounce. The redesigned selector uses an
+      // explicit submission instead, so no request should appear after 750 ms.
+      await page.waitForTimeout(750);
+      const requestsWhileTyping = queries.length;
+
+      await input.press('Enter');
+      await expect
+        .poll(() => queries.length, {
+          message: 'pressing Enter should submit the selector application search',
+          timeout: 30_000,
+        })
+        .toBeGreaterThanOrEqual(1);
+      await waitForIonicLoading(page, 15_000);
+      await page.waitForTimeout(750);
+
+      return {
+        requestsWhileTyping,
+        totalRequests: queries.length,
+        queries: [...queries],
+      };
+    } finally {
+      page.off('request', listener);
+    }
+  });
+}
+
+async function openSelectorApplicationNameSearch(page: Page): Promise<Locator> {
+  await expectRoute(page, ROUTE.selector);
+  await page.locator(SEL.selectorPageRoot).first().waitFor({ state: 'visible', timeout: 30_000 });
+  const visibleNameInput = page.locator(`${SEL.selectorSearchByNameInput}:visible`).first();
+  if (!(await visibleNameInput.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    const toggle = page.locator(SEL.selectorSearchToggleButton).first();
+    await expect(toggle, 'selector search toggle should be visible').toBeVisible({ timeout: 15_000 });
+    await toggle.click({ timeout: 10_000 }).catch(async () => toggle.dispatchEvent('click'));
+    await expect(visibleNameInput, 'selector application name search should be visible').toBeVisible({
+      timeout: 15_000,
+    });
+  }
+  return visibleNameInput;
+}
+
+export type SelectorPaginationExchange = {
+  target: string;
+  request: {
+    pageSize: number | string | null;
+    pageToken: string | null;
+    pageIndex: number | null;
+  };
+  response: {
+    paginated: boolean;
+    mode: string | null;
+    pageSize: number | string | null;
+    returnedCount: number | null;
+    totalCount: number | null;
+    pageCount: number | null;
+    currentPageIndex: number | null;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+};
+
+export type SelectorPaginationUiState = {
+  visibleInstances: number;
+  currentPage: number | null;
+  totalPages: number | null;
+  pageSize: number | string | null;
+  pageSizeOptions: string[];
+  infiniteLabel: string | null;
+  previousDisabled: boolean;
+  nextDisabled: boolean;
+  emptyStateVisible: boolean;
+};
+
+/**
+ * Observe the next real APIV2_ExecuteView exchange for one selector target.
+ * Call this before the UI gesture that triggers the request, then await the
+ * returned promise after the gesture completes.
+ */
+export async function waitForSelectorPaginationExchange(
+  page: Page,
+  target: string,
+  timeout = 45_000,
+): Promise<SelectorPaginationExchange> {
+  const response = await page.waitForResponse(
+    (candidate) => {
+      const postData = candidate.request().postData() ?? '';
+      if (multipartFormField(postData, '__sequence') !== 'APIV2_ExecuteView') return false;
+      if (multipartFormField(postData, 'target') !== target) return false;
+      const dynamicParams = parseJsonRecord(multipartFormField(postData, 'dynamicParams'));
+      return dynamicParams?.pagination != null && typeof dynamicParams.pagination === 'object';
+    },
+    { timeout },
+  );
+
+  const postData = response.request().postData() ?? '';
+  const dynamicParams = parseJsonRecord(multipartFormField(postData, 'dynamicParams'));
+  const requestPagination = asJsonRecord(dynamicParams?.pagination);
+  const body = (await response.json()) as { res?: { pagination?: unknown } };
+  const responsePagination = asJsonRecord(body?.res?.pagination);
+  if (!requestPagination || !responsePagination) {
+    throw new Error(`Selector pagination exchange for ${target} did not expose the expected request/response contract`);
+  }
+
+  return {
+    target,
+    request: {
+      pageSize: numberOrStringOrNull(requestPagination.pageSize),
+      pageToken: stringOrNull(requestPagination.pageToken),
+      pageIndex: numberOrNull(requestPagination.pageIndex),
+    },
+    response: {
+      paginated: responsePagination.paginated === true,
+      mode: stringOrNull(responsePagination.mode),
+      pageSize: numberOrStringOrNull(responsePagination.pageSize),
+      returnedCount: numberOrNull(responsePagination.returnedCount),
+      totalCount: numberOrNull(responsePagination.totalCount),
+      pageCount: numberOrNull(responsePagination.pageCount),
+      currentPageIndex: numberOrNull(responsePagination.currentPageIndex),
+      hasPreviousPage: responsePagination.hasPreviousPage === true,
+      hasNextPage: responsePagination.hasNextPage === true,
+    },
+  };
+}
+
+/** Read the visible selector pagination without depending on translated labels. */
+export async function selectorPaginationUiState(page: Page): Promise<SelectorPaginationUiState> {
+  const roots = page.locator(`${SEL.selectorPagination}:visible`);
+  const root = roots.first();
+  await expect(root, 'the selector pagination component should be visible').toBeVisible({ timeout: 30_000 });
+
+  const state = await root.evaluate(
+    (element, selectors) => {
+      const normalize = (value: string | null | undefined) => (value ?? '').replace(/\s+/g, ' ').trim();
+      const indicator = element.querySelector(selectors.pageIndicator) as HTMLElement | null;
+      const numbers = normalize(indicator?.innerText).match(/\d+/g)?.map(Number) ?? [];
+      const select = element.querySelector(selectors.pageSize) as (HTMLElement & { value?: unknown }) | null;
+      const options = select
+        ? [...select.querySelectorAll('ion-select-option')].map((option) => ({
+            value: String((option as HTMLElement & { value?: unknown }).value ?? ''),
+            label: normalize((option as HTMLElement).textContent),
+          }))
+        : [];
+      const previous = element.querySelector(selectors.previous) as (HTMLElement & { disabled?: boolean }) | null;
+      const next = element.querySelector(selectors.next) as (HTMLElement & { disabled?: boolean }) | null;
+
+      return {
+        currentPage: numbers[0] ?? null,
+        totalPages: numbers[1] ?? null,
+        pageSize: select?.value == null ? null : (select.value as number | string),
+        pageSizeOptions: options.map((option) => option.value),
+        infiniteLabel: options.find((option) => option.value === 'infinite')?.label ?? null,
+        previousDisabled: previous?.disabled === true || previous?.getAttribute('aria-disabled') === 'true',
+        nextDisabled: next?.disabled === true || next?.getAttribute('aria-disabled') === 'true',
+      };
+    },
+    {
+      pageIndicator: SEL.selectorPaginationPageIndicator,
+      pageSize: SEL.selectorPaginationPageSize,
+      previous: SEL.selectorPaginationPreviousButton,
+      next: SEL.selectorPaginationNextButton,
+    },
+  );
+
+  return {
+    visibleInstances: await roots.count(),
+    ...state,
+    emptyStateVisible: (await page.locator(`${SEL.selectorEmptyState}:visible`).count()) > 0,
+  };
+}
+
+function multipartFormField(postData: string, name: string): string | null {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = postData.match(new RegExp(`name="${escapedName}"\\r?\\n\\r?\\n([\\s\\S]*?)\\r?\\n--`));
+  return match?.[1]?.trim() ?? null;
+}
+
+function parseJsonRecord(value: string | null): Record<string, unknown> | null {
+  if (!value) return null;
+  try {
+    return asJsonRecord(JSON.parse(value));
+  } catch {
+    return null;
+  }
+}
+
+function asJsonRecord(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : value == null ? null : String(value);
+}
+
+function numberOrStringOrNull(value: unknown): number | string | null {
+  return typeof value === 'number' || typeof value === 'string' ? value : null;
 }
 
 export async function expectSelectorSearchKeepsSingleApplication(page: Page, title: string): Promise<void> {
@@ -4210,12 +4547,175 @@ const SOURCE_SELECT_DROPDOWN = '.class1599133954837';
 
 export async function configureGridBaserowSource(page: Page, source: BaserowGridSourceOptions): Promise<void> {
   const pickerTimeout = 60_000;
+  await prepareGridBaserowSourceSelection(page, pickerTimeout);
+  await configureGridBaserowTable(page, source, pickerTimeout);
+}
+
+async function prepareGridBaserowSourceSelection(page: Page, pickerTimeout: number): Promise<void> {
   await page.locator('.class1775835275863').first().click();
   await openConfigTabById(page, 'tab_selector_choice_source');
 
   await activateDataSourceMode(page);
   await selectDataSourceEntry(page, pickerTimeout, 'getData');
-  await configureGridBaserowTable(page, source, pickerTimeout);
+}
+
+async function openCurrentBaserowTablePicker(page: Page, pickerTimeout: number): Promise<Locator> {
+  await openConfigTabById(page, 'tab_selector_conf_source');
+  await acceptRgpdIfVisible(page);
+  await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Baserow table configure button', pickerTimeout, true);
+
+  const tablePicker = page.locator('ion-modal').last();
+  await expect(tablePicker, 'Baserow table picker should be visible').toBeVisible({ timeout: pickerTimeout });
+  return tablePicker;
+}
+
+/** Open the Data Grid Baserow picker without choosing a workspace or table. */
+export async function openGridBaserowTablePicker(page: Page, pickerTimeout = 60_000): Promise<Locator> {
+  await prepareGridBaserowSourceSelection(page, pickerTimeout);
+  return openCurrentBaserowTablePicker(page, pickerTimeout);
+}
+
+export interface BaserowWorkspaceSeparationOptions {
+  workspaces: [string, string];
+  database: string;
+  selectedWorkspace: string;
+  expectedTable: string;
+  otherWorkspaceTable: string;
+}
+
+/**
+ * Verify the modern Baserow picker hierarchy with two workspaces that contain
+ * a database sharing the same name. The database must stay hidden until a
+ * workspace is selected, and its table list must belong to that workspace.
+ */
+export async function expectBaserowDatabaseSeparatedByWorkspace(
+  page: Page,
+  options: BaserowWorkspaceSeparationOptions,
+): Promise<void> {
+  await test.step('Open the Baserow table picker at the workspace level', async () => {
+    const tablePicker = await openGridBaserowTablePicker(page);
+
+    for (const workspace of options.workspaces) {
+      await expect(
+        tablePicker.getByTitle(workspace, { exact: true }),
+        `Baserow picker should list workspace ${workspace} before databases`,
+      ).toBeVisible({ timeout: 60_000 });
+    }
+    await expect(
+      tablePicker.getByTitle(options.database, { exact: true }),
+      `database ${options.database} should not be mixed into the workspace list`,
+    ).toBeHidden();
+
+    const databaseVisible = async (): Promise<boolean> =>
+      tablePicker.getByTitle(options.database, { exact: true }).isVisible().catch(() => false);
+    await clickBaserowPickerEntryUntil(page, tablePicker, options.selectedWorkspace, databaseVisible, 60_000);
+
+    const expectedTableVisible = async (): Promise<boolean> =>
+      tablePicker.getByTitle(options.expectedTable, { exact: true }).isVisible().catch(() => false);
+    await clickBaserowPickerEntryUntil(page, tablePicker, options.database, expectedTableVisible, 60_000);
+
+    await expect(
+      tablePicker.getByTitle(options.expectedTable, { exact: true }),
+      `workspace ${options.selectedWorkspace} should expose its own table ${options.expectedTable}`,
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(
+      tablePicker.getByTitle(options.otherWorkspaceTable, { exact: true }),
+      `workspace ${options.selectedWorkspace} should not expose table ${options.otherWorkspaceTable} from the other workspace`,
+    ).toBeHidden();
+  });
+}
+
+export interface BaserowScrolledDatabaseOptions {
+  workspace: string;
+  database: string;
+  table: string;
+  expectedColumn: string;
+}
+
+/**
+ * Select a database from the bottom of an overflowing picker list and prove
+ * that the resulting table columns remain visible in the adjacent pane.
+ */
+export async function expectBaserowColumnsBesideScrolledDatabase(
+  page: Page,
+  options: BaserowScrolledDatabaseOptions,
+): Promise<void> {
+  await test.step('Select a low Baserow database and keep its columns visible beside the list', async () => {
+    const tablePicker = await openGridBaserowTablePicker(page);
+    const databaseVisible = async (): Promise<boolean> =>
+      tablePicker.getByTitle(options.database, { exact: true }).isVisible().catch(() => false);
+    await clickBaserowPickerEntryUntil(page, tablePicker, options.workspace, databaseVisible, 60_000);
+
+    // modalConfigure GridColDatabase/CardContent: the redesigned picker keeps
+    // navigation in its own vertically scrollable pane instead of growing the
+    // whole modal and leaving column details at the document top.
+    const navigationPane = tablePicker.locator('ion-col.class1776161384468').first();
+    const navigationScroller = navigationPane.locator('ion-card-content').first();
+    await expect(navigationPane, 'Baserow picker navigation pane should be visible').toBeVisible({ timeout: 30_000 });
+    await expect(navigationScroller, 'Baserow picker navigation list should be visible').toBeVisible({ timeout: 30_000 });
+
+    const initialScrollState = await navigationScroller.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(
+      initialScrollState.scrollHeight,
+      `database fixture should overflow the navigation pane (${initialScrollState.scrollHeight}px / ${initialScrollState.clientHeight}px)`,
+    ).toBeGreaterThan(initialScrollState.clientHeight);
+
+    await navigationScroller.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect
+      .poll(
+        () => navigationScroller.evaluate((element) => element.scrollTop),
+        { message: 'Baserow database list should be scrolled away from the top', timeout: 10_000 },
+      )
+      .toBeGreaterThan(0);
+    await expect(
+      tablePicker.getByTitle(options.database, { exact: true }),
+      `low database ${options.database} should be visible after scrolling its own pane`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    const tableVisible = async (): Promise<boolean> =>
+      tablePicker.getByTitle(options.table, { exact: true }).isVisible().catch(() => false);
+    await clickBaserowPickerEntryUntil(page, tablePicker, options.database, tableVisible, 60_000);
+
+    const columnVisible = async (): Promise<boolean> =>
+      tablePicker.locator('.class1776267952308').filter({ hasText: options.expectedColumn }).first().isVisible().catch(() => false);
+    await clickBaserowPickerEntryUntil(page, tablePicker, options.table, columnVisible, 60_000);
+
+    const detailsPane = tablePicker.locator('ion-col.class1776161384618').first();
+    const column = tablePicker.locator('.class1776267952308').filter({ hasText: options.expectedColumn }).first();
+    await expect(detailsPane, 'Baserow column-details pane should be visible beside navigation').toBeVisible({ timeout: 30_000 });
+    await expect(column, `Baserow column ${options.expectedColumn} should be visible without scrolling the modal`).toBeVisible({
+      timeout: 30_000,
+    });
+
+    const [navigationBox, detailsBox, columnBox] = await Promise.all([
+      navigationPane.boundingBox(),
+      detailsPane.boundingBox(),
+      column.boundingBox(),
+    ]);
+    expect(navigationBox, 'Baserow navigation pane should have rendered geometry').toBeTruthy();
+    expect(detailsBox, 'Baserow details pane should have rendered geometry').toBeTruthy();
+    expect(columnBox, `Baserow column ${options.expectedColumn} should have rendered geometry`).toBeTruthy();
+    const viewport = page.viewportSize();
+    expect(viewport, 'Baserow layout assertion needs a fixed Playwright viewport').toBeTruthy();
+
+    expect(detailsBox!.x, 'Baserow details should render to the right of database navigation').toBeGreaterThanOrEqual(
+      navigationBox!.x + navigationBox!.width - 2,
+    );
+    expect(
+      Math.abs(detailsBox!.y - navigationBox!.y),
+      'Baserow database navigation and column details should start on the same row',
+    ).toBeLessThanOrEqual(2);
+    expect(columnBox!.y, `Baserow column ${options.expectedColumn} should not be above the viewport`).toBeGreaterThanOrEqual(0);
+    expect(
+      columnBox!.y + columnBox!.height,
+      `Baserow column ${options.expectedColumn} should be visible without scrolling back to the top`,
+    ).toBeLessThanOrEqual(viewport!.height);
+  });
 }
 
 /**
@@ -4240,12 +4740,7 @@ export async function configureGridBaserowTable(
   source: BaserowGridSourceOptions,
   pickerTimeout = 60_000,
 ): Promise<void> {
-  await openConfigTabById(page, 'tab_selector_conf_source');
-  await acceptRgpdIfVisible(page);
-  await clickFirstVisible(page, SEL.dataSourceConfigureButton, 'Baserow table configure button', pickerTimeout, true);
-
-  const tablePicker = page.locator('ion-modal').last();
-  await expect(tablePicker, 'Baserow table picker should be visible').toBeVisible({ timeout: pickerTimeout });
+  const tablePicker = await openCurrentBaserowTablePicker(page, pickerTimeout);
   await expect(tablePicker.getByText(source.workspace, { exact: true })).toBeVisible({ timeout: pickerTimeout });
   await tablePicker.getByText(source.workspace, { exact: true }).click();
   await expect(tablePicker.getByText(source.database, { exact: true })).toBeVisible({ timeout: pickerTimeout });
@@ -4279,6 +4774,62 @@ export async function configureGridBaserowTable(
       timeout: pickerTimeout,
     });
   }
+}
+
+/**
+ * Reopen an already configured Data Grid Baserow picker and verify that its
+ * selected table still exposes the expected columns. Response bodies are also
+ * inspected for Baserow's permission error so an empty picker cannot become a
+ * false green when the UI hides the backend detail.
+ */
+export async function expectGridBaserowColumnsOnReopen(
+  page: Page,
+  source: Pick<BaserowGridSourceOptions, 'table' | 'expectedColumns'>,
+  pickerTimeout = 60_000,
+): Promise<void> {
+  await test.step(`Reopen Data Grid Baserow table ${source.table} and verify its columns`, async () => {
+    const permissionErrors: string[] = [];
+    const pendingBodies = new Set<Promise<void>>();
+    const inspectResponse = (response: Response) => {
+      if (response.request().method() !== 'POST' || !response.url().includes('/projects/')) return;
+      const pending = response
+        .text()
+        .then((body) => {
+          if (body.includes('ERROR_USER_NOT_IN_GROUP')) {
+            permissionErrors.push(body.slice(0, 1_000));
+          }
+        })
+        .catch(() => undefined);
+      pendingBodies.add(pending);
+      void pending.finally(() => pendingBodies.delete(pending));
+    };
+
+    page.on('response', inspectResponse);
+    try {
+      const tablePicker = await openCurrentBaserowTablePicker(page, pickerTimeout);
+      await expect(tablePicker, 'configured Data Grid Baserow picker should reopen').toBeVisible({ timeout: pickerTimeout });
+      await expect(tablePicker.locator('.class1776246576145'), 'reopened picker should keep the selected table').toContainText(
+        source.table,
+        { timeout: pickerTimeout },
+      );
+      for (const column of source.expectedColumns ?? []) {
+        await expect(
+          selectSourceColumnRow(tablePicker, column),
+          `Baserow column ${column} should remain visible after reopening the picker`,
+        ).toBeVisible({ timeout: pickerTimeout });
+      }
+
+      await Promise.all([...pendingBodies]);
+      expect(permissionErrors, 'reopening the configured table should not return ERROR_USER_NOT_IN_GROUP').toEqual([]);
+
+      await tablePicker.locator('ion-button.class1776244653366').click();
+      await expect(tablePicker).toBeHidden({ timeout: pickerTimeout });
+      await page.waitForTimeout(1_000);
+    } finally {
+      page.off('response', inspectResponse);
+      await Promise.all([...pendingBodies]);
+    }
+  });
 }
 
 export async function configureChartBaserowSource(page: Page, source: BaserowChartSourceOptions): Promise<void> {
@@ -8417,6 +8968,20 @@ export async function setChoiceLocalOptions(page: Page, values: string[]): Promi
   await page.waitForTimeout(1_000);
 }
 
+export async function setSelectSelectionMode(page: Page, mode: 'single' | 'multiple'): Promise<void> {
+  await openConfigTabById(page, 'tab_selector_choice_source');
+  const toggle = page.locator(`${SEL.selectSelectionMode}:visible`).first();
+  await expect(toggle, 'Select selection mode control should be visible').toBeVisible({ timeout: 15_000 });
+  const option = toggle.locator('button.c8o-btn').nth(mode === 'multiple' ? 1 : 0);
+  await expect(option, `Select selection mode ${mode} should be selectable`).toBeVisible({ timeout: 10_000 });
+  if (!(await option.evaluate((element) => element.classList.contains('c8o-btn-selected')))) {
+    await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  }
+  await expect(option, `Select selection mode should persist as ${mode}`).toHaveClass(/c8o-btn-selected/, {
+    timeout: 15_000,
+  });
+}
+
 export async function setCheckboxLocalOptions(page: Page, values: string[]): Promise<void> {
   await setChoiceLocalOptions(page, values);
 }
@@ -8431,6 +8996,60 @@ async function openDefaultValueJavascriptMode(page: Page): Promise<void> {
   await openConfigTabById(page, 'defaultvalue');
   await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
   await confirmAlertIfVisible(page);
+}
+
+/**
+ * Switch a Text default value from Aa to JavaScript, select the ticket #1184
+ * "do not show again" checkbox, and confirm the compatibility warning.
+ */
+export async function acknowledgeTextToJavascriptWarningThroughUi(page: Page): Promise<void> {
+  await test.step('Acknowledge and permanently dismiss the Aa-to-JavaScript warning', async () => {
+    await openConfigTabById(page, 'defaultvalue');
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
+
+    const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+    await expect(alert, 'Aa-to-JavaScript compatibility warning should open').toBeVisible({ timeout: 10_000 });
+    const rememberChoice = alert.locator('[role="checkbox"]').first();
+    await expect(rememberChoice, 'compatibility warning should expose the do-not-show-again checkbox').toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(rememberChoice, 'do-not-show-again should initially be unchecked').toHaveAttribute('aria-checked', 'false');
+    await rememberChoice.click();
+    await expect(rememberChoice, 'do-not-show-again should be selected').toHaveAttribute('aria-checked', 'true');
+
+    const confirmButton = alert.locator('button.btn--primary, button.alert-button-role-confirm').last();
+    await expect(confirmButton, 'compatibility warning should expose a confirm action').toBeVisible({ timeout: 5_000 });
+    await confirmButton.click();
+    await expect(alert, 'compatibility warning should close after confirmation').toBeHidden({ timeout: 10_000 });
+    await expect(
+      page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
+      'JavaScript default-value editor should open after confirmation',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function switchTextDefaultValueToTextMode(page: Page): Promise<void> {
+  await test.step('Switch the Text default value to Aa mode', async () => {
+    await openDefaultValueTextMode(page);
+    await expect(
+      page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
+      'JavaScript default-value editor should close in Aa mode',
+    ).toBeHidden({ timeout: 10_000 });
+  });
+}
+
+export async function switchTextDefaultValueToJavascriptWithoutWarning(page: Page): Promise<void> {
+  await test.step('Switch the Text default value to JavaScript without another warning', async () => {
+    await openConfigTabById(page, 'defaultvalue');
+    await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
+    await expect(page.locator('ion-alert:not(.overlay-hidden)'), 'the acknowledged compatibility warning should stay hidden').toHaveCount(0, {
+      timeout: 2_000,
+    });
+    await expect(
+      page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
+      'JavaScript default-value editor should open without another warning',
+    ).toBeVisible({ timeout: 15_000 });
+  });
 }
 
 async function openDefaultValueVisualMode(page: Page): Promise<void> {
@@ -8814,6 +9433,9 @@ export async function choiceViewerValue(
 
       if (choiceKind === 'select') {
         const select = root.querySelector('ion-select') as (HTMLElement & { value?: unknown }) | null;
+        if (Array.isArray(select?.value)) {
+          return select.value.map((entry) => String(entry));
+        }
         return typeof select?.value === 'string' ? select.value : select?.value == null ? '' : String(select.value);
       }
 
@@ -8870,6 +9492,46 @@ export async function choiceViewerValue(
     },
     { componentTag: tag, componentIndex: index, choiceKind: kind },
   );
+}
+
+export async function chooseViewerSelectOptions(
+  page: Page,
+  technicalId: string,
+  optionValues: string[],
+): Promise<void> {
+  if (optionValues.length === 0) {
+    throw new Error('chooseViewerSelectOptions needs at least one option value');
+  }
+
+  const component = page.locator(`#${technicalId}`).first();
+  await expect(component, `Select ${technicalId} should be visible in Preview`).toBeVisible({ timeout: 30_000 });
+  const select = component.locator('ion-select').first();
+  await expect(select, `Select ${technicalId} trigger should be visible`).toBeVisible({ timeout: 15_000 });
+  await select.click({ timeout: 10_000 }).catch(async () => select.dispatchEvent('click'));
+
+  const alert = page.locator('ion-alert:not(.overlay-hidden):visible').last();
+  if (await alert.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    for (const value of optionValues) {
+      const option = alert.locator('button.alert-checkbox, button.alert-radio').filter({ hasText: value }).first();
+      await expect(option, `Select option ${value} should be visible`).toBeVisible({ timeout: 10_000 });
+      await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+    }
+    const confirm = alert.locator('button.alert-button').last();
+    await expect(confirm, 'Select option alert should expose a confirmation button').toBeVisible({ timeout: 10_000 });
+    await confirm.click({ timeout: 10_000 });
+    await expect(alert, 'Select option alert should close after confirmation').toBeHidden({ timeout: 15_000 });
+    return;
+  }
+
+  const popover = page.locator('ion-select-popover:visible').last();
+  await expect(popover, 'Select options popover should open').toBeVisible({ timeout: 15_000 });
+  for (const value of optionValues) {
+    const option = popover.locator('ion-item').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(value)}\\s*$`) }).first();
+    await expect(option, `Select option ${value} should be visible`).toBeVisible({ timeout: 10_000 });
+    await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  }
+  await page.keyboard.press('Escape');
+  await expect(popover, 'Select options popover should close').toBeHidden({ timeout: 15_000 });
 }
 
 export async function expectComponentHeaderDefaultValueIndicator(
@@ -9990,6 +10652,42 @@ export async function activePageSettingsSection(page: Page): Promise<'general' |
 }
 
 /**
+ * Open General settings for a named page from the Pages panel and guard that
+ * the settings context really belongs to that page. The editor has used both
+ * dedicated row actions and a fixed-position hover action across releases, so
+ * the geometric fallback keeps the gesture usable when the explicit selector
+ * is unavailable.
+ */
+export async function openPageSettingsForPage(page: Page, pageName: string): Promise<void> {
+  await test.step(`Open settings for page ${pageName}`, async () => {
+    await openPagesPanel(page);
+    const row = page.locator(SEL.pageRow).filter({ hasText: pageName }).first();
+    await expect(row, `page row ${pageName} should be visible before opening settings`).toBeVisible({ timeout: 15_000 });
+    await row.hover();
+
+    const rowEditAction = row.locator(SEL.pageEditButton).first();
+    const editAction = (await rowEditAction.isVisible({ timeout: 2_000 }).catch(() => false))
+      ? rowEditAction
+      : await firstVisibleLocatorOrNull(page, SEL.pageEditButton, 2_000);
+
+    if (editAction && (await editAction.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      await editAction.click({ timeout: 10_000 }).catch(async () => editAction.dispatchEvent('click'));
+    } else {
+      const rowBox = await row.boundingBox();
+      const panelBox = await page.locator(SEL.pageSearchbar).first().boundingBox();
+      expect(rowBox, `page row ${pageName} should have a bounding box`).not.toBeNull();
+      expect(panelBox, 'Pages panel should have a bounding box').not.toBeNull();
+      if (!rowBox || !panelBox) return;
+      await page.mouse.click(panelBox.x + panelBox.width - 86, rowBox.y + rowBox.height / 2);
+    }
+
+    const input = page.locator(SEL.pageNameInput).first();
+    await expect(input, `page settings for ${pageName} should expose the page name input`).toBeVisible({ timeout: 15_000 });
+    await expect(input, `page settings should belong to ${pageName}`).toHaveValue(pageName, { timeout: 15_000 });
+  });
+}
+
+/**
  * Open a page's General settings (where the "Nom de la page" field lives) and
  * leave the General section active. Two affordances reach the same panel and the
  * stable selectors drift across the beta line, so try both and converge on the
@@ -10548,6 +11246,14 @@ export async function recordedToasts(page: Page): Promise<string[]> {
   });
 }
 
+/** Clear captured toast messages while keeping the observer active. */
+export async function resetRecordedToasts(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __c8oToasts?: string[] };
+    w.__c8oToasts = [];
+  });
+}
+
 /**
  * Add a Horizontal layout container to the current page by double-clicking its
  * palette tile (icon icn_layout.svg). The layout renders as `layoutViewer`.
@@ -10611,6 +11317,79 @@ export async function dragPaletteComponentInto(
     children,
     `dragging ${paletteIcon} into ${containerSelector} should add a nested layout child`,
   ).toHaveCount(before + 1, { timeout: 3_000 });
+}
+
+export type ComponentDropZoneHeights = {
+  visibleZoneCount: number;
+  idle: number;
+  hovered: number;
+};
+
+/**
+ * Start a genuine palette drag and measure a page-component drop indicator
+ * before and while it is hovered. The pointer is released away from the canvas,
+ * so this probe does not add another component to the form.
+ */
+export async function componentDropZoneHeightsDuringPaletteDrag(
+  page: Page,
+  paletteIcon: string,
+): Promise<ComponentDropZoneHeights> {
+  await openComponentsPalette(page, paletteIcon);
+  const tile = await draggablePaletteTileForIcon(page, paletteIcon, `palette tile ${paletteIcon}`);
+  const tileBox = await tile.boundingBox();
+  if (!tileBox) throw new Error(`Palette tile not found for icon ${paletteIcon}`);
+
+  const canvasComponent = page
+    .locator(`${SEL.textComponent}:visible, ${SEL.checkboxComponent}:visible, ${SEL.descriptionComponent}:visible`)
+    .first();
+  const canvasBox = await canvasComponent.boundingBox();
+  if (!canvasBox) throw new Error('No visible page component is available as the palette drag target');
+
+  const zones = page.locator(
+    `page-editorpage c8oforms-shareddropindicator ${SEL.containerInitialDropZone}:visible`,
+  );
+
+  await page.mouse.move(tileBox.x + tileBox.width / 2, tileBox.y + tileBox.height / 2);
+  await page.mouse.down();
+  try {
+    // Cross Chromium's native drag threshold, then enter the canvas so the
+    // editor renders the page-level drop indicators.
+    await page.mouse.move(tileBox.x + tileBox.width / 2 + 12, tileBox.y + tileBox.height / 2 + 12, {
+      steps: 6,
+    });
+    await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2, {
+      steps: 25,
+    });
+
+    await expect
+      .poll(() => zones.count(), {
+        message: 'component drop indicators should appear while dragging from the palette',
+        timeout: 10_000,
+      })
+      .toBeGreaterThan(0);
+
+    const visibleZoneCount = await zones.count();
+    const zone = zones.first();
+    const idleBox = await zone.boundingBox();
+    if (!idleBox) throw new Error('The component drop indicator has no measurable idle box');
+
+    await page.mouse.move(idleBox.x + idleBox.width / 2, idleBox.y + idleBox.height / 2, { steps: 10 });
+    await expect
+      .poll(async () => (await zone.boundingBox())?.height ?? 0, {
+        message: 'the component drop indicator should expand when hovered',
+        timeout: 5_000,
+      })
+      .toBeGreaterThanOrEqual(idleBox.height + 20);
+
+    const hoveredBox = await zone.boundingBox();
+    if (!hoveredBox) throw new Error('The component drop indicator has no measurable hovered box');
+
+    return { visibleZoneCount, idle: idleBox.height, hovered: hoveredBox.height };
+  } finally {
+    await page.mouse.move(5, 5, { steps: 8 }).catch(() => undefined);
+    await page.mouse.up().catch(() => undefined);
+    await page.waitForTimeout(300);
+  }
 }
 
 async function enableNativeDropDeliveryForC8oDropZones(page: Page): Promise<void> {

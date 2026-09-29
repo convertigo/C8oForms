@@ -53,6 +53,225 @@ export async function loginAsAdminWithUsernamePassword(page: Page): Promise<void
   });
 }
 
+/**
+ * Create a group whose name contains C8O, prove that it persisted, then prove
+ * that the Admin Groups UI did not filter it out. The temporary group is always
+ * removed after the assertion.
+ */
+export async function verifyAdminGroupContainingC8OCanBeCreatedAndListedThroughUi(page: Page): Promise<void> {
+  const groupName = `Issue1119-C8O-${Date.now()}`;
+  try {
+    await openAdminGroupsPage(page);
+    await createAdminGroupThroughUi(page, groupName);
+
+    await test.step('Verify the C8O-named group persists and remains visible in the Admin Groups list', async () => {
+      await expect
+        .poll(() => adminGroupRightEnabled(page, groupName, 'editing_rights'), {
+          message: `admin group ${groupName} should persist its UI-selected editing permission after creation`,
+          timeout: 60_000,
+        })
+        .toBe(true);
+      await expect
+        .poll(() => visibleAdminGroupNameInPage(page, groupName), {
+          message: `admin group ${groupName} should not be filtered out of the Admin Groups UI`,
+          timeout: 60_000,
+        })
+        .toBe(true);
+    });
+  } finally {
+    await deleteTemporaryAdminGroup(page, groupName).catch(() => undefined);
+  }
+}
+
+/**
+ * Guard the #1120 contract on the current Admin Groups implementation. Group
+ * creation deliberately seeds the authenticated administrator as its first
+ * member, so the useful invariant is a coherent 1 -> 2 counter transition and
+ * the presence of both the creator and the user added through the modal.
+ */
+export async function verifyAdminGroupMembershipCountThroughUi(page: Page): Promise<void> {
+  const groupName = `${ADMIN_GROUP_PREFIX}${Date.now()}`;
+  let currentUserAcl = '';
+  let addedUserAcl = '';
+  let addedUserLabel = '';
+
+  try {
+    await test.step('Remove temporary groups left behind by earlier interrupted runs', async () => {
+      await deleteStaleAdminGroups(page);
+    });
+
+    await openAdminGroupsPage(page);
+    await createAdminGroupThroughUi(page, groupName);
+
+    await test.step('Verify the new group has one coherent creator membership', async () => {
+      const currentUser = await currentAdminUser(page);
+      currentUserAcl = currentUser.acl;
+      expect(currentUserAcl, 'current admin user should expose a FullSync ACL id').not.toBe('');
+
+      await expect
+        .poll(() => adminGroupMemberCount(page, groupName), {
+          message: `new admin group ${groupName} should initially count its creator`,
+          timeout: 60_000,
+        })
+        .toBe(1);
+      await expect
+        .poll(() => adminGroupContainsUser(page, groupName, currentUserAcl), {
+          message: `new admin group ${groupName} should contain its creator`,
+          timeout: 60_000,
+        })
+        .toBe(true);
+      await expect
+        .poll(() => visibleAdminGroupNameWithMemberCount(page, groupName, 1), {
+          message: `Admin Groups UI should show one member for newly created group ${groupName}`,
+          timeout: 60_000,
+        })
+        .toBe(true);
+    });
+
+    await test.step('Add a different user and verify the membership count changes from one to two', async () => {
+      const user = await firstAdminUserOutsideGroup(page, groupName, currentUserAcl);
+      addedUserAcl = user.acl;
+      addedUserLabel = user.label;
+
+      await addUserToAdminGroupThroughModal(page, groupName, addedUserLabel);
+      await expect
+        .poll(() => adminGroupMemberCount(page, groupName), {
+          message: `admin group ${groupName} should count its creator and the newly added user`,
+          timeout: 60_000,
+        })
+        .toBe(2);
+      await expect
+        .poll(() => adminGroupContainsUser(page, groupName, currentUserAcl), {
+          message: `admin group ${groupName} should keep its creator after adding another user`,
+          timeout: 60_000,
+        })
+        .toBe(true);
+      await expect
+        .poll(() => adminGroupContainsUser(page, groupName, addedUserAcl), {
+          message: `admin group ${groupName} should contain the user added through the modal`,
+          timeout: 60_000,
+        })
+        .toBe(true);
+    });
+
+    await test.step('Verify the Admin Groups UI shows two members and the added user', async () => {
+      await gotoWithTransientRetry(page, './admin/dashboard-groups');
+      await expect(page.locator(ADMIN_SEL.groupsPage).first(), 'Admin Groups page should be visible after membership update').toBeVisible({
+        timeout: 60_000,
+      });
+      await expect
+        .poll(() => visibleAdminGroupNameWithMemberCount(page, groupName, 2), {
+          message: `Admin Groups UI should show two members for ${groupName}`,
+          timeout: 60_000,
+        })
+        .toBe(true);
+      await expect
+        .poll(() => adminGroupContainsVisibleUserAfterSelection(page, groupName, addedUserLabel), {
+          message: `Admin Groups UI should show the user added to ${groupName}`,
+          timeout: 60_000,
+        })
+        .toBe(true);
+    });
+  } finally {
+    const usersToRemove = [...new Set([currentUserAcl, addedUserAcl].filter((user) => user !== ''))];
+    if (usersToRemove.length > 0) {
+      await removeUsersFromAdminGroups(page, [groupName], usersToRemove).catch(() => undefined);
+    }
+    await deleteTemporaryAdminGroup(page, groupName).catch(() => undefined);
+  }
+}
+
+/**
+ * Exercise the bulk relation behind #1165 from the Admin Groups screen: two
+ * users are selected in the UI, then the Add to group modal assigns both to two
+ * independently created groups in one operation.
+ */
+export async function verifyMultipleUsersCanBeAddedToMultipleAdminGroupsThroughUi(page: Page): Promise<void> {
+  const createdAt = Date.now();
+  const groupNames = [`${ADMIN_GROUP_PREFIX}${createdAt}`, `${ADMIN_GROUP_PREFIX}${createdAt + 1}`];
+  let userAcls: string[] = [];
+
+  try {
+    await test.step('Remove temporary groups left behind by earlier interrupted runs', async () => {
+      await deleteStaleAdminGroups(page);
+    });
+
+    await openAdminGroupsPage(page);
+    for (const groupName of groupNames) {
+      await createAdminGroupThroughUi(page, groupName);
+    }
+
+    const currentUser = await currentAdminUser(page);
+    expect(currentUser.acl, 'current admin user should expose a FullSync ACL id').not.toBe('');
+    const users = await firstAdminUsersOutsideGroups(page, groupNames, currentUser.acl, 2);
+    userAcls = users.map((user) => user.acl);
+
+    await test.step('Select two users and add them to both temporary groups through the bulk modal', async () => {
+      for (const user of users) {
+        await selectVisibleAdminUser(page, user.label);
+      }
+
+      const actionsButton = page.locator(ADMIN_SEL.userActionsButton).filter({ visible: true }).last();
+      await expect(actionsButton, 'Admin Groups page should expose user actions after selecting users').toBeVisible({
+        timeout: 30_000,
+      });
+      await actionsButton.click({ timeout: 10_000 }).catch(async () => actionsButton.dispatchEvent('click'));
+
+      const popover = page.locator(ADMIN_SEL.userActionsPopover).last();
+      await expect(popover, 'Admin Groups user actions popover should open').toBeVisible({ timeout: 15_000 });
+      const openButton = popover.locator(ADMIN_SEL.addUserToGroupToolbarButton).filter({ visible: true }).first();
+      await expect(openButton, 'User actions should expose Add to group for the bulk selection').toBeVisible({
+        timeout: 30_000,
+      });
+      await openButton.click({ timeout: 10_000 }).catch(async () => openButton.dispatchEvent('click'));
+
+      const modal = page.locator(ADMIN_SEL.addUserToGroupModal).last();
+      await expect(modal, 'Add user to group modal should open for the selected users').toBeVisible({ timeout: 30_000 });
+      for (const groupName of groupNames) {
+        await selectGroupInAddUserToGroupModal(modal, groupName);
+      }
+
+      const submit = modal.locator(ADMIN_SEL.addUserToGroupSubmitButton).filter({ visible: true }).last();
+      await expect(submit, 'Bulk Add to group submit button should be enabled').toBeEnabled({ timeout: 15_000 });
+      await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
+      await expect(modal, 'Bulk Add to group modal should close after submit').toBeHidden({ timeout: 60_000 });
+    });
+
+    await test.step('Verify both selected users belong to both selected groups', async () => {
+      for (const groupName of groupNames) {
+        await expect
+          .poll(() => adminGroupMemberCount(page, groupName), {
+            message: `${groupName} should contain its creator plus both bulk-selected users`,
+            timeout: 60_000,
+          })
+          .toBe(3);
+        for (const userAcl of userAcls) {
+          await expect
+            .poll(() => adminGroupContainsUser(page, groupName, userAcl), {
+              message: `${groupName} should contain bulk-selected user ${userAcl}`,
+              timeout: 60_000,
+            })
+            .toBe(true);
+        }
+        await expect
+          .poll(() => visibleAdminGroupNameWithMemberCount(page, groupName, 3), {
+            message: `Admin Groups UI should render three members for ${groupName}`,
+            timeout: 60_000,
+          })
+          .toBe(true);
+      }
+    });
+  } finally {
+    const usersToRemove = [...new Set(userAcls)];
+    if (usersToRemove.length > 0) {
+      await removeUsersFromAdminGroups(page, groupNames, usersToRemove).catch(() => undefined);
+    }
+    for (const groupName of groupNames) {
+      await deleteTemporaryAdminGroup(page, groupName).catch(() => undefined);
+    }
+  }
+}
+
 export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page): Promise<void> {
   const groupName = `${ADMIN_GROUP_PREFIX}${Date.now()}`;
   let currentUserAcl = '';
@@ -64,59 +283,8 @@ export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page
       await deleteStaleAdminGroups(page);
     });
 
-    await test.step('Open the Admin Groups management page', async () => {
-      await gotoWithTransientRetry(page, './admin/dashboard-groups');
-      await expect(page.locator(ADMIN_SEL.groupsPage).first(), 'Admin Groups page should be visible').toBeVisible({
-        timeout: 60_000,
-      });
-      await expect(page.locator(ADMIN_SEL.groupsPage).locator(ADMIN_SEL.gridSurface).first(), 'Admin Groups grid should render').toBeVisible({
-        timeout: 60_000,
-      });
-    });
-
-    await test.step('Create a temporary group through the Admin UI', async () => {
-      const addGroupButton = page
-        .getByRole('button', {
-          name: /Create a group|Add group|Cr[ée]er.*groupe|Ajouter.*groupe|Crear.*grupo|Aggiungi.*gruppo|admingroup_button_addgroup/i,
-        })
-        .first();
-      await expect(addGroupButton, 'Admin Groups page should expose the Add group action').toBeVisible({
-        timeout: 30_000,
-      });
-      await addGroupButton.click({ timeout: 10_000 }).catch(async () => addGroupButton.dispatchEvent('click'));
-
-      const modal = page.locator(ADMIN_SEL.addGroupModal).last();
-      await expect(modal, 'Add group modal should open').toBeVisible({ timeout: 30_000 });
-      const input = modal.locator(ADMIN_SEL.addGroupInput).first();
-      await expect(input, 'Add group modal should expose a group name input').toBeVisible({ timeout: 15_000 });
-      await input.fill(groupName);
-      await input.dispatchEvent('input');
-      await input.dispatchEvent('change');
-
-      const editingRights = modal
-        .getByRole('checkbox', {
-          name: /Application editing|Editing rights|Édition des applications|Edición de aplicaciones|Modifica delle applicazioni|editing_rights/i,
-        })
-        .first();
-      await expect(editingRights, 'Add group modal should expose the Application editing permission').toBeVisible({
-        timeout: 15_000,
-      });
-      if (!(await editingRights.isChecked().catch(() => false))) {
-        await editingRights.click({ timeout: 10_000 }).catch(async () => editingRights.dispatchEvent('click'));
-      }
-      await expect(editingRights, 'Application editing permission should be checked before creating the group').toBeChecked({
-        timeout: 10_000,
-      });
-
-      const submit = modal
-        .getByRole('button', {
-          name: /Create a group|Add|Cr[ée]er.*groupe|Ajouter|Agregar|Aggiungi|admingroup_button_addgroup/i,
-        })
-        .last();
-      await expect(submit, 'Add group modal should expose a submit button').toBeVisible({ timeout: 15_000 });
-      await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
-      await expect(modal, 'Add group modal should close after creation').toBeHidden({ timeout: 60_000 });
-    });
+    await openAdminGroupsPage(page);
+    await createAdminGroupThroughUi(page, groupName);
 
     await test.step('Verify the temporary group is visible to the Admin group listing', async () => {
       await expect
@@ -203,6 +371,63 @@ export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page
   }
 }
 
+async function openAdminGroupsPage(page: Page): Promise<void> {
+  await test.step('Open the Admin Groups management page', async () => {
+    await gotoWithTransientRetry(page, './admin/dashboard-groups');
+    const groupsPage = page.locator(ADMIN_SEL.groupsPage).first();
+    await expect(groupsPage, 'Admin Groups page should be visible').toBeVisible({ timeout: 60_000 });
+    await expect(groupsPage.locator(ADMIN_SEL.gridSurface).first(), 'Admin Groups grid should render').toBeVisible({
+      timeout: 60_000,
+    });
+  });
+}
+
+async function createAdminGroupThroughUi(page: Page, groupName: string): Promise<void> {
+  await test.step(`Create admin group ${groupName} through the UI`, async () => {
+    const addGroupButton = page
+      .getByRole('button', {
+        name: /Create a group|Add group|Cr[ée]er.*groupe|Ajouter.*groupe|Crear.*grupo|Aggiungi.*gruppo|admingroup_button_addgroup/i,
+      })
+      .first();
+    await expect(addGroupButton, 'Admin Groups page should expose the Add group action').toBeVisible({
+      timeout: 30_000,
+    });
+    await addGroupButton.click({ timeout: 10_000 }).catch(async () => addGroupButton.dispatchEvent('click'));
+
+    const modal = page.locator(ADMIN_SEL.addGroupModal).last();
+    await expect(modal, 'Add group modal should open').toBeVisible({ timeout: 30_000 });
+    const input = modal.locator(ADMIN_SEL.addGroupInput).first();
+    await expect(input, 'Add group modal should expose a group name input').toBeVisible({ timeout: 15_000 });
+    await input.fill(groupName);
+    await input.dispatchEvent('input');
+    await input.dispatchEvent('change');
+
+    const editingRights = modal
+      .getByRole('checkbox', {
+        name: /Application editing|Editing rights|Édition des applications|Edición de aplicaciones|Modifica delle applicazioni|editing_rights/i,
+      })
+      .first();
+    await expect(editingRights, 'Add group modal should expose the Application editing permission').toBeVisible({
+      timeout: 15_000,
+    });
+    if (!(await editingRights.isChecked().catch(() => false))) {
+      await editingRights.click({ timeout: 10_000 }).catch(async () => editingRights.dispatchEvent('click'));
+    }
+    await expect(editingRights, 'Application editing permission should be checked before creating the group').toBeChecked({
+      timeout: 10_000,
+    });
+
+    const submit = modal
+      .getByRole('button', {
+        name: /Create a group|Add|Cr[ée]er.*groupe|Ajouter|Agregar|Aggiungi|admingroup_button_addgroup/i,
+      })
+      .last();
+    await expect(submit, 'Add group modal should expose a submit button').toBeVisible({ timeout: 15_000 });
+    await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
+    await expect(modal, 'Add group modal should close after creation').toBeHidden({ timeout: 60_000 });
+  });
+}
+
 async function currentAdminUser(page: Page): Promise<{ acl: string; label: string }> {
   const response = await c8oCall(page, 'getCurrentUserSettings', {});
   const settings = settingsResult(response);
@@ -227,6 +452,36 @@ async function firstAdminUserOutsideGroup(page: Page, groupName: string, current
 
   expect(candidate, `Admin Groups test needs at least one visible user outside ${groupName} to exercise the Add user modal`).toBeTruthy();
   return candidate!;
+}
+
+async function firstAdminUsersOutsideGroups(
+  page: Page,
+  groupNames: string[],
+  currentUserAcl: string,
+  count: number,
+): Promise<{ acl: string; label: string }[]> {
+  const allUsers = await adminGroupChildren(page, 'all_users');
+  const currentMembers = new Set<string>();
+  for (const groupName of groupNames) {
+    for (const entry of await adminGroupChildren(page, groupName)) {
+      currentMembers.add(stringValue(entry['~c8oAcl']));
+    }
+  }
+
+  const seenLabels = new Set<string>();
+  const candidates = allUsers
+    .map((entry) => ({ acl: stringValue(entry['~c8oAcl']), label: adminUserLabel(entry) }))
+    .filter((entry) => {
+      if (!entry.acl || entry.acl === currentUserAcl || currentMembers.has(entry.acl) || !entry.label || seenLabels.has(entry.label)) {
+        return false;
+      }
+      seenLabels.add(entry.label);
+      return true;
+    })
+    .slice(0, count);
+
+  expect(candidates.length, `Admin Groups test needs ${count} visible users outside ${groupNames.join(', ')}`).toBe(count);
+  return candidates;
 }
 
 async function adminGroupChildren(page: Page, groupName: string): Promise<Record<string, unknown>[]> {
