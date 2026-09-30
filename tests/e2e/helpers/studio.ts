@@ -77,6 +77,10 @@ export const SEL = {
   checkboxGroupComponent: 'c8oforms-itemcheckboxgroupviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
+  buttonFlowSearchTrigger: 'c8oforms-itembuttoneditor ion-item.select-editor-search-trigger',
+  buttonFlowSearchPopover: 'ion-popover.select-editor-search-popover:visible',
+  buttonFlowSearchInput: 'ion-searchbar.select-editor-search input',
+  buttonFlowSearchOption: 'button.select-editor-search-option',
   buttonLabelInput: 'c8oforms-textinputsetting.class1776707403149 input, .class1776707403149 input',
   buttonDisplayModeSwitch: '.class1782410200003',
   buttonTextColorSwatch: 'c8oforms-itembuttoneditor .class1776709886936',
@@ -176,6 +180,7 @@ export const SEL = {
   pageIconSetting: '.page-icon-setting',
   // page settings "Nom de la page" input (TextInputSetting)
   pageNameInput: '.class1776265600007 input, ion-input.class1775119427737 input, .class1775119427737 input',
+  pageIconField: '.page-icon-setting:visible',
   // page settings "Display page title" control: modern ToggleSwitch + legacy beta111 checkbox
   pageDisplayTitleToggle: 'c8oforms-toggleswitch.class1779359000042, .class1779359000042',
   pageDisplayTitleLegacyCheckbox: 'ion-checkbox.class1775133492560',
@@ -228,6 +233,8 @@ export const SEL = {
   selectorApplyFiltersButton: 'ion-button.class1750693491899',
   selectorCardTitle: '.class1603968061706',
   selectorListTitle: '.class1780484375240',
+  selectorGridViewButton: 'ion-button.class1761574287897',
+  selectorListViewButton: 'ion-button.class1761576075026',
   cardMenuButton: 'ion-button.class1606574763560',
   selectorCollaboratorsMenuItem:
     'ion-item.class1594313281739, ion-item:has(ion-icon.class1603730321735)',
@@ -1673,6 +1680,56 @@ export async function returnToSelectorFromEditor(page: Page): Promise<void> {
     await page.locator(SEL.selectorPageRoot).first().waitFor({ state: 'visible', timeout: 30_000 });
     await waitForIonicLoading(page, 15_000);
   });
+}
+
+export async function switchSelectorApplicationsView(page: Page, view: 'grid' | 'list'): Promise<void> {
+  await test.step(`Switch applications to ${view} view`, async () => {
+    const button = page.locator(view === 'grid' ? SEL.selectorGridViewButton : SEL.selectorListViewButton).first();
+    await expect(button, `${view} view button should be visible`).toBeVisible({ timeout: 10_000 });
+    await button.click({ timeout: 10_000 });
+    await expect(page.locator(view === 'grid' ? SEL.selectorCardTitle : SEL.selectorListTitle).first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+}
+
+export async function selectorApplicationTitleClipping(
+  title: Locator,
+  view: 'grid' | 'list',
+): Promise<{
+  overflow: string;
+  textOverflow: string;
+  whiteSpace: string;
+  scrollWidth: number;
+  clientWidth: number;
+  firstGlyphLeft: number;
+  firstGlyphRight: number;
+  containerLeft: number;
+  containerRight: number;
+}> {
+  return title.evaluate((element, mode) => {
+    const container = mode === 'grid' ? element : element.parentElement;
+    if (!container) throw new Error('Application title has no clipping container');
+    const firstText = document.createTreeWalker(element, NodeFilter.SHOW_TEXT).nextNode();
+    if (!firstText?.textContent) throw new Error('Application title has no text node');
+    const range = document.createRange();
+    range.setStart(firstText, 0);
+    range.setEnd(firstText, Math.min(5, firstText.textContent.length));
+    const glyph = range.getBoundingClientRect();
+    const bounds = container.getBoundingClientRect();
+    const style = getComputedStyle(container);
+    return {
+      overflow: style.overflow,
+      textOverflow: style.textOverflow,
+      whiteSpace: style.whiteSpace,
+      scrollWidth: container.scrollWidth,
+      clientWidth: container.clientWidth,
+      firstGlyphLeft: glyph.left,
+      firstGlyphRight: glyph.right,
+      containerLeft: bounds.left,
+      containerRight: bounds.right,
+    };
+  }, view);
 }
 
 export async function openEditorCollaboratorsModal(page: Page): Promise<Locator> {
@@ -3396,6 +3453,19 @@ export async function openConfigTabById(page: Page, tabId: MainEditorConfigTab):
   throw new Error(`No visible config tab matches id ${tabId}. Visible tabs: ${(await visibleTexts(page, SEL.configTab)).join(' | ')}`);
 }
 
+export async function openButtonFlowChooser(page: Page): Promise<Locator> {
+  await openConfigTabById(page, 'data_interactions');
+  const trigger = page.locator(`${SEL.buttonFlowSearchTrigger}:visible`).first();
+  await expect(trigger, 'Button Data & Interactions should expose the searchable flow chooser').toBeVisible({
+    timeout: 15_000,
+  });
+  await trigger.click();
+  const popover = page.locator(SEL.buttonFlowSearchPopover).last();
+  await expect(popover, 'Button flow chooser should open as a searchable list').toBeVisible({ timeout: 15_000 });
+  await expect(popover.locator(SEL.buttonFlowSearchInput)).toBeVisible({ timeout: 10_000 });
+  return popover;
+}
+
 export async function openStyleTabById(page: Page, tabId: MainEditorStyleTab): Promise<void> {
   await openStyleSection(page);
   const index = await styleTabIndexById(page, tabId);
@@ -4410,6 +4480,14 @@ export async function closeComponentConfig(page: Page): Promise<void> {
     .toBe(0);
 }
 
+export async function duplicateOpenComponentHere(page: Page): Promise<void> {
+  await test.step('Duplicate the open component on the current page', async () => {
+    const copyButton = page.locator('button.c8o-btn-copy:visible').first();
+    await expect(copyButton, 'component configuration should expose Copy here').toBeVisible({ timeout: 10_000 });
+    await copyButton.click({ timeout: 10_000 }).catch(async () => copyButton.dispatchEvent('click'));
+  });
+}
+
 export async function deleteOpenComponent(page: Page): Promise<void> {
   await test.step('Delete the currently opened component through the configuration panel', async () => {
     const del = page.locator(`${SEL.componentDeleteButton}:visible`).first();
@@ -4581,6 +4659,37 @@ async function openCurrentBaserowTablePicker(page: Page, pickerTimeout: number):
 export async function openGridBaserowTablePicker(page: Page, pickerTimeout = 60_000): Promise<Locator> {
   await prepareGridBaserowSourceSelection(page, pickerTimeout);
   return openCurrentBaserowTablePicker(page, pickerTimeout);
+}
+
+export function baserowPickerSearchInput(picker: Locator, panel: 'navigation' | 'columns'): Locator {
+  const selector = panel === 'navigation' ? 'ion-input.class1776256596569 input' : 'ion-input.class1776260626658 input';
+  return picker.locator(selector).first();
+}
+
+/** Search for and select a workspace, database, or table in the Grid Baserow picker. */
+export async function searchAndSelectBaserowPickerEntry(
+  picker: Locator,
+  label: string,
+  hiddenWhileSearching?: string,
+): Promise<void> {
+  await test.step(`Search and select Baserow picker entry ${label}`, async () => {
+    const search = baserowPickerSearchInput(picker, 'navigation');
+    await expect(search, 'Baserow picker navigation search should be visible').toBeVisible({ timeout: 15_000 });
+    await search.fill(label);
+    await expect(search).toHaveValue(label);
+    if (hiddenWhileSearching) {
+      await expect(
+        picker.getByTitle(hiddenWhileSearching, { exact: true }),
+        `Baserow search for ${label} should hide ${hiddenWhileSearching}`,
+      ).toBeHidden({ timeout: 15_000 });
+    }
+    const entry = picker.getByTitle(label, { exact: true });
+    await expect(entry, `filtered Baserow entry ${label} should be visible`).toBeVisible({ timeout: 30_000 });
+    await entry.click();
+    await expect(search, 'selecting a filtered entry should clear the navigation search').toHaveValue('', {
+      timeout: 15_000,
+    });
+  });
 }
 
 export interface BaserowWorkspaceSeparationOptions {
@@ -5456,6 +5565,23 @@ export async function expectTinyMcePathBadge(page: Page, expectedPath: string): 
     .toContain(expectedPath);
 }
 
+export async function ionSearchbarTextAlignment(searchbar: Locator): Promise<{
+  placeholder: string;
+  inputAlign: string;
+  placeholderAlign: string;
+}> {
+  await expect(searchbar, 'the searchbar should be visible').toBeVisible();
+  return searchbar.evaluate((host) => {
+    const input = host.shadowRoot?.querySelector('input') ?? host.querySelector('input');
+    if (!input) throw new Error('Visible ion-searchbar has no input');
+    return {
+      placeholder: input.getAttribute('placeholder') ?? '',
+      inputAlign: getComputedStyle(input).textAlign,
+      placeholderAlign: getComputedStyle(input, '::placeholder').textAlign,
+    };
+  });
+}
+
 export async function sourceSelectVisibleOptions(
   page: Page,
   expectedOptions: string[],
@@ -5741,7 +5867,7 @@ async function replaceVisibleMonacoReturn(page: Page, returnExpression: string, 
   await page.waitForTimeout(1_000);
 }
 
-async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
+export async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
   let flow = await defaultButtonWorkflowLocator(page);
   if (flowName) {
@@ -8572,6 +8698,60 @@ export async function openWorkflowsPanel(page: Page): Promise<void> {
   });
 }
 
+export async function workflowListBottomVisibility(page: Page): Promise<{
+  entryCount: number;
+  lastLabel: string;
+  scrollRange: number;
+  scrollRemaining: number;
+  lastTop: number;
+  lastBottom: number;
+  visibleTop: number;
+  visibleBottom: number;
+}> {
+  const entries = page.locator(SEL.workflowEntry);
+  const entryCount = await entries.count();
+  if (entryCount === 0) {
+    throw new Error('Workflows list has no entries');
+  }
+  return entries.last().evaluate((last, count) => {
+    const row = last as HTMLElement;
+    const label = row.innerText.trim();
+    let scroller: HTMLElement | null = row.parentElement;
+    while (scroller) {
+      const overflow = getComputedStyle(scroller).overflowY;
+      if (/(auto|scroll)/.test(overflow) && scroller.scrollHeight > scroller.clientHeight + 1) {
+        break;
+      }
+      scroller = scroller.parentElement;
+    }
+    if (!scroller) {
+      throw new Error('Workflows list does not have a scrollable ancestor');
+    }
+    scroller.scrollTop = scroller.scrollHeight;
+    const rect = row.getBoundingClientRect();
+    let visibleTop = 0;
+    let visibleBottom = window.innerHeight;
+    for (let parent = row.parentElement; parent; parent = parent.parentElement) {
+      const overflow = getComputedStyle(parent).overflowY;
+      if (/(auto|scroll|hidden|clip)/.test(overflow)) {
+        const bounds = parent.getBoundingClientRect();
+        visibleTop = Math.max(visibleTop, bounds.top);
+        visibleBottom = Math.min(visibleBottom, bounds.bottom);
+      }
+    }
+    return {
+      entryCount: count,
+      lastLabel: label,
+      scrollRange: scroller.scrollHeight - scroller.clientHeight,
+      scrollRemaining: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+      lastTop: rect.top,
+      lastBottom: rect.bottom,
+      visibleTop,
+      visibleBottom,
+    };
+  }, entryCount);
+}
+
 export async function openFirstWorkflowSection(page: Page): Promise<void> {
   await test.step('Open the first Workflows section', async () => {
     await openWorkflowsPanel(page);
@@ -9903,18 +10083,43 @@ export async function setDescriptionText(page: Page, text: string): Promise<void
 /** Update a Text input's question in the Appearance editor. */
 export async function setTextInputQuestion(page: Page, text: string): Promise<void> {
   await test.step(`Set Text input question to ${text}`, async () => {
-    await openStyleSection(page);
-    const questionTab = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}:visible`).first();
-    await expect(questionTab, 'Text input Question tab should be visible').toBeVisible({ timeout: 10_000 });
-    await questionTab.click();
-    const body = await visibleTinyMceBody(page);
-    await expect(body, 'Text input question editor should be visible').toBeVisible({ timeout: 15_000 });
+    const body = await openTextInputQuestionEditor(page);
     if (!(await setTinyMceContentThroughApi(page, text))) {
       await fillVisibleTinyMceText(page, text, 'Text input question editor');
     }
     await expect(body, 'Text input question editor should contain the new question').toContainText(text, {
       timeout: 10_000,
     });
+  });
+}
+
+export async function openTextInputQuestionEditor(page: Page): Promise<Locator> {
+  await openStyleSection(page);
+  const questionTab = page.locator(`${SEL.styleTabsContainer} ${SEL.styleTab}:visible`).first();
+  await expect(questionTab, 'Text input Question tab should be visible').toBeVisible({ timeout: 10_000 });
+  await questionTab.click();
+  const body = await visibleTinyMceBody(page);
+  await expect(body, 'Text input question editor should be visible').toBeVisible({ timeout: 15_000 });
+  return body;
+}
+
+export async function typeInRichTextEditor(page: Page, text: string): Promise<void> {
+  await test.step('Use the rich-text toolbar and editor', async () => {
+    const editor = page.locator('.tox-hugerte:visible, .tox-tinymce:visible').last();
+    await expect(editor, 'rich-text editor should replace a plain text field').toBeVisible({ timeout: 15_000 });
+    const toolbar = editor.locator('.tox-toolbar-overlord:visible, .tox-toolbar:visible').first();
+    await expect(toolbar, 'rich-text formatting toolbar should be visible').toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => toolbar.locator('button:visible').count(), {
+      message: 'rich-text toolbar should offer formatting controls',
+      timeout: 10_000,
+    }).toBeGreaterThanOrEqual(3);
+
+    const body = await visibleTinyMceBody(page);
+    await body.click();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.insertText(text);
+    await page.keyboard.press('Tab');
+    await expect(body, 'rich-text editor should keep the entered text').toContainText(text, { timeout: 10_000 });
   });
 }
 
@@ -10883,6 +11088,17 @@ export async function openPageSettings(page: Page): Promise<void> {
   throw new Error('Could not open the page settings: the page name field never became visible.');
 }
 
+export async function clickPageIconFieldRapidly(page: Page, clicks = 6): Promise<void> {
+  await test.step(`Click the page icon field ${clicks} times rapidly`, async () => {
+    const field = page.locator(SEL.pageIconField).first();
+    await expect(field, 'page settings should expose the icon field').toBeVisible();
+    // Dispatch through the field so the first modal's backdrop cannot swallow later rapid clicks.
+    for (let index = 0; index < clicks; index += 1) {
+      await field.dispatchEvent('click');
+    }
+  });
+}
+
 export async function closePageSettings(page: Page): Promise<void> {
   const closeButton = await firstVisibleLocatorOrNull(page, SEL.pageSettingsCloseButton, 3_000);
   if (!closeButton) {
@@ -11290,32 +11506,24 @@ export async function expectEditorSidebarButtonsVisible(page: Page): Promise<voi
   });
 }
 
-export async function expectEditorSidebarButtonTitles(page: Page): Promise<void> {
-  await test.step('Assert localized editor sidebar titles', async () => {
-    const expected: Array<{ selector: string; name: string; title: RegExp }> = [
-      {
-        selector: SEL.appSettingsPanelButton,
-        name: 'application settings',
-        title:
-          /^(Application settings|Paramètres de l'application|Configuración de la aplicación|Impostazioni dell'applicazione)$/,
-      },
-      {
-        selector: SEL.componentPanelButton,
-        name: 'component palette',
-        title: /^(Component palette|Palette de composants|Paleta de componentes|Palette dei componenti)$/,
-      },
-      { selector: SEL.pagesPanelButton, name: 'Pages', title: /^(Pages|Páginas|Pagine)$/ },
-      { selector: SEL.workflowsPanelButton, name: 'Workflows', title: /^(Workflows|Flujos de trabajo|Workflow)$/ },
-    ];
-
-    for (const item of expected) {
-      const button = await firstVisibleLocator(page, item.selector, `${item.name} sidebar button`, 10_000);
-      await expect(button, `${item.name} sidebar button should expose its localized title`).toHaveAttribute(
-        'title',
-        item.title,
-        { timeout: 10_000 },
-      );
+/** Read the native hover tooltip titles from the four editor sidebar navigation buttons. */
+export async function editorSidebarTooltipTitles(page: Page): Promise<string[]> {
+  return test.step('Inspect editor sidebar tooltips', async () => {
+    const buttons = [
+      ['application settings', SEL.appSettingsPanelButton],
+      ['components', SEL.componentPanelButton],
+      ['pages', SEL.pagesPanelButton],
+      ['workflows', SEL.workflowsPanelButton],
+    ] as const;
+    const titles: string[] = [];
+    for (const [name, selector] of buttons) {
+      const button = await firstVisibleLocator(page, selector, `${name} sidebar button`, 15_000);
+      await button.hover();
+      const title = (await button.getAttribute('title'))?.trim() ?? '';
+      expect(title, `${name} sidebar button should expose a native tooltip title`).not.toBe('');
+      titles.push(title);
     }
+    return titles;
   });
 }
 
@@ -11451,6 +11659,30 @@ export async function addHorizontalLayout(page: Page): Promise<void> {
     }
   }
   await expect(layout, 'the Horizontal layout was not added to the page').toHaveCount(1, { timeout: 10_000 });
+}
+
+/** Select the desktop 3/9 column preset from a Horizontal layout's UI editor. */
+export async function setHorizontalLayoutDesktopColumns3And9(page: Page): Promise<void> {
+  await test.step('Set Horizontal layout desktop columns to 3/9', async () => {
+    await openComponentConfig(page, SEL.layoutViewer);
+    const preset = page.locator(
+      'c8oforms-itemlayouteditor_params.class1730902448252 ion-button.class1730903657072',
+    );
+    await expect(preset, 'desktop 3/9 layout preset should be available').toBeVisible({ timeout: 15_000 });
+    await preset.click();
+    await expect(preset, 'desktop 3/9 layout preset should be selected').toHaveClass(/btn-col-focused/);
+    await closeComponentConfig(page);
+  });
+}
+
+/** Widths of the visible top-level columns, excluding the editor's hidden selection column. */
+export async function horizontalLayoutColumnWidths(page: Page, mode: 'editor' | 'viewer'): Promise<number[]> {
+  const layout = page.locator(mode === 'editor' ? SEL.layoutViewer : 'c8oforms-itemlayoutviewer').first();
+  return layout.evaluate((element) =>
+    [...element.querySelectorAll(':scope > ion-grid > ion-row > ion-col')]
+      .map((column) => column.getBoundingClientRect().width)
+      .filter((width) => width > 0),
+  );
 }
 
 /**
