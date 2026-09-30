@@ -17,6 +17,7 @@ import {
   getPwaDocument,
   login,
   openPublishedApplicationsTab,
+  openApplicationSettingsFromSidebar,
   openPublishedPwaEditor,
   openPublishedShareApplicationModal,
   openPublishedViewer,
@@ -35,9 +36,14 @@ import {
   setTechnicalId,
   submitViewerForm,
   TEST_USER,
+  viewerTextInput,
   type LoginCredentials,
   type PublishedToolbarButtonThemeState,
 } from './studio';
+import {
+  changeUserLanguageThroughSettings,
+  currentUserLanguageFromSettings,
+} from './functional-studio';
 import {
   createFunctionalAdminSequenceClient,
   type FunctionalAdminSequenceClient,
@@ -237,9 +243,9 @@ export async function verifyPwaConfigurationReopenAndViewerMetadataThroughUi(pag
       timeout: 10_000,
     });
 
-    await expect(modal.locator(SEL.pwaIconEditor).first(), 'PWA icon editor should remain visible after reopening').toBeVisible({
-      timeout: 15_000,
-    });
+    const iconPicker = modal.locator(SEL.pwaIconEditor).first();
+    await expect(iconPicker, 'PWA icon editor should remain visible after reopening').toBeVisible({ timeout: 15_000 });
+    await expectConfiguredPwaIconContained(page, modal, iconPicker);
     await modal.locator(SEL.pwaSaveButton).first().click({ timeout: 10_000 }).catch(async () => {
       await modal.locator(SEL.pwaSaveButton).first().dispatchEvent('click');
     });
@@ -256,6 +262,78 @@ export async function verifyPwaConfigurationReopenAndViewerMetadataThroughUi(pag
     });
     const state = await publishedViewerToolbarThemeState(page);
     expectCssColorVisible(state.toolbarBackgroundColor, 'published viewer toolbar should expose the configured PWA theme color');
+  });
+}
+
+async function expectConfiguredPwaIconContained(page: Page, modal: Locator, iconPicker: Locator): Promise<void> {
+  await test.step('Verify the configured PWA icon stays inside its picker and modal', async () => {
+    await expect(iconPicker, 'configured PWA icon picker should expose its configured state').toHaveClass(
+      /icon-picker--configured/,
+    );
+    const geometry = await iconPicker.evaluate((element) => {
+      const picker = element as HTMLElement;
+      const pickerBox = picker.getBoundingClientRect();
+      const modal = picker.closest('ion-modal') as HTMLElement | null;
+      const modalBox = modal?.getBoundingClientRect();
+      const visualCandidates = [
+        ...picker.querySelectorAll(':scope > img, :scope > ion-img, :scope > div:not(.info-upload-img)'),
+      ].filter((candidate) => {
+        const box = (candidate as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(candidate);
+        return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      const contained = visualCandidates.every((candidate) => {
+        const box = (candidate as HTMLElement).getBoundingClientRect();
+        return (
+          box.left >= pickerBox.left - 1 &&
+          box.top >= pickerBox.top - 1 &&
+          box.right <= pickerBox.right + 1 &&
+          box.bottom <= pickerBox.bottom + 1 &&
+          (!modalBox ||
+            (box.left >= modalBox.left - 1 &&
+              box.top >= modalBox.top - 1 &&
+              box.right <= modalBox.right + 1 &&
+              box.bottom <= modalBox.bottom + 1))
+        );
+      });
+      return {
+        width: pickerBox.width,
+        height: pickerBox.height,
+        clientWidth: picker.clientWidth,
+        clientHeight: picker.clientHeight,
+        scrollWidth: picker.scrollWidth,
+        scrollHeight: picker.scrollHeight,
+        visualCount: visualCandidates.length,
+        contained,
+      };
+    });
+
+    expect(geometry.width, 'PWA icon picker should keep its fixed 120px width').toBeCloseTo(120, 0);
+    expect(geometry.height, 'PWA icon picker should keep its fixed 120px height').toBeCloseTo(120, 0);
+    expect(geometry.visualCount, 'PWA icon picker should expose a visible configured visual').toBeGreaterThan(0);
+    expect(geometry.contained, 'PWA icon visual should stay geometrically contained').toBe(true);
+    expect(geometry.scrollWidth, 'PWA icon picker should not overflow horizontally').toBeLessThanOrEqual(
+      geometry.clientWidth + 1,
+    );
+    expect(geometry.scrollHeight, 'PWA icon picker should not overflow vertically').toBeLessThanOrEqual(
+      geometry.clientHeight + 1,
+    );
+
+    const overlay = iconPicker.locator('.info-upload-img').first();
+    await expect(overlay, 'configured PWA icon should expose an edit overlay').toBeAttached();
+    await page.mouse.move(5, 5);
+    await expect(overlay, 'configured icon overlay should start transparent').toHaveCSS('opacity', '0');
+    await expect(overlay, 'configured icon overlay should not intercept input before hover').toHaveCSS(
+      'pointer-events',
+      'none',
+    );
+    await iconPicker.hover();
+    await expect(overlay, 'configured icon overlay should appear on hover').toHaveCSS('opacity', '1');
+    await expect(overlay, 'configured icon overlay should become interactive on hover').toHaveCSS(
+      'pointer-events',
+      'auto',
+    );
+    await expect(modal, 'PWA modal should remain open after the icon hover contract').toBeVisible();
   });
 }
 
@@ -308,6 +386,215 @@ export async function submitSimplePublishedFormThroughUi(page: Page): Promise<vo
       timeout: 60_000,
     });
   });
+}
+
+const SINGLE_RESPONSE_SETTING_RE =
+  /(?:Do not allow more than one response per person|Ne pas autoriser plus d[’']une réponse par personne|No permitir más de una respuesta por persona|Non consentire più di una risposta per persona)/i;
+const LOOP_TO_FORM_SETTING_RE =
+  /(?:Return to the first page of the application after submission|Revenir à la première page de l'application après soumission|Volver a la primera página de la aplicaciones después del envío|Tornare alla prima pagina del applicazione dopo l'invio)/i;
+const SEND_ANOTHER_RESPONSE_RE =
+  /^(?:Send another repl(?:y|ies)|Envoyer une autre réponse|Enviar otra respuesta|Invia un'altra risposta)$/i;
+const CORRECT_FRENCH_SINGLE_RESPONSE_MESSAGE =
+  'Vous avez déjà répondu à ce formulaire, et une seule réponse est autorisée.';
+const INCORRECT_FRENCH_SINGLE_RESPONSE_MESSAGE =
+  "Vous avez déjà répondu à ce formulaire, et une seule réponse n'est autorisée.";
+
+/**
+ * #1300: create, configure, publish and answer the form only through rendered UI.
+ * The user language is also changed and restored through the Settings screen.
+ */
+export async function verifyFrenchSingleResponseMessageThroughUi(page: Page): Promise<void> {
+  const suffix = Date.now();
+  const title = `Functional single response ${suffix}`;
+  const technicalId = `functional_single_response_${suffix}`;
+  const submittedValue = `Réponse fonctionnelle ${suffix}`;
+  let formId = '';
+  let originalLanguage = 'en';
+  let languageChanged = false;
+  let scenarioError: unknown;
+
+  try {
+    await test.step('Switch the Studio user to French through Settings', async () => {
+      originalLanguage = await currentUserLanguageFromSettings(page);
+      if (originalLanguage !== 'fr') {
+        await changeUserLanguageThroughSettings(page, 'fr');
+        languageChanged = true;
+      }
+    });
+
+    await test.step('Create a form and enable one response per person through application Settings', async () => {
+      await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      formId = await createBlankForm(page, title);
+      await createPublishedTextInput(page, technicalId, { required: false });
+      await setBooleanApplicationSettingThroughUi(page, SINGLE_RESPONSE_SETTING_RE, true, 'one response per person');
+      await expect
+        .poll(() => readPersistedFormBoolean(page, formId, ['config', 'oneRespByPerson']), {
+          message: 'one-response-per-person must persist before publication',
+          timeout: 30_000,
+        })
+        .toBe(true);
+    });
+
+    await test.step('Publish and submit the authenticated form once', async () => {
+      await publishCurrentFormWithPwa(page, 'authenticated');
+      await expectPwaDocument(page, formId, 'authenticated one-response PWA should exist before submission');
+      await openPublishedViewer(page, formId, `#${technicalId}`);
+      await fillViewerTextInput(page, technicalId, submittedValue);
+      await submitViewerForm(page);
+      await expect(page.locator(SEL.responseCompletedPage), 'the first response should complete successfully').toBeAttached({
+        timeout: 60_000,
+      });
+    });
+
+    await test.step('Reopen the form and assert the corrected French rejection message', async () => {
+      await openPublishedViewer(page, formId);
+      const viewer = page.locator(SEL.viewerPage).first();
+      await expect(viewer, 'the one-response viewer should reopen for the same authenticated user').toBeVisible({
+        timeout: 60_000,
+      });
+      await expect(
+        viewer.getByText(CORRECT_FRENCH_SINGLE_RESPONSE_MESSAGE, { exact: true }),
+        'the single-response rejection should use the corrected French agreement',
+      ).toBeVisible({ timeout: 60_000 });
+      await expect(
+        viewer.getByText(INCORRECT_FRENCH_SINGLE_RESPONSE_MESSAGE, { exact: true }),
+        'the former incorrect French agreement must not be rendered',
+      ).toHaveCount(0);
+    });
+  } catch (error) {
+    scenarioError = error;
+    throw error;
+  } finally {
+    if (languageChanged) {
+      await test.step(`Restore the Studio user language to ${originalLanguage}`, async () => {
+        try {
+          await changeUserLanguageThroughSettings(page, originalLanguage);
+        } catch (restoreError) {
+          if (scenarioError === undefined) throw restoreError;
+          console.warn(`Studio language restore failed after the #1300 scenario had already failed: ${String(restoreError)}`);
+        }
+      });
+    }
+  }
+}
+
+/**
+ * #1302: a Text input named like the query parameter is a visible witness for
+ * viewerPage navigation data. The completion-page button must decode forwardData
+ * before rebuilding viewerPage, otherwise the raw special characters are lost.
+ */
+export async function verifyNonLoopingResponsePreservesEncodedNavigationDataThroughUi(page: Page): Promise<void> {
+  const suffix = Date.now();
+  const title = `Functional forward data ${suffix}`;
+  const technicalId = `functional_forward_data_${suffix}`;
+  const navigationValue = `Élodie & 50% + a=b / ? # ${suffix}`;
+  let formId = '';
+  let publicTargetId = '';
+
+  await test.step('Create a non-looping form through Studio application Settings', async () => {
+    formId = await createBlankForm(page, title);
+    await createPublishedTextInput(page, technicalId, { required: false });
+    await setBooleanApplicationSettingThroughUi(page, LOOP_TO_FORM_SETTING_RE, false, 'return to form after submission');
+    await expect
+      .poll(() => readPersistedFormBoolean(page, formId, ['loopToForm']), {
+        message: 'loopToForm=false must persist before publication',
+        timeout: 30_000,
+      })
+      .toBe(false);
+  });
+
+  await test.step('Publish the form and open it with special-character navigation data', async () => {
+    await publishCurrentFormWithPwa(page, 'anonymous');
+    const pwa = await expectPwaDocument(page, formId, 'anonymous non-looping PWA should exist before submission');
+    publicTargetId = publishedViewerTargetId(pwa, publishedApplicationId(formId));
+    expect(publicTargetId, 'anonymous PWA should expose a public target id').not.toBe('');
+
+    await openPublishedViewer(page, formId, `#${technicalId}`);
+    const navigationUrl = new URL(standalonePwaUrl(page, publicTargetId));
+    navigationUrl.searchParams.set(technicalId, navigationValue);
+    await page.goto(navigationUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await expect(page.locator(SEL.viewerPage), 'query-prefilled published viewer should render').toBeAttached({ timeout: 60_000 });
+    await expect(viewerTextInput(page, technicalId), 'the initial navigation value should prefill the Text input').toHaveValue(
+      navigationValue,
+      { timeout: 60_000 },
+    );
+  });
+
+  await test.step('Submit and return manually from the response completion page', async () => {
+    await submitViewerForm(page);
+    const completion = page.locator(SEL.responseCompletedPage).first();
+    await expect(completion, 'non-looping submission should stay on the response completion page').toBeVisible({
+      timeout: 60_000,
+    });
+    const sendAnother = completion.locator('ion-button:visible').filter({ hasText: SEND_ANOTHER_RESPONSE_RE }).first();
+    await expectActionableInsideViewport(page, sendAnother, 'send another response button');
+    await sendAnother.click({ timeout: 10_000 }).catch(async () => sendAnother.dispatchEvent('click'));
+    await expect(page.locator(SEL.viewerPage), 'manual response return should reopen viewerPage').toBeAttached({ timeout: 60_000 });
+  });
+
+  await test.step('Assert the restored navigation value is decoded exactly once', async () => {
+    await expect(viewerTextInput(page, technicalId), 'special characters should survive the manual response return').toHaveValue(
+      navigationValue,
+      { timeout: 60_000 },
+    );
+  });
+}
+
+async function setBooleanApplicationSettingThroughUi(
+  page: Page,
+  label: RegExp,
+  enabled: boolean,
+  description: string,
+): Promise<void> {
+  await openApplicationSettingsFromSidebar(page);
+  const row = page.locator('ion-item:visible').filter({ hasText: label }).first();
+  await expect(row, `${description} application setting should be visible`).toBeVisible({ timeout: 15_000 });
+
+  const checkbox = row.locator('ion-checkbox:visible').first();
+  if (await checkbox.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    if ((await ionCheckboxChecked(checkbox)) !== enabled) {
+      await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+    }
+    await expect
+      .poll(() => ionCheckboxChecked(checkbox), {
+        message: `${description} checkbox should be ${enabled ? 'checked' : 'unchecked'}`,
+        timeout: 15_000,
+      })
+      .toBe(enabled);
+  } else {
+    const toggle = row.locator('c8oforms-toggleswitch:visible').first();
+    await expect(toggle, `${description} setting should expose a checkbox or ToggleSwitch`).toBeVisible({ timeout: 10_000 });
+    const target = toggle.locator('button.c8o-btn:visible').nth(enabled ? 0 : 1);
+    await expect(target, `${description} ${enabled ? 'Yes' : 'No'} option should be visible`).toBeVisible({ timeout: 10_000 });
+    if (!((await target.getAttribute('class')) ?? '').includes('c8o-btn-selected')) {
+      await target.click({ timeout: 10_000 }).catch(async () => target.dispatchEvent('click'));
+    }
+    await expect(target, `${description} option should be selected`).toHaveClass(/c8o-btn-selected/, { timeout: 15_000 });
+  }
+
+  const close = page.locator('.c8o-btn-close:visible').last();
+  if (await close.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await close.click({ timeout: 10_000 }).catch(async () => close.dispatchEvent('click'));
+  }
+}
+
+async function ionCheckboxChecked(checkbox: Locator): Promise<boolean> {
+  return checkbox.evaluate((element) => {
+    const ionCheckbox = element as HTMLElement & { checked?: boolean };
+    return (
+      ionCheckbox.checked === true ||
+      element.getAttribute('aria-checked') === 'true' ||
+      element.classList.contains('checkbox-checked')
+    );
+  });
+}
+
+async function readPersistedFormBoolean(page: Page, formId: string, path: string[]): Promise<boolean | undefined> {
+  let value: unknown = await getFormDocument(page, formId);
+  for (const key of path) {
+    value = jsonRecord(value)?.[key];
+  }
+  return typeof value === 'boolean' ? value : undefined;
 }
 
 export async function verifyPublishedViewerResponsiveLayoutThroughUi(page: Page): Promise<void> {
@@ -412,6 +699,14 @@ async function createPublishedPwaCacheFixture(
 }
 
 async function expectPublishedPwaMetadataResources(page: Page, fixture: PublishedPwaCacheFixture): Promise<void> {
+  const environment = await expectPublishedPwaJson(
+    page,
+    new URL('env.json', fixture.pwaIndexUrl).toString(),
+    `${fixture.mode} env.json`,
+  );
+  expect(String(environment.appTemplateVersion ?? ''), `${fixture.mode} PWA env.json should expose its template version`).not.toBe('');
+  expect(String(environment.remoteBase ?? ''), `${fixture.mode} PWA env.json should expose its backend endpoint`).not.toBe('');
+
   const manifest = await expectPublishedPwaJson(
     page,
     new URL('manifest.webmanifest', fixture.pwaIndexUrl).toString(),
@@ -642,6 +937,98 @@ export async function verifyCollaboratorCanFindSharedApplicationThroughUi(
   });
 }
 
+export async function verifySelectedOwnerCollaborationsOnlyThroughUi(
+  page: Page,
+  browser: Browser,
+  adminUser: LoginCredentials,
+  ownerUser: LoginCredentials,
+): Promise<void> {
+  const suffix = Date.now();
+  const titlePrefix = `Functional selected user ${suffix}`;
+  const ownerSharedTitle = `${titlePrefix} owner shared`;
+  const ownerOnlyTitle = `${titlePrefix} owner only`;
+  const collaboratorOnlyTitle = `${titlePrefix} collaborator only`;
+
+  await test.step('Create two selected-owner applications, sharing only one with the current administrator', async () => {
+    const context = await browser.newContext({ baseURL: mobileAppRootUrl(page) });
+    try {
+      const ownerPage = await context.newPage();
+      await login(ownerPage, ownerUser);
+
+      const sharedFormId = await createBlankForm(ownerPage, ownerSharedTitle);
+      await openEditorCollaboratorsModal(ownerPage);
+      const modal = ownerPage.locator(SEL.collaboratorsModal).last();
+      await selectEditorCollaboratorByEmail(ownerPage, modal, adminUser.user);
+      await saveCollaboratorsModal(modal, 'selected-owner collaboration fixture');
+      await expectEditorCollaboratorDocumentState(ownerPage, sharedFormId, adminUser.user, true);
+
+      await ownerPage.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await createBlankForm(ownerPage, ownerOnlyTitle);
+    } finally {
+      await context.close();
+    }
+  });
+
+  await test.step('Create an administrator-owned application where the selected owner is only a collaborator', async () => {
+    const context = await browser.newContext({ baseURL: mobileAppRootUrl(page) });
+    try {
+      const adminPage = await context.newPage();
+      await login(adminPage, adminUser);
+      const collaboratorOnlyFormId = await createBlankForm(adminPage, collaboratorOnlyTitle);
+      await openEditorCollaboratorsModal(adminPage);
+      const modal = adminPage.locator(SEL.collaboratorsModal).last();
+      await selectEditorCollaboratorByEmail(adminPage, modal, ownerUser.user);
+      await saveCollaboratorsModal(modal, 'selected-user collaborator-only fixture');
+      await expectEditorCollaboratorDocumentState(adminPage, collaboratorOnlyFormId, ownerUser.user, true);
+    } finally {
+      await context.close();
+    }
+  });
+
+  await test.step('Filter as administrator by the selected owner, excluding collaborator-only applications', async () => {
+    const context = await browser.newContext({ baseURL: mobileAppRootUrl(page) });
+    try {
+      const adminPage = await context.newPage();
+      await login(adminPage, adminUser);
+      await setSelectorMyApplicationsFilter(adminPage, false);
+      await selectSelectorUserFilter(adminPage, ownerUser.user);
+      await searchSelectorApplicationsByName(adminPage, titlePrefix);
+
+      await expectSelectorApplicationVisible(adminPage, ownerSharedTitle);
+      await expectSelectorApplicationVisible(adminPage, ownerOnlyTitle);
+      // #1338: selecting a user means creator=<selected user>, not merely an
+      // ACL match where that user is a collaborator.
+      await expectSelectorApplicationHidden(adminPage, collaboratorOnlyTitle);
+
+      const collaborationsOnly = adminPage.locator('ion-button.class1784723090278:visible').first();
+      await expect(collaborationsOnly, 'Collaboration-only should appear for one selected user other than the current user').toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(collaborationsOnly, 'Collaboration-only should be enabled for the selected owner').toBeEnabled();
+      await expect(collaborationsOnly, 'Collaboration-only should initially be inactive').toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+      await expect(collaborationsOnly, 'Collaboration-only should expose its localized accessible name').toHaveAttribute(
+        'aria-label',
+        /(?:Collaborations only|Collaborations uniquement|Solo colaboraciones|Solo collaborazioni)/i,
+      );
+      await collaborationsOnly.click({ timeout: 10_000 }).catch(async () => collaborationsOnly.dispatchEvent('click'));
+      await expect(collaborationsOnly, 'Collaboration-only should become active').toHaveAttribute('aria-pressed', 'true', {
+        timeout: 15_000,
+      });
+
+      // #1350: creator stays the selected owner while collaboration membership
+      // is evaluated against the currently connected administrator.
+      await expectSelectorApplicationVisible(adminPage, ownerSharedTitle);
+      await expectSelectorApplicationHidden(adminPage, ownerOnlyTitle);
+      await expectSelectorApplicationHidden(adminPage, collaboratorOnlyTitle);
+    } finally {
+      await context.close();
+    }
+  });
+}
+
 export async function verifyCollaboratorRevocationHidesSharedApplicationThroughUi(
   page: Page,
   browser: Browser,
@@ -708,6 +1095,9 @@ export async function verifyAnonymousPublishedQrToggleThroughUi(page: Page): Pro
     await clickPublishedQrButton(page);
     await expectPublishedQrButtonMode(page, 'hide');
     await expectPublishedQrTooltipMode(page, 'hide');
+    // #1346: c6f8a05b made both selector-card QR labels flex-aligned;
+    // first shipped in beta150 and historically QA-validated in beta154.
+    await expectPublishedQrLabelAlignedAtResponsiveWidths(page, title);
     await clickPublishedQrButton(page);
     await expectPublishedQrButtonMode(page, 'show');
   });
@@ -734,6 +1124,9 @@ async function expectPublishedPwaJson(page: Page, url: string, description: stri
         }
         if (description.includes('manifest.webmanifest')) {
           return typeof json.name === 'string' && typeof json.start_url === 'string';
+        }
+        if (description.includes('env.json')) {
+          return typeof json.appTemplateVersion === 'string' && typeof json.remoteBase === 'string';
         }
         return !json.couchdb_output;
       },
@@ -1394,6 +1787,10 @@ export async function verifyEditorCollaboratorCanFindSharedApplicationThroughUi(
       await setSelectorMyApplicationsFilter(collaboratorPage, false);
       await searchSelectorApplicationsByName(collaboratorPage, title);
       await expectSelectorApplicationVisible(collaboratorPage, title);
+      // #1347: edf693ce moved access/share indicators outside the visual card
+      // container and anchored them at right:50px/bottom:19px; first shipped in
+      // beta150 and historically QA-validated in beta154.
+      await expectSharedCardAccessIndicatorPositioned(collaboratorPage, title);
 
       await setSelectorMyApplicationsFilter(collaboratorPage, true);
       await searchSelectorApplicationsByName(collaboratorPage, title);
@@ -1402,6 +1799,105 @@ export async function verifyEditorCollaboratorCanFindSharedApplicationThroughUi(
       await context.close();
     }
   });
+}
+
+async function expectPublishedQrLabelAlignedAtResponsiveWidths(page: Page, title: string): Promise<void> {
+  const originalViewport = page.viewportSize();
+  try {
+    for (const viewport of [
+      { name: 'desktop', width: 1920, height: 1080 },
+      { name: 'mobile', width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const card = selectorCardByTitle(page, title);
+      await expect(card, `${viewport.name} published application card should remain visible with QR codes shown`).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(card.locator('canvas:visible').first(), `${viewport.name} published card should render its QR code`).toBeVisible({
+        timeout: 15_000,
+      });
+      const label = card.locator(SEL.selectorCardTitle).filter({ hasText: title }).first();
+      await expect(label, `${viewport.name} QR label should remain visible`).toBeVisible({ timeout: 15_000 });
+      await expect(label, `${viewport.name} QR label should use the fixed flex layout`).toHaveCSS('display', 'flex');
+      await expect(label, `${viewport.name} QR label content should remain vertically centered`).toHaveCSS(
+        'align-items',
+        'center',
+      );
+    }
+  } finally {
+    if (originalViewport) {
+      await page.setViewportSize(originalViewport);
+    }
+  }
+}
+
+async function expectSharedCardAccessIndicatorPositioned(page: Page, title: string): Promise<void> {
+  const originalViewport = page.viewportSize();
+  try {
+    for (const viewport of [
+      { name: 'desktop', width: 1920, height: 1080 },
+      { name: 'mobile', width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const card = selectorCardByTitle(page, title);
+      await expect(card, `${viewport.name} shared application card should remain visible`).toBeVisible({ timeout: 15_000 });
+      const indicator = card
+        .locator(
+          'div.class1614878181934:visible, div.class1614878239631:visible, div.class1614878254783:visible, div.class1614763483649:visible',
+        )
+        .first();
+      await expect(indicator, `${viewport.name} shared application card should expose an access indicator`).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(indicator, `${viewport.name} shared access indicator should be absolutely positioned`).toHaveCSS(
+        'position',
+        'absolute',
+      );
+      await expect(indicator, `${viewport.name} shared access indicator should retain its right offset`).toHaveCSS('right', '50px');
+      await expect(indicator, `${viewport.name} shared access indicator should retain its bottom offset`).toHaveCSS(
+        'bottom',
+        '19px',
+      );
+      expect(
+        await indicator.evaluate((element) => {
+          const visualContainer = element.parentElement?.querySelector(':scope > .card-container--app');
+          return visualContainer == null || !visualContainer.contains(element);
+        }),
+        `${viewport.name} shared access indicator should be a sibling of, not clipped inside, the visual card container`,
+      ).toBe(true);
+    }
+  } finally {
+    if (originalViewport) {
+      await page.setViewportSize(originalViewport);
+    }
+  }
+}
+
+function selectorCardByTitle(page: Page, title: string): Locator {
+  const exactTitle = new RegExp(`^${escapeRegExp(title)}$`);
+  const label = page.locator(`${SEL.selectorCardTitle}:visible`).filter({ hasText: exactTitle }).first();
+  return page.locator('[id^="idcard"]:not([id^="idcardO"])').filter({ has: label }).first();
+}
+
+async function selectSelectorUserFilter(page: Page, user: string): Promise<void> {
+  const input = page.locator('.class1750838881480 c8oforms-ngxtaginputcustomc8oforms input:visible').first();
+  if (!(await input.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    const toggle = page.locator(SEL.selectorFilterInlineToggleButton).filter({ visible: true }).first();
+    await expect(toggle, 'administrator selector should expose advanced search').toBeVisible({ timeout: 15_000 });
+    await toggle.click({ timeout: 10_000 }).catch(async () => toggle.dispatchEvent('click'));
+  }
+
+  await expect(input, 'administrator advanced search should expose the user autocomplete').toBeVisible({ timeout: 15_000 });
+  await input.fill(user);
+  const option = page.locator(SEL.collaboratorAutocompleteOption).filter({ hasText: user }).first();
+  await expect(option, `selector user ${user} should be selectable from autocomplete`).toBeVisible({ timeout: 30_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+
+  const collaborationsOnly = page.locator('ion-button.class1784723090278:visible').first();
+  await expect(
+    collaborationsOnly,
+    'selecting exactly one other user should expose the collaboration-only quick filter',
+  ).toBeVisible({ timeout: 30_000 });
 }
 
 export async function verifyEditorCollaboratorCanBeRemovedThroughUi(page: Page): Promise<void> {
@@ -1568,6 +2064,10 @@ async function visibleShareNotificationTinyMceBody(page: Page, modal: Locator): 
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function openFunctionalEditorCollaboratorsModal(page: Page): Promise<Locator> {

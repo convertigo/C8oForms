@@ -200,12 +200,17 @@ export async function configureMailActionAndVerifyPersistenceThroughUi(page: Pag
   const bodyText = `Functional mail body ${suffix}`;
 
   await createWorkflowButton(page, buttonTechnicalId, buttonLabel);
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   await test.step('Open the Button workflow and configure a Send mail action', async () => {
     await openButtonFlowMailActionConfig(page);
+    await expectMailActionPanelBoundedToViewport(page);
+    await expectMailActionSelectorFullyVisible(page);
     await setMailActionTextVariable(page, 'to', to);
+    await expectMailActionTextEditorWithoutToolbar(page);
     await setMailActionSubjectJavaScriptReturn(page, subjectExpression);
     await setMailActionBodyTextWithUserName(page, bodyText);
+    await expectMailActionHtmlEditorUsable(page);
     await ensureMailActionSummaryChecked(page);
   });
 
@@ -215,6 +220,154 @@ export async function configureMailActionAndVerifyPersistenceThroughUi(page: Pag
     await expectMailActionSubjectJavaScriptContains(page, subjectExpression);
     await expectMailActionBodyContainsUserName(page, bodyText);
     await expectMailActionSummaryChecked(page);
+  });
+}
+
+async function expectMailActionPanelBoundedToViewport(page: Page): Promise<void> {
+  await test.step('Verify the action configuration panel fits the viewport', async () => {
+    const panel = page.locator('ion-col.class1741109898625:visible').last();
+    const card = panel.locator('ion-card.class1741109898628:visible').last();
+    await expect(panel, 'Send Mail action configuration column should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(card, 'Send Mail action configuration card should be visible').toBeVisible({ timeout: 15_000 });
+
+    const layout = await panel.evaluate((element) => {
+      const panelBox = (element as HTMLElement).getBoundingClientRect();
+      const cardElement = element.querySelector('ion-card.class1741109898628') as HTMLElement | null;
+      if (!cardElement) return null;
+      const cardBox = cardElement.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const visibleRatio = (box: DOMRect) => {
+        const width = Math.max(0, Math.min(box.right, viewportWidth) - Math.max(box.left, 0));
+        const height = Math.max(0, Math.min(box.bottom, viewportHeight) - Math.max(box.top, 0));
+        return box.width > 0 && box.height > 0 ? (width * height) / (box.width * box.height) : 0;
+      };
+      return {
+        viewportWidth,
+        viewportHeight,
+        panelLeft: panelBox.left,
+        panelRight: panelBox.right,
+        panelTop: panelBox.top,
+        panelBottom: panelBox.bottom,
+        panelHeight: panelBox.height,
+        panelVisibleRatio: visibleRatio(panelBox),
+        cardVisibleRatio: visibleRatio(cardBox),
+      };
+    });
+
+    expect(layout, 'Send Mail action panel layout should be measurable').not.toBeNull();
+    expect(layout?.panelLeft, 'action panel should not overflow the left viewport edge').toBeGreaterThanOrEqual(-1);
+    expect(layout?.panelRight, 'action panel should not overflow the right viewport edge').toBeLessThanOrEqual(
+      (layout?.viewportWidth ?? 0) + 1,
+    );
+    expect(layout?.panelTop, 'action panel should start inside the viewport').toBeGreaterThanOrEqual(-1);
+    expect(layout?.panelBottom, 'action panel should end inside the viewport').toBeLessThanOrEqual(
+      (layout?.viewportHeight ?? 0) + 1,
+    );
+    expect(layout?.panelHeight, 'action panel should retain useful viewport height').toBeGreaterThanOrEqual(
+      (layout?.viewportHeight ?? 0) - 60,
+    );
+    expect(layout?.panelVisibleRatio, 'action panel should not be clipped').toBeGreaterThanOrEqual(0.99);
+    expect(layout?.cardVisibleRatio, 'action configuration card should not be clipped').toBeGreaterThanOrEqual(0.99);
+  });
+}
+
+async function expectMailActionSelectorFullyVisible(page: Page): Promise<void> {
+  await test.step('Verify the Send Mail source/action selector is not clipped', async () => {
+    await openConfigTabById(page, 'tab_selector_choice_action');
+    const editor = page.locator('c8oforms-itemactionsubmiteditor:visible').last();
+    const selector = editor.locator('c8oforms-datasourcebutton:visible').last();
+    const selectionZone = selector.locator('.class1775847135189:visible').last();
+    await expect(editor, 'Send Mail action editor should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(selector, 'Send Mail source/action selector should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(selectionZone, 'Send Mail source/action selection zone should be visible').toBeVisible({ timeout: 15_000 });
+    await selector.scrollIntoViewIfNeeded();
+
+    const layout = await selector.evaluate((element) => {
+      const host = element as HTMLElement;
+      const row = host.closest('.submit-editor-row') as HTMLElement | null;
+      const zone = host.querySelector('.class1775847135189') as HTMLElement | null;
+      if (!row || !zone) return null;
+      const hostBox = host.getBoundingClientRect();
+      const rowBox = row.getBoundingClientRect();
+      const zoneBox = zone.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const visibleRatio = (box: DOMRect) => {
+        const width = Math.max(0, Math.min(box.right, viewportWidth) - Math.max(box.left, 0));
+        const height = Math.max(0, Math.min(box.bottom, viewportHeight) - Math.max(box.top, 0));
+        return box.width > 0 && box.height > 0 ? (width * height) / (box.width * box.height) : 0;
+      };
+      return {
+        hostWidth: hostBox.width,
+        rowWidth: rowBox.width,
+        hostRight: hostBox.right,
+        rowRight: rowBox.right,
+        zoneWidth: zoneBox.width,
+        zoneHeight: zoneBox.height,
+        hostVisibleRatio: visibleRatio(hostBox),
+        zoneVisibleRatio: visibleRatio(zoneBox),
+      };
+    });
+
+    expect(layout, 'Send Mail source/action selector layout should be measurable').not.toBeNull();
+    expect(layout?.hostWidth, 'source/action selector should use most of the available row width').toBeGreaterThanOrEqual(
+      (layout?.rowWidth ?? 0) * 0.8,
+    );
+    expect(layout?.hostRight, 'source/action selector should stay inside its row').toBeLessThanOrEqual(
+      (layout?.rowRight ?? 0) + 1,
+    );
+    expect(layout?.zoneWidth, 'source/action selection zone should retain useful width').toBeGreaterThanOrEqual(240);
+    expect(layout?.zoneHeight, 'source/action selection zone should retain useful height').toBeGreaterThanOrEqual(72);
+    expect(layout?.hostVisibleRatio, 'source/action selector should not be clipped').toBeGreaterThanOrEqual(0.99);
+    expect(layout?.zoneVisibleRatio, 'source/action selection zone should not be clipped').toBeGreaterThanOrEqual(0.99);
+    await openConfigTabById(page, 'tab_selector_conf_action');
+  });
+}
+
+async function expectMailActionTextEditorWithoutToolbar(page: Page): Promise<void> {
+  await test.step('Verify the Aa text editor has no TinyMCE toolbar', async () => {
+    const editor = page.locator('c8oforms-datasourceeditor:visible').last();
+    await expect(editor, 'Send Mail Aa editor should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(
+      editor.locator('[contenteditable="true"].mce-content-body:visible, .tox-edit-area iframe:visible').last(),
+      'Send Mail Aa editor should expose an editable body',
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.locator(
+        '.tox.tox-tinymce.tox-tinymce-inline:visible, .tox-editor-header:visible, .tox-toolbar-overlord:visible, .tox-toolbar:visible, .tox-tbtn:visible',
+      ),
+      'Aa mode should not render an inappropriate TinyMCE toolbar',
+    ).toHaveCount(0);
+  });
+}
+
+async function expectMailActionHtmlEditorUsable(page: Page): Promise<void> {
+  await test.step('Verify the Send Mail HTML editor keeps useful editing space', async () => {
+    const htmlEditor = page
+      .locator('c8oforms-datasourceeditor:visible .tox.tox-tinymce:not(.tox-tinymce-inline):visible')
+      .last();
+    const editArea = htmlEditor.locator('.tox-edit-area:visible').last();
+    await expect(htmlEditor, 'Send Mail HTML editor should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(editArea, 'Send Mail HTML editor should expose its edit area').toBeVisible({ timeout: 15_000 });
+
+    const layout = await htmlEditor.evaluate((element) => {
+      const editorBox = (element as HTMLElement).getBoundingClientRect();
+      const area = element.querySelector('.tox-edit-area') as HTMLElement | null;
+      const areaBox = area?.getBoundingClientRect();
+      const parentBox = element.parentElement?.getBoundingClientRect();
+      return {
+        editorWidth: editorBox.width,
+        editorHeight: editorBox.height,
+        editAreaHeight: areaBox?.height ?? 0,
+        parentWidth: parentBox?.width ?? 0,
+      };
+    });
+
+    expect(layout.editorHeight, 'HTML editor should preserve the fixed usable height').toBeGreaterThanOrEqual(319);
+    expect(layout.editAreaHeight, 'HTML editor content area should remain useful').toBeGreaterThanOrEqual(160);
+    expect(layout.editorWidth, 'HTML editor should fit within its responsive parent').toBeLessThanOrEqual(layout.parentWidth + 1);
+    expect(layout.editorWidth, 'HTML editor should retain useful width').toBeGreaterThanOrEqual(240);
   });
 }
 

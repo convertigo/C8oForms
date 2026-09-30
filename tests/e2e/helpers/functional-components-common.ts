@@ -11,6 +11,7 @@ import {
   configureComponentNavigationFilter,
   deleteLayoutChild,
   dragPaletteComponentInto,
+  filterComponentPaletteByIcon,
   getFormDocument,
   layoutChildComponentTypes,
   moveLayoutChildToStart,
@@ -18,6 +19,7 @@ import {
   openComponentConfig,
   openComponentConfigAt,
   openComponentsPalette,
+  openEditor,
   openPagesPanel,
   openPreview,
   openWorkflowsPanel,
@@ -112,6 +114,29 @@ const PALETTE_COMPONENTS: PaletteComponentCase[] = [
   { id: 'location', name: 'Location', icon: PALETTE_ICON.location, selector: 'c8oforms-itemlocationviewer' },
 ];
 
+// #1291 added this editor-only spacing contract to the component hosts listed
+// in editorPage. Text, Layout and Group use separate wrappers and are excluded.
+const EDITOR_PADDED_COMPONENT_IDS = new Set([
+  'checkbox',
+  'checkboxGroup',
+  'button',
+  'radio',
+  'radioGroup',
+  'slider',
+  'select',
+  'date',
+  'time',
+  'camera',
+  'grid',
+  'chart',
+  'barcode',
+  'file',
+  'signature',
+  'location',
+  'description',
+  'map',
+]);
+
 const TEXT_INPUT_COMMON_SEL = {
   placeholderInput: 'c8oforms-textinputsetting.class1776265600030 input:visible, .class1776265600030 input:visible',
   requiredToggle: 'c8oforms-toggleswitch.class1776263100018:visible, .class1776263100018:visible',
@@ -127,6 +152,12 @@ const GROUP_SEL = {
   ].join(', '),
   childWrapper: '[id^="@prefixc8oitem"][id*="@prefixc8otype"]',
   childCard: '.class1730737348958',
+} as const;
+
+const LAYOUT_SEL = {
+  desktopNineThreePreset: 'ion-button.class1731419139953:visible',
+  editorColumns: ':scope > ion-grid > ion-row > ion-col',
+  viewer: 'c8oforms-itemlayoutviewer',
 } as const;
 
 const SELECT_DEFAULT_OPTIONS = ['Functional Alpha', 'Functional Beta', 'Functional Gamma'] as const;
@@ -188,6 +219,11 @@ export async function addEveryPaletteComponentThroughUi(page: Page): Promise<voi
     await acceptRgpdIfVisible(page);
     for (const component of PALETTE_COMPONENTS) {
       await addPaletteComponentAndAssertVisible(page, component);
+      if (EDITOR_PADDED_COMPONENT_IDS.has(component.id)) {
+        const rendered = page.locator(component.selector).last();
+        await expect(rendered, `${component.name} should be a block in the editor canvas`).toHaveCSS('display', 'block');
+        await expect(rendered, `${component.name} should keep the editor bottom spacing`).toHaveCSS('padding-bottom', '10px');
+      }
     }
   });
 
@@ -342,6 +378,7 @@ export async function duplicateConfiguredButtonAndAssertCopyThroughUi(page: Page
   const suffix = Date.now();
   const originalTechnicalId = `functional_button_${suffix}`;
   const buttonLabel = `Functional duplicate ${suffix}`;
+  let toastCountBeforeDuplication = 0;
 
   await test.step('Add and configure a Button component', async () => {
     await acceptRgpdIfVisible(page);
@@ -359,29 +396,114 @@ export async function duplicateConfiguredButtonAndAssertCopyThroughUi(page: Page
   });
 
   await test.step('Duplicate the configured Button with Copy here', async () => {
+    await recordToasts(page);
+    toastCountBeforeDuplication = (await recordedToasts(page)).length;
     await openComponentConfig(page, SEL.buttonComponent);
     await clickCopyHereButton(page);
-    await closeComponentConfiguration(page);
     await expect(page.locator(`${SEL.buttonComponent}:visible`), 'Button duplication should create a second Button').toHaveCount(2, {
       timeout: 30_000,
     });
+    await expect
+      .poll(() => recordedToasts(page).then((messages) => messages.length), {
+        message: 'Button duplication should provide positive toast feedback',
+        timeout: 10_000,
+      })
+      .toBeGreaterThan(toastCountBeforeDuplication);
+    await expectRecentlyDuplicatedComponentFeedback(page, page.locator(`${SEL.buttonComponent}:visible`).nth(1));
+    await closeComponentConfiguration(page);
   });
 
-  await test.step('Verify the copy keeps the configured label and receives a distinct technical ID', async () => {
+  await test.step('Verify the copy and feedback identify distinct source and destination IDs', async () => {
     await expectButtonCopiesWithLabel(page, buttonLabel, 2, 'duplicated Button should keep the configured label');
     const technicalIds = await readComponentTechnicalIds(page, SEL.buttonComponent, 2);
     expect(technicalIds, 'duplicated Button set should include the original technical identifier').toContain(originalTechnicalId);
     expect(new Set(technicalIds).size, `technical identifiers should be distinct: ${technicalIds.join(', ')}`).toBe(2);
+    const copiedTechnicalId = technicalIds.find(
+      (technicalId) => technicalId !== originalTechnicalId && technicalId.trim().length > 0,
+    );
     expect(
-      technicalIds.some((technicalId) => technicalId !== originalTechnicalId && technicalId.trim().length > 0),
+      copiedTechnicalId,
       `one duplicated Button ID should differ from ${originalTechnicalId}: ${technicalIds.join(', ')}`,
-    ).toBe(true);
+    ).toBeTruthy();
+    if (!copiedTechnicalId) throw new Error('duplicated Button should expose a generated technical identifier');
+
+    await expect
+      .poll(
+        async () =>
+          (await recordedToasts(page))
+            .slice(toastCountBeforeDuplication)
+            .some((message) => message.includes(originalTechnicalId) && message.includes(copiedTechnicalId)),
+        {
+          message: `duplication feedback should identify source ${originalTechnicalId} and copy ${copiedTechnicalId}`,
+          timeout: 10_000,
+        },
+      )
+      .toBe(true);
   });
 
   await test.step('Open Preview and verify both Button copies render the configured label', async () => {
     await openPreview(page, SEL.buttonComponent);
     await expectButtonCopiesWithLabel(page, buttonLabel, 2, 'viewer should render both duplicated Button labels');
   });
+}
+
+export async function assertFilteredComponentPaletteHoverHasNo404sThroughUi(page: Page): Promise<void> {
+  await test.step('Filter the component palette and hover the filtered result without broken resources', async () => {
+    const tile = await filterComponentPaletteByIcon(page, PALETTE_ICON.location);
+    const notFoundUrls: string[] = [];
+    const onResponse = (response: { status(): number; url(): string }) => {
+      if (response.status() === 404) notFoundUrls.push(response.url());
+    };
+
+    page.on('response', onResponse);
+    try {
+      await tile.hover({ timeout: 10_000 });
+      await page.waitForTimeout(1_000);
+      expect(notFoundUrls, `hovering a filtered palette result should not request missing resources: ${notFoundUrls.join(', ')}`).toEqual(
+        [],
+      );
+    } finally {
+      page.off('response', onResponse);
+    }
+  });
+}
+
+async function expectRecentlyDuplicatedComponentFeedback(page: Page, component: Locator): Promise<void> {
+  await expect(component, 'the duplicated component should be visible after Copy here').toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(
+      async () => {
+        const componentBox = await component.boundingBox();
+        const viewport = page.viewportSize();
+        if (!componentBox || !viewport) return false;
+        const centeredInViewport =
+          componentBox.y < viewport.height &&
+          componentBox.y + componentBox.height > 0 &&
+          componentBox.x < viewport.width &&
+          componentBox.x + componentBox.width > 0;
+        if (!centeredInViewport) return false;
+
+        const overlays = page.locator(`${SEL.componentOverlay}:visible`);
+        for (let index = 0; index < (await overlays.count()); index++) {
+          const overlayBox = await overlays.nth(index).boundingBox();
+          if (
+            overlayBox &&
+            overlayBox.x < componentBox.x + componentBox.width &&
+            overlayBox.x + overlayBox.width > componentBox.x &&
+            overlayBox.y < componentBox.y + componentBox.height &&
+            overlayBox.y + overlayBox.height > componentBox.y
+          ) {
+            return true;
+          }
+        }
+        return false;
+      },
+      {
+        message: 'the duplicated component should be scrolled into view and highlighted',
+        timeout: 10_000,
+      },
+    )
+    .toBe(true);
 }
 
 export async function reorderButtonsAndAssertPersistenceThroughUi(page: Page): Promise<void> {
@@ -857,6 +979,49 @@ export async function configureHorizontalLayoutChildrenThroughUi(page: Page): Pr
         timeout: 15_000,
       })
       .toHaveLength(2);
+  });
+}
+
+export async function assertHorizontalLayoutConfigurationRendersImmediatelyThroughUi(
+  page: Page,
+  applicationId: string,
+): Promise<void> {
+  await test.step('Create a Horizontal layout with two nested components', async () => {
+    await acceptRgpdIfVisible(page);
+    await addHorizontalLayout(page);
+    await dragPaletteComponentInto(page, PALETTE_ICON.textInput, SEL.layoutViewer);
+    await dragPaletteComponentInto(page, PALETTE_ICON.description, SEL.layoutViewer);
+    await expect(
+      page.locator(`${SEL.layoutViewer} ${SEL.layoutChild}`),
+      'Horizontal layout should contain the two controlled children',
+    ).toHaveCount(2, { timeout: 30_000 });
+  });
+
+  await test.step('Apply the 9/3 desktop preset and observe the editor immediately', async () => {
+    await openComponentConfig(page, SEL.layoutViewer);
+    const preset = page.locator(LAYOUT_SEL.desktopNineThreePreset).first();
+    await expect(preset, '9/3 desktop Layout preset should be visible').toBeVisible({ timeout: 15_000 });
+    await preset.click({ timeout: 10_000 });
+    await expect(preset, '9/3 desktop Layout preset should become selected').toHaveClass(/btn-col-focused/, {
+      timeout: 15_000,
+    });
+
+    const editorLayout = page.locator(`${SEL.layoutViewer}:visible`).first();
+    await expectLayoutColumnsRatio(editorLayout.locator(LAYOUT_SEL.editorColumns), 3, 'editor');
+    await closeComponentConfiguration(page);
+  });
+
+  await test.step('Verify Preview renders the same 9/3 proportions', async () => {
+    await openPreview(page, LAYOUT_SEL.viewer);
+    const viewerLayout = page.locator(`${LAYOUT_SEL.viewer}:visible`).first();
+    await expectLayoutColumnsRatio(viewerLayout.locator(LAYOUT_SEL.editorColumns), 3, 'Preview');
+  });
+
+  await test.step('Return to the editor and verify the 9/3 layout remains correct', async () => {
+    await openEditor(page, applicationId);
+    const editorLayout = page.locator(`${SEL.layoutViewer}:visible`).first();
+    await expect(editorLayout, 'Horizontal layout should render again after returning from Preview').toBeVisible({ timeout: 30_000 });
+    await expectLayoutColumnsRatio(editorLayout.locator(LAYOUT_SEL.editorColumns), 3, 'editor');
   });
 }
 
@@ -1731,6 +1896,35 @@ async function expectInvalidTechnicalIdentifierRestoresPreviousValue(
       timeout: 10_000,
     })
     .toBeGreaterThan(toastCountBefore);
+}
+
+async function expectLayoutColumnsRatio(
+  columns: Locator,
+  expectedRatio: number,
+  surface: 'editor' | 'Preview',
+): Promise<void> {
+  await expect(columns, `${surface} should render exactly two Layout columns`).toHaveCount(2, { timeout: 30_000 });
+  await expect
+    .poll(
+      async () => {
+        const boxes = await columns.evaluateAll((elements) =>
+          elements.map((element) => {
+            const box = (element as HTMLElement).getBoundingClientRect();
+            return { width: box.width, top: box.top, height: box.height };
+          }),
+        );
+        if (boxes.length !== 2 || boxes.some((box) => box.width <= 0 || box.height <= 0)) {
+          return false;
+        }
+        const ratio = boxes[0].width / boxes[1].width;
+        return Math.abs(boxes[0].top - boxes[1].top) <= 2 && Math.abs(ratio - expectedRatio) <= 0.25;
+      },
+      {
+        message: `${surface} should expose two measurable horizontal Layout columns`,
+        timeout: 15_000,
+      },
+    )
+    .toBe(true);
 }
 
 async function closeComponentConfiguration(page: Page): Promise<void> {

@@ -5,7 +5,9 @@ import {
   configurePageButtonsThroughUi,
   deletePageCancelThenConfirmThroughUi,
   duplicatePageAndAssertCopiedContentThroughUi,
+  keepLastWorkflowFullyVisibleAfterScrollThroughUi,
   navigateEditorShellSectionsThroughUi,
+  openOnePageIconPickerAfterRapidClicksThroughUi,
   openSettingsFromWorkflowsAndKeepSidebarNavigable,
   renamePageWithValidationThroughUi,
   reorderPagesAndAssertPersistenceThroughUi,
@@ -18,7 +20,8 @@ test.describe('No-Code Studio functional editor shell', () => {
     viewport: { width: 1920, height: 1080 },
   });
 
-  test('EDT-001 - navigate between Palette, Pages, Workflows, and Settings', async ({ page }) => {
+  // #1271: every sidebar affordance keeps its own localized native title.
+  test('EDT-001 #1271 - navigate between Palette, Pages, Workflows, and Settings', async ({ page }) => {
     test.setTimeout(180_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -60,6 +63,7 @@ test.describe('No-Code Studio functional editor shell', () => {
     await deletePageCancelThenConfirmThroughUi(page);
   });
 
+  // #1308: cover both upward and downward page moves without duplicate rows.
   test('EDT-007 - reorder pages', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
@@ -67,13 +71,20 @@ test.describe('No-Code Studio functional editor shell', () => {
     await reorderPagesAndAssertPersistenceThroughUi(page);
   });
 
-  test('EDT-008 - duplicate a page', async ({ page }) => {
+  /**
+   * #1360 was reported in 2.2.0-beta150. Commit 6659d695 added full-page
+   * duplication in 2.2.0-beta191 and e006e57d aligned its icon in
+   * 2.2.0-beta198, where QA historically validated the complete journey.
+   * Current test-nocode runtime validation remains pending.
+   */
+  test('EDT-008 #1360 - duplicate a page', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await duplicatePageAndAssertCopiedContentThroughUi(page);
   });
 
+  // #1282: standard page buttons stay in the lower editor canvas, while tabs keep their tab roles.
   test('EDT-009 - configure page buttons', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
@@ -87,5 +98,26 @@ test.describe('No-Code Studio functional editor shell', () => {
     await loginWithUsernamePassword(page);
     const applicationId = await createBlankApplicationThroughUi(page, title);
     await returnHomeAndReopenSameApplicationThroughUi(page, title, applicationId);
+  });
+
+  // #1297: the asynchronous page-icon action is guarded before modal creation.
+  test('EDT-013 #1297 - rapid page icon clicks open one picker modal', async ({ page }) => {
+    test.setTimeout(180_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await openOnePageIconPickerAfterRapidClicksThroughUi(page);
+  });
+
+  /**
+   * #1361 was reported in 2.2.0-beta150. Commit 2795de4e made the Workflows
+   * flex child the scroll container and constrained its parent, first shipped
+   * in beta152; QA historically validated the fix in beta153. Current
+   * test-nocode runtime validation remains pending.
+   */
+  test('EDT-014 #1361 - keep the last workflow fully visible after scrolling', async ({ page }) => {
+    test.setTimeout(360_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await keepLastWorkflowFullyVisibleAfterScrollThroughUi(page);
   });
 });

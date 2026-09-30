@@ -1,6 +1,7 @@
 import { test } from './fixtures';
 import {
   exerciseBusinessLogicDynamicFieldFormulaThroughUi,
+  exerciseBusinessLogicFormulaDropIntoJavascriptThroughUi,
   exerciseBusinessLogicFormulaSourceThroughUi,
   exerciseButtonLabelIconRenderingThroughUi,
   exerciseButtonStateConditionAndWorkflowThroughUi,
@@ -54,5 +55,16 @@ test.describe('No-Code Studio functional action component values', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await exerciseBusinessLogicDynamicFieldFormulaThroughUi(page);
+  });
+
+  /**
+   * #1249: reported as 2.2.x while beta74 was current. The probable fix is
+   * a23f8e74, first released in beta77; QA ultimately validated beta112.
+   */
+  test('CMP-BIZ-002 #1249 - formula palette drops into JavaScript default values', async ({ page }) => {
+    test.setTimeout(360_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await exerciseBusinessLogicFormulaDropIntoJavascriptThroughUi(page);
   });
 });

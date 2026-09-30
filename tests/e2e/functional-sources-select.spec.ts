@@ -1,6 +1,7 @@
 import { test } from './fixtures';
 import {
   assertBaserowSourcePickerIsolationThroughUi,
+  assertSelectSourceFilterControlLayoutThroughUi,
   configureSelectBaserowTableAndAssertPersistenceThroughUi,
   configureSelectSourceFilterJavaScriptPaletteValueThroughUi,
   exerciseSourcePaletteSectionsCollapseAndDragThroughUi,
@@ -42,6 +43,22 @@ test.describe('No-Code Studio functional sources contract - Select and palette',
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await filterSelectBaserowSourceByHiddenTextColumnThroughUi(page);
+  });
+
+  /**
+   * #1312 was reported on 2.2.0-beta118: the Aa, JavaScript and delete controls
+   * in filter/formula editors were undersized and vertically misaligned.
+   * Fix f1a4f1a8 standardized their 32x32 button and 20x20 icon geometry, first
+   * released in 2.2.0-beta150 and historically validated by QA in 2.2.0-beta153.
+   * The C8oForms fixture is built and configured only through the Studio UI.
+   * Current test-nocode runtime validation is pending; this authoring pass does
+   * not deploy or execute the test against a live environment.
+   */
+  test('SRC-006 #1312 - source filter controls keep fixed size and alignment', async ({ page }) => {
+    test.setTimeout(420_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertSelectSourceFilterControlLayoutThroughUi(page);
   });
 
   test('SRC-006 - configure Select source filter JavaScript palette value', async ({ page }) => {

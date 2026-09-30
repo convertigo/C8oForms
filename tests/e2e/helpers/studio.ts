@@ -177,6 +177,7 @@ export const SEL = {
   pageSearchbar: 'ion-searchbar.class1774460274462',
   pageSettingsCard: '.class1650357060215',
   pageSettingsCloseButton: '.c8o-btn-close',
+  pageIconSetting: '.page-icon-setting',
   // page settings "Nom de la page" input (TextInputSetting)
   pageNameInput: '.class1776265600007 input, ion-input.class1775119427737 input, .class1775119427737 input',
   pageIconField: '.page-icon-setting:visible',
@@ -192,6 +193,13 @@ export const SEL = {
   conditionValueTagInput: 'tag-input input',
   checkboxOptionInput: 'ion-input.class1588839628131 input',
   checkboxOptionAddButton: 'ion-button.class1587560901011',
+  checkboxOptionsScroller: 'ion-reorder-group.class1778861001001',
+  radioOptionsScroller: 'ion-reorder-group.class1773854998224',
+  selectOptionsScroller: 'ion-reorder-group.class1778861002001',
+  checkboxGroupLinesScroller: 'ion-col.class1646167494542',
+  checkboxGroupColumnsScroller: 'ion-col.class1646167829932',
+  checkboxGroupAddLineButton: 'ion-button.class1778935200003',
+  checkboxGroupAddColumnButton: 'ion-button.class1778935200006',
   checkboxOptionDeleteButton: 'ion-button.class1588839628212',
   choiceOptionDeleteButton:
     'ion-button.class1571404352384, ion-button.class1778925100133, ion-button.class1773855179324, ion-button.class1588840079704, ion-button.class1588839628212, ion-button.class1588839628362',
@@ -7272,6 +7280,39 @@ export async function expectSelectBaserowColumnsVisible(modal: Locator, columns:
   }
 }
 
+export type SelectBaserowColumnRole = 'display' | 'value';
+
+/**
+ * Click exactly one Display/Value role in the Baserow picker. Unlike the
+ * configuration helper, this deliberately does not normalize other rows so a
+ * test can observe the product's own single-axis enforcement.
+ */
+export async function clickSelectBaserowColumnRole(
+  modal: Locator,
+  column: string,
+  role: SelectBaserowColumnRole,
+): Promise<void> {
+  const row = selectSourceColumnRow(modal, column);
+  await expect(row, `Baserow column ${column} should be visible`).toBeVisible({ timeout: 15_000 });
+  const selector = role === 'display' ? SELECT_SOURCE_DISPLAY_COLUMN_CHECKBOX : SELECT_SOURCE_VALUE_COLUMN_CHECKBOX;
+  const checkbox = row.locator(selector).first();
+  await expect(checkbox, `${role} role for Baserow column ${column} should be visible`).toBeVisible({ timeout: 15_000 });
+  await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+  await expect
+    .poll(() => checkbox.getAttribute('aria-checked'), {
+      message: `${role} role for Baserow column ${column} should become checked`,
+      timeout: 10_000,
+    })
+    .toBe('true');
+}
+
+export async function saveSelectBaserowTablePicker(modal: Locator): Promise<void> {
+  await acceptRgpdIfVisible(modal.page());
+  await modal.locator('ion-button.class1776244653366').click({ timeout: 10_000 });
+  await expect(modal, 'Baserow table picker should close after save').toBeHidden({ timeout: 20_000 });
+  await modal.page().waitForTimeout(1_500);
+}
+
 async function checkedSelectBaserowColumns(modal: Locator, checkboxSelector: string, candidates: string[]): Promise<string[]> {
   const checked: string[] = [];
   for (const name of candidates) {
@@ -8645,6 +8686,20 @@ export async function openComponentsPalette(page: Page, waitForIcon = PALETTE_IC
   await paletteTileForIcon(page, waitForIcon, `component palette tile ${waitForIcon}`);
 }
 
+/**
+ * Filter the component palette by a stable component type derived from its icon.
+ * The query uses the internal type rather than a translated display label.
+ */
+export async function filterComponentPaletteByIcon(page: Page, icon: string): Promise<Locator> {
+  await openComponentsPalette(page, icon);
+  const searchTerm = PALETTE_SEARCH_TERM_BY_ICON[icon];
+  if (!searchTerm) {
+    throw new Error(`No stable component-palette search term is registered for ${icon}`);
+  }
+  await fillComponentPaletteSearch(page, searchTerm);
+  return paletteTileForIcon(page, icon, `filtered component palette tile ${icon}`);
+}
+
 export async function openWorkflowsPanel(page: Page): Promise<void> {
   await acceptRgpdIfVisible(page);
   const searchbar = page.locator(SEL.workflowsSearchbar).first();
@@ -9210,6 +9265,15 @@ async function openDefaultValueJavascriptMode(page: Page): Promise<void> {
   await openConfigTabById(page, 'defaultvalue');
   await clickFirstVisible(page, SEL.defaultValueJavaScriptButton, 'default value JavaScript mode');
   await confirmAlertIfVisible(page);
+}
+
+/** Open the JavaScript editor for the configured component's default value. */
+export async function openTextDefaultValueJavascriptModeThroughUi(page: Page): Promise<void> {
+  await openDefaultValueJavascriptMode(page);
+  await expect(
+    page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
+    'default value JavaScript editor should be visible',
+  ).toBeVisible({ timeout: 15_000 });
 }
 
 /**
@@ -10343,6 +10407,86 @@ async function receivesPointerEvents(locator: Locator): Promise<boolean> {
 
 export async function dragUserEmailPaletteToTinyMce(page: Page): Promise<void> {
   await dragSourcePaletteEntryToTinyMce(page, 'user', 'email');
+}
+
+export type TinyMceSpacing = {
+  marginBottom: string;
+  padding: string;
+};
+
+/**
+ * Use the visible rich-text editor's Format menu to apply spacing and verify
+ * that the foreground/background color commands remain available there.
+ */
+export async function configureVisibleTinyMceSpacingThroughUi(
+  page: Page,
+  spacing: TinyMceSpacing,
+): Promise<void> {
+  await test.step('Configure rich-text spacing and verify Format color controls', async () => {
+    const body = await visibleTinyMceBody(page);
+    const paragraph = body.locator('p').first();
+    await expect(paragraph, 'rich-text paragraph should exist before formatting').toBeVisible({ timeout: 10_000 });
+
+    const editor = page.locator('.tox-tinymce:visible').last();
+    await expect(editor, 'visible rich-text editor shell should exist').toBeVisible({ timeout: 10_000 });
+    const formatMenu = editor.locator('.tox-menubar .tox-mbtn:visible').nth(4);
+    await expect(formatMenu, 'rich-text Format menu should be visible').toBeVisible({ timeout: 10_000 });
+
+    await paragraph.click();
+    await formatMenu.click();
+    const menu = page.locator('.tox-menu:visible').last();
+    await expect(menu, 'rich-text Format menu should open').toBeVisible({ timeout: 10_000 });
+    await expect(
+      menu.locator('.tox-collection__item').filter({
+        hasText: /^(Text color|Couleur du texte|Color del texto|Colore Testo)$/i,
+      }),
+      'Format menu should expose the text color command',
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+      menu.locator('.tox-collection__item').filter({
+        hasText: /^(Background color|Couleur d'arrière-plan|Color de fondo|Colore Background)$/i,
+      }),
+      'Format menu should expose the background color command',
+    ).toBeVisible({ timeout: 10_000 });
+    await openTinyMceSpacingSubmenu(page, menu);
+    await clickTinyMceSpacingItem(page, `Marge basse ${spacing.marginBottom}`);
+
+    await paragraph.click();
+    await formatMenu.click();
+    await openTinyMceSpacingSubmenu(page, page.locator('.tox-menu:visible').last());
+    await clickTinyMceSpacingItem(page, `Padding ${spacing.padding}`);
+    await fireActiveTinyMceChange(page, body);
+
+    await expect
+      .poll(
+        () =>
+          paragraph.evaluate((element) => ({
+            marginBottom: (element as HTMLElement).style.marginBottom,
+            padding: (element as HTMLElement).style.padding,
+          })),
+        {
+          message: 'rich-text paragraph should keep spacing selected through the Format menu',
+          timeout: 10_000,
+        },
+      )
+      .toEqual(spacing);
+  });
+}
+
+async function openTinyMceSpacingSubmenu(page: Page, menu: Locator): Promise<void> {
+  const spacing = menu.locator('.tox-collection__item').filter({ hasText: /^Espacement$/ }).first();
+  await expect(spacing, 'Format menu should expose the spacing submenu').toBeVisible({ timeout: 10_000 });
+  await spacing.hover();
+  await expect(page.locator('.tox-menu:visible')).toHaveCount(2, { timeout: 10_000 });
+}
+
+async function clickTinyMceSpacingItem(page: Page, label: string): Promise<void> {
+  const item = page.locator('.tox-menu:visible').last().locator('.tox-collection__item').filter({ hasText: label }).first();
+  await expect(item, `spacing choice ${label} should be visible`).toBeVisible({ timeout: 10_000 });
+  await item.click();
+  await expect(page.locator('.tox-menu:visible'), 'rich-text menus should close after applying spacing').toHaveCount(0, {
+    timeout: 10_000,
+  });
 }
 
 export async function dragUserNamePaletteToTinyMce(page: Page): Promise<void> {

@@ -25,6 +25,8 @@ test.describe('No-Code Studio functional text component values', () => {
     await exerciseTextInputAdvancedDefaultValuesThroughUi(page);
   });
 
+  // #1234/#1247/#1263: spacing and color controls remain usable in Question,
+  // while the rich-text editor stays absent from unrelated configuration tabs.
   test('CMP-DESC-001 - Description rich text source palette and rendering', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);

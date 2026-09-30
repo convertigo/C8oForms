@@ -24,6 +24,7 @@ import {
   expectSelectorSearchKeepsSingleApplication,
   type LoginCredentials,
 } from './studio';
+import { setGlobalSymbolForTest, type RestoreGlobalSymbol } from './admin-symbols';
 
 const FUNCTIONAL_SEL = {
   applicationNameInput: 'ion-input.class1776265600007 input, .class1776265600007 input',
@@ -33,6 +34,10 @@ const FUNCTIONAL_SEL = {
   selectorManageFoldersMenuItem: 'ion-item.class1578920252046',
   selectorPopover: 'ion-popover:not(.overlay-hidden):visible page-popoverpageselector',
   selectorAllApplicationsButton: 'ion-button.class1761754659662',
+  selectorGridViewButton: 'ion-button.class1761574287897',
+  selectorListViewButton: 'ion-button.class1761576075026',
+  selectorUserSearchFilter: '.class1750838881480',
+  selectorUserSearchInput: '.class1750838881480 c8oforms-ngxtaginputcustomc8oforms input',
   labelsModal: 'ion-modal.show-modal page-labelspage',
   labelsFolderInput: 'input.ng2-tag-input__text-input',
   labelsSaveButton: 'ion-button.class1763130514151',
@@ -160,6 +165,64 @@ export async function expectForgottenPasswordModalOpensAndCloses(page: Page): Pr
     await expect(modal, 'forgotten password modal should close').toBeHidden({ timeout: 15_000 });
     await expectLoginScreenVisible(page);
   });
+}
+
+/**
+ * Covers both halves of #1259 without holding two global-symbol locks at once.
+ * The second assertion uses a fresh browser context so the login discovery
+ * sequence cannot reuse the first phase's long-lived client cache entry.
+ */
+export async function expectLoginIdentifierSymbolsThroughUi(page: Page): Promise<void> {
+  const token = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const placeholderValue = `QA placeholder ${token}`;
+  const identifierValue = `QA identifier ${token}`;
+  let restoreSymbol: RestoreGlobalSymbol | undefined;
+
+  try {
+    await test.step('Set and verify the identifier placeholder server symbol', async () => {
+      restoreSymbol = await setGlobalSymbolForTest('C8Oforms.IdentifierPlaceHolderValue', placeholderValue);
+      await openUsernamePasswordLoginForm(page);
+      const identifierInput = await firstVisibleFromLocator(page, page.locator(SEL.emailInput), 'login identifier input');
+      await expect(
+        identifierInput,
+        'the signed-out login input should use C8Oforms.IdentifierPlaceHolderValue verbatim',
+      ).toHaveAttribute('placeholder', placeholderValue);
+    });
+  } finally {
+    await restoreSymbol?.();
+    restoreSymbol = undefined;
+  }
+
+  const browser = page.context().browser();
+  expect(browser, 'the identity symbol check requires a Playwright browser context').not.toBeNull();
+  const appBaseUrl = new URL('.', page.url()).href;
+  const identifierContext = await browser!.newContext({
+    baseURL: appBaseUrl,
+    viewport: page.viewportSize() ?? { width: 1440, height: 900 },
+  });
+
+  try {
+    await test.step('Set and verify the identifier label server symbol', async () => {
+      restoreSymbol = await setGlobalSymbolForTest('C8Oforms.IdentifierValue', identifierValue);
+      const identifierPage = await identifierContext.newPage();
+      await openUsernamePasswordLoginForm(identifierPage);
+
+      const identifierLabel = identifierPage
+        .locator('page-loginpage ion-label:visible')
+        .filter({ hasText: identifierValue });
+      await expect(identifierLabel, 'the signed-out login page should expose one customized identifier label').toHaveCount(1);
+      await expect(
+        identifierLabel.first(),
+        'the identifier label should use C8Oforms.IdentifierValue verbatim instead of a translated fallback',
+      ).toHaveText(identifierValue);
+    });
+  } finally {
+    try {
+      await restoreSymbol?.();
+    } finally {
+      await identifierContext.close();
+    }
+  }
 }
 
 export async function expectNoCodeDashboardReady(page: Page): Promise<void> {
@@ -859,6 +922,29 @@ export async function assertSelectorFiltersThroughUi(
   });
 }
 
+export async function expectSelectorUserSearchFilterVisibilityThroughUi(page: Page, visible: boolean): Promise<void> {
+  await test.step(`Assert selector user search filter is ${visible ? 'visible to administrators' : 'hidden from non-administrators'}`, async () => {
+    await expectNoCodeDashboardReady(page);
+
+    const advancedSearchToggle = page.locator(SEL.selectorFilterInlineToggleButton).filter({ visible: true }).first();
+    await expect(advancedSearchToggle, 'selector advanced-search toggle should be visible').toBeVisible({ timeout: 15_000 });
+    await advancedSearchToggle.click({ timeout: 10_000 }).catch(async () => advancedSearchToggle.dispatchEvent('click'));
+
+    const userFilter = page.locator(FUNCTIONAL_SEL.selectorUserSearchFilter);
+    if (visible) {
+      await expect(userFilter, 'administrator advanced search should expose the user filter').toBeVisible({ timeout: 15_000 });
+      await expect(
+        page.locator(FUNCTIONAL_SEL.selectorUserSearchInput).filter({ visible: true }).first(),
+        'administrator user filter should expose an editable autocomplete input',
+      ).toBeVisible({ timeout: 15_000 });
+    } else {
+      await expect(userFilter, 'non-administrator advanced search must not render the user filter').toHaveCount(0, {
+        timeout: 10_000,
+      });
+    }
+  });
+}
+
 export async function reopenExistingApplicationFromSelectorThroughUi(page: Page, title = `Functional reopen ${Date.now()}`): Promise<void> {
   await test.step('Open an existing application from the selector', async () => {
     const originalId = await createBlankForm(page, title);
@@ -884,6 +970,109 @@ export async function reopenExistingApplicationFromSelectorThroughUi(page: Page,
       })
       .toBeGreaterThan(0);
   });
+}
+
+export async function verifyLongApplicationNamePresentationThroughUi(page: Page): Promise<void> {
+  const title = `Functional long application ${Date.now()} ${'readable-name-segment-'.repeat(8)}`;
+
+  await test.step('Create an application whose name overflows selector cards', async () => {
+    await createBlankForm(page, title);
+    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await expectNoCodeDashboardReady(page);
+  });
+
+  try {
+    await test.step('Verify grid mode keeps the full name in an ellipsis tooltip', async () => {
+      await expectLongSelectorTitleContract(page, SEL.selectorCardTitle, title, 'grid');
+    });
+
+    await test.step('Verify list mode keeps the full name in an ellipsis tooltip', async () => {
+      const listView = page.locator(FUNCTIONAL_SEL.selectorListViewButton).filter({ visible: true }).first();
+      await expect(listView, 'selector list-view button should be visible').toBeVisible({ timeout: 15_000 });
+      await listView.click({ timeout: 10_000 }).catch(async () => listView.dispatchEvent('click'));
+      await expectLongSelectorTitleContract(page, SEL.selectorListTitle, title, 'list');
+    });
+  } finally {
+    const gridView = page.locator(FUNCTIONAL_SEL.selectorGridViewButton).filter({ visible: true }).first();
+    if (await gridView.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await gridView.click({ timeout: 10_000 }).catch(async () => gridView.dispatchEvent('click'));
+    }
+  }
+}
+
+async function expectLongSelectorTitleContract(
+  page: Page,
+  selector: string,
+  title: string,
+  view: 'grid' | 'list',
+): Promise<void> {
+  const surface = view === 'grid' ? 'grid card' : 'list row';
+  const name = page.locator(selector).filter({ hasText: title }).first();
+  await expect(name, `${surface} should render the long application name`).toBeVisible({ timeout: 30_000 });
+  await expect(name, `${surface} should represent the exact complete application name`).toHaveText(title);
+  await expect
+    .poll(
+      () =>
+        name.evaluate((element) => {
+          const style = window.getComputedStyle(element);
+          return {
+            clipped: element.scrollWidth > element.clientWidth,
+            overflow: style.overflow,
+            textOverflow: style.textOverflow,
+            whiteSpace: style.whiteSpace,
+          };
+        }),
+      { message: `${surface} should truncate the long name on one line without clipping either edge`, timeout: 15_000 },
+    )
+    .toEqual({ clipped: true, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
+
+  await expect
+    .poll(
+      () =>
+        name.evaluate((element, mode) => {
+          const container = mode === 'grid' ? element : element.parentElement;
+          if (!container) throw new Error(`${mode} application title has no clipping container`);
+
+          const firstTextNode = document.createTreeWalker(element, NodeFilter.SHOW_TEXT).nextNode();
+          if (!firstTextNode?.textContent) throw new Error(`${mode} application title has no text node`);
+
+          const firstGlyphs = document.createRange();
+          firstGlyphs.setStart(firstTextNode, 0);
+          firstGlyphs.setEnd(firstTextNode, Math.min(5, firstTextNode.textContent.length));
+          const glyphBounds = firstGlyphs.getBoundingClientRect();
+          const containerBounds = container.getBoundingClientRect();
+          const containerStyle = window.getComputedStyle(container);
+
+          return {
+            overflowsContainer: container.scrollWidth > container.clientWidth + 20,
+            overflow: containerStyle.overflow,
+            textOverflow: containerStyle.textOverflow,
+            whiteSpace: containerStyle.whiteSpace,
+            titleBeginningInsideLeft: glyphBounds.left >= containerBounds.left - 1,
+            firstGlyphsInsideRight: glyphBounds.right <= containerBounds.right + 1,
+          };
+        }, view),
+      {
+        message: `${surface} should overflow at the end while keeping its first glyphs inside the clipping container`,
+        timeout: 15_000,
+      },
+    )
+    .toEqual({
+      overflowsContainer: true,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      titleBeginningInsideLeft: true,
+      firstGlyphsInsideRight: true,
+    });
+
+  await name.hover();
+  const tooltip = page
+    .locator('[role="tooltip"], mat-tooltip-component, .mat-tooltip, .mat-mdc-tooltip')
+    .filter({ hasText: title })
+    .last();
+  await expect(tooltip, `${surface} hover should expose the complete application name`).toBeVisible({ timeout: 5_000 });
+  await expect(tooltip).toHaveText(title);
 }
 
 export async function currentUserLanguageFromSettings(page: Page): Promise<string> {

@@ -13,6 +13,7 @@ test.describe('No-Code Studio functional dashboard', () => {
     viewport: { width: 1920, height: 1080 },
   });
 
+  // #1076: the redesigned side panel remains a working entry point for all dashboard sections.
   test('DASH-001 - access Edition apps, Published apps, and No-code database sections', async ({ page }) => {
     test.setTimeout(720_000);
     await loginWithUsernamePassword(page);
