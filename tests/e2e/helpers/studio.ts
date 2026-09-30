@@ -77,6 +77,10 @@ export const SEL = {
   checkboxGroupComponent: 'c8oforms-itemcheckboxgroupviewer',
   descriptionComponent: 'c8oforms-itemdescriptionviewer',
   buttonComponent: 'c8oforms-itembuttonviewer',
+  buttonFlowSearchTrigger: 'c8oforms-itembuttoneditor ion-item.select-editor-search-trigger',
+  buttonFlowSearchPopover: 'ion-popover.select-editor-search-popover:visible',
+  buttonFlowSearchInput: 'ion-searchbar.select-editor-search input',
+  buttonFlowSearchOption: 'button.select-editor-search-option',
   buttonLabelInput: 'c8oforms-textinputsetting.class1776707403149 input, .class1776707403149 input',
   buttonDisplayModeSwitch: '.class1782410200003',
   buttonTextColorSwatch: 'c8oforms-itembuttoneditor .class1776709886936',
@@ -3439,6 +3443,19 @@ export async function openConfigTabById(page: Page, tabId: MainEditorConfigTab):
   }
 
   throw new Error(`No visible config tab matches id ${tabId}. Visible tabs: ${(await visibleTexts(page, SEL.configTab)).join(' | ')}`);
+}
+
+export async function openButtonFlowChooser(page: Page): Promise<Locator> {
+  await openConfigTabById(page, 'data_interactions');
+  const trigger = page.locator(`${SEL.buttonFlowSearchTrigger}:visible`).first();
+  await expect(trigger, 'Button Data & Interactions should expose the searchable flow chooser').toBeVisible({
+    timeout: 15_000,
+  });
+  await trigger.click();
+  const popover = page.locator(SEL.buttonFlowSearchPopover).last();
+  await expect(popover, 'Button flow chooser should open as a searchable list').toBeVisible({ timeout: 15_000 });
+  await expect(popover.locator(SEL.buttonFlowSearchInput)).toBeVisible({ timeout: 10_000 });
+  return popover;
 }
 
 export async function openStyleTabById(page: Page, tabId: MainEditorStyleTab): Promise<void> {
@@ -8624,6 +8641,60 @@ export async function openWorkflowsPanel(page: Page): Promise<void> {
   await expect(entry, 'Workflows panel should expose workflow entries once open').toBeVisible({
     timeout: 15_000,
   });
+}
+
+export async function workflowListBottomVisibility(page: Page): Promise<{
+  entryCount: number;
+  lastLabel: string;
+  scrollRange: number;
+  scrollRemaining: number;
+  lastTop: number;
+  lastBottom: number;
+  visibleTop: number;
+  visibleBottom: number;
+}> {
+  const entries = page.locator(SEL.workflowEntry);
+  const entryCount = await entries.count();
+  if (entryCount === 0) {
+    throw new Error('Workflows list has no entries');
+  }
+  return entries.last().evaluate((last, count) => {
+    const row = last as HTMLElement;
+    const label = row.innerText.trim();
+    let scroller: HTMLElement | null = row.parentElement;
+    while (scroller) {
+      const overflow = getComputedStyle(scroller).overflowY;
+      if (/(auto|scroll)/.test(overflow) && scroller.scrollHeight > scroller.clientHeight + 1) {
+        break;
+      }
+      scroller = scroller.parentElement;
+    }
+    if (!scroller) {
+      throw new Error('Workflows list does not have a scrollable ancestor');
+    }
+    scroller.scrollTop = scroller.scrollHeight;
+    const rect = row.getBoundingClientRect();
+    let visibleTop = 0;
+    let visibleBottom = window.innerHeight;
+    for (let parent = row.parentElement; parent; parent = parent.parentElement) {
+      const overflow = getComputedStyle(parent).overflowY;
+      if (/(auto|scroll|hidden|clip)/.test(overflow)) {
+        const bounds = parent.getBoundingClientRect();
+        visibleTop = Math.max(visibleTop, bounds.top);
+        visibleBottom = Math.min(visibleBottom, bounds.bottom);
+      }
+    }
+    return {
+      entryCount: count,
+      lastLabel: label,
+      scrollRange: scroller.scrollHeight - scroller.clientHeight,
+      scrollRemaining: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+      lastTop: rect.top,
+      lastBottom: rect.bottom,
+      visibleTop,
+      visibleBottom,
+    };
+  }, entryCount);
 }
 
 export async function openFirstWorkflowSection(page: Page): Promise<void> {

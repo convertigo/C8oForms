@@ -19,7 +19,7 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 71 deja co
 | [ ] | [#1393](https://github.com/convertigo/C8oForms/issues/1393) | open | enhancement | Add more tooltips in configuration labels to improve clarity of settings and component options |  |
 | [ ] | [#1390](https://github.com/convertigo/C8oForms/issues/1390) | open | enhancement | Tabs buttons configuration should support Wrap/Scroll in Header/Footer and allow vertical placement (Left/Right) |  |
 | [ ] | [#1386](https://github.com/convertigo/C8oForms/issues/1386) | open | enhancement | Buttons configuration can only be set per Page; no option to configure buttons globally for the whole application |  |
-| [ ] | [#1362](https://github.com/convertigo/C8oForms/issues/1362) | open | enhancement | Flow list chooser not accurate with new layout and not usable with long lists |  |
+| [x] | [#1362](https://github.com/convertigo/C8oForms/issues/1362) | closed | enhancement, QC-Passed, Auto QA Test | Flow list chooser not accurate with new layout and not usable with long lists | Auto QA Test<br>e2e/issue-1362.spec.ts |
 | [x] | [#1359](https://github.com/convertigo/C8oForms/issues/1359) | open | enhancement | Version history with restore capability needed for applications | `tests/e2e/issue-1359.spec.ts` |
 | [ ] | [#1350](https://github.com/convertigo/C8oForms/issues/1350) | open | enhancement | Search app by user should allow filtering only applications where I am a collaborator |  |
 | [ ] | [#1245](https://github.com/convertigo/C8oForms/issues/1245) | open | enhancement | Redesign the “Create Empty App” button for better clarity and visual appeal |  |
@@ -102,7 +102,7 @@ Resume: 233 tickets dans le milestone `2.2.0`; 225 tickets candidats; 71 deja co
 | [x] | [#1365](https://github.com/convertigo/C8oForms/issues/1365) | closed | bug, QC-Passed, Auto QA Test | The default icon **“bulb-outline”** for the Button component cannot be found in the icons list | Auto QA Test<br>e2e/issue-1365.spec.ts |
 | [x] | [#1364](https://github.com/convertigo/C8oForms/issues/1364) | closed | bug, QC-Passed, Auto QA Test | Cannot reorder child components inside an Horizontal layout component | Auto QA Test<br>e2e/issue-1364.spec.ts |
 | [x] | [#1363](https://github.com/convertigo/C8oForms/issues/1363) | closed | bug, QC-Passed, Auto QA Test | Deleting a component inside an Horizontal layout also deletes the Horizontal layout itself and all its content | Auto QA Test<br>e2e/issue-1363.spec.ts |
-| [ ] | [#1361](https://github.com/convertigo/C8oForms/issues/1361) | closed | bug, QC-Passed | The Workflows list does not correctly display the last flow name when it is at the bottom of a scroll |  |
+| [x] | [#1361](https://github.com/convertigo/C8oForms/issues/1361) | closed | bug, QC-Passed, Auto QA Test | The Workflows list does not correctly display the last flow name when it is at the bottom of a scroll | Auto QA Test<br>e2e/issue-1361.spec.ts |
 | [ ] | [#1360](https://github.com/convertigo/C8oForms/issues/1360) | closed | enhancement, QC-Passed | Duplicate an entire page inside an application to save time |  |
 | [ ] | [#1358](https://github.com/convertigo/C8oForms/issues/1358) | closed | enhancement, QC-Passed | Long application names are truncated instead of wrapping inside the card |  |
 | [x] | [#1357](https://github.com/convertigo/C8oForms/issues/1357) | closed | enhancement, QC-Passed, Auto QA Test | Elements list in Visibility condition is not sorted, has no search bar, and gives no scroll indication | Auto QA Test<br>e2e/issue-1357.spec.ts |
