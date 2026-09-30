@@ -299,6 +299,10 @@ export const SEL = {
   // (the "Non" button is btn--info; both carry text-generic, so key on btn--danger)
   confirmDeleteYesButton: ':is(ion-alert button.btn--danger, ion-alert button.alert-button:last-of-type)',
   flowLoopActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypefor_loop"]',
+  flowResetFieldsActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypereset_fields"]',
+  resetFieldsEditor: 'c8oforms-itemresetfieldsactioneditor',
+  resetFieldsScopeButtons: 'c8oforms-itemresetfieldsactioneditor .reset-fields-scope-toggle button.c8o-btn',
+  resetFieldsTargetSelect: 'c8oforms-itemresetfieldsactioneditor .reset-fields-select-row ion-select',
   flowBusinessLogicActionCard: 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypebusiness_logic"]',
   flowLoopActionEditor: 'c8oforms-itemforloopeditor1',
   flowLoopConditionRow: '.for-loop-condition-row',
@@ -6263,6 +6267,36 @@ export async function openButtonFlowToastActionConfig(page: Page, flowName?: str
     actionCardSelector: SEL.flowToastActionCard,
     actionName: 'Toast',
   });
+}
+
+export async function openButtonFlowResetFieldsActionConfig(page: Page, flowName?: string | RegExp): Promise<void> {
+  await test.step('Open the Button workflow', async () => {
+    await openButtonWorkflow(page, flowName);
+  });
+  await test.step('Add and configure the Reset fields action', async () => {
+    await clickFirstVisible(page, SEL.componentPanelButton, 'action palette panel', 15_000, true);
+    const tile = page.locator('#bloc-palette [draggable="true"]')
+      .filter({ hasText: /Reset fields|Réinitialiser les champs|Restablecer campos|Reimposta campi|重置字段/i })
+      .first();
+    await expect(tile, 'Reset fields should be available in the action palette').toBeVisible({ timeout: 30_000 });
+    const cards = page.locator(SEL.flowResetFieldsActionCard);
+    const before = await cards.count();
+    await tile.dblclick({ force: true, delay: 75 });
+    await expect.poll(() => cards.count(), { timeout: 15_000 }).toBeGreaterThan(before);
+    await cards.last().click();
+    const tabs = page.locator(`${SEL.configTabsContainer} ${SEL.configTab}:visible`);
+    await expect(tabs, 'Reset fields should expose Scope and Target configuration tabs').toHaveCount(2);
+    await tabs.first().click();
+    await expect(page.locator(`${SEL.resetFieldsEditor}:visible`).first(), 'Reset fields Scope editor should be visible').toBeVisible({ timeout: 15_000 });
+  });
+}
+
+export async function selectResetFieldsScope(page: Page, scope: 'application' | 'page' | 'component'): Promise<void> {
+  const index = { application: 0, page: 1, component: 2 }[scope];
+  const buttons = page.locator(`${SEL.resetFieldsScopeButtons}:visible`);
+  await expect(buttons, 'Reset fields should expose all three scope choices').toHaveCount(3);
+  await buttons.nth(index).dispatchEvent('click');
+  await expect(buttons.nth(index), `${scope} should be the selected reset scope`).toHaveClass(/c8o-btn-selected/);
 }
 
 export async function openButtonFlowMailActionConfig(page: Page, flowName?: string | RegExp): Promise<void> {
