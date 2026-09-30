@@ -15,6 +15,7 @@ import {
   openPagesPanel,
   openPreview,
   selectViewerRadioOption,
+  setPageTabsThroughAppSettings,
   setChoiceLocalOptions,
   setDescriptionText,
   setTechnicalId,
@@ -27,6 +28,146 @@ const VIEWER_NEXT_BUTTON = [
   'page-viewerpage ion-tab-button:has(ion-icon[ng-reflect-name="arrow-forward-outline"])',
   'page-viewerpage ion-tab-button.class1664274551545',
 ].join(', ');
+
+interface SharedTabVisualState {
+  cursor: string;
+  tabColor: string;
+  iconColor: string;
+  labelColor: string;
+}
+
+interface SharedTabSelectedIndicator {
+  labelBorderBottomColor: string;
+  labelBorderBottomStyle: string;
+  labelBorderBottomWidth: string;
+  pseudoBackgroundColor: string;
+  pseudoContent: string;
+  pseudoDisplay: string;
+  pseudoHeight: string;
+  pseudoWidth: string;
+}
+
+/**
+ * #1290: exercise the SharedTabs CSS contract through a real two-page form.
+ * The assertions deliberately use computed styles and tab state instead of page
+ * labels or a hard-coded theme color, so they remain locale and theme neutral.
+ */
+export async function assertSharedTabsHoverAndSelectedStylesThroughUi(page: Page, browserName: string): Promise<void> {
+  await test.step('Create a second page and enable viewer page tabs', async () => {
+    await addPageThroughPagesPanel(page);
+    await setPageTabsThroughAppSettings(page, 'footer');
+  });
+
+  await test.step('Open Preview with one SharedTabs button per page', async () => {
+    await openPreview(page, SEL.viewerPageTab);
+    await expect(page.locator(SEL.viewerPageTab), 'SharedTabs should expose two page buttons').toHaveCount(2, {
+      timeout: 30_000,
+    });
+  });
+
+  const tabs = page.locator(SEL.viewerPageTab);
+  const selectedIndex = await selectedSharedTabIndex(tabs);
+  expect(selectedIndex, 'SharedTabs should identify the current page').toBeGreaterThanOrEqual(0);
+  const selectedTab = tabs.nth(selectedIndex);
+  const hoverTargetIndex = selectedIndex === 0 ? 1 : 0;
+  const hoverTarget = tabs.nth(hoverTargetIndex);
+
+  await test.step('Verify the current page has selected visual feedback', async () => {
+    await expect(selectedTab, 'current page tab should carry the selected state').toHaveClass(/tab-selected/);
+    const selectedVisual = await sharedTabVisualState(selectedTab);
+    expect(selectedVisual.cursor, 'selected SharedTabs button should advertise clickability').toBe('pointer');
+    expect(selectedVisual.iconColor, 'selected page icon should use the selected color').toBe(selectedVisual.tabColor);
+    expect(selectedVisual.labelColor, 'selected page label should use the selected color').toBe(selectedVisual.tabColor);
+    await expectSharedTabSelectedIndicator(selectedTab, selectedVisual.tabColor, browserName);
+  });
+
+  await test.step('Verify an unselected page exposes hover feedback', async () => {
+    const beforeHover = await sharedTabVisualState(hoverTarget);
+    await hoverTarget.hover();
+    await expect
+      .poll(() => sharedTabVisualState(hoverTarget), {
+        message: 'hovered SharedTabs button, icon and label should adopt the selected color',
+        timeout: 5_000,
+      })
+      .toEqual({
+        cursor: 'pointer',
+        tabColor: (await sharedTabVisualState(selectedTab)).tabColor,
+        iconColor: (await sharedTabVisualState(selectedTab)).tabColor,
+        labelColor: (await sharedTabVisualState(selectedTab)).tabColor,
+      });
+    const afterHover = await sharedTabVisualState(hoverTarget);
+    expect(afterHover.tabColor, 'hover should visibly change the page-tab color').not.toBe(beforeHover.tabColor);
+  });
+
+  await test.step('Switch pages and verify selected feedback follows the current page', async () => {
+    await hoverTarget.click({ timeout: 10_000 });
+    await expect(hoverTarget, 'clicked page tab should become selected').toHaveClass(/tab-selected/, { timeout: 15_000 });
+    await expect(selectedTab, 'previous page tab should lose its selected state').not.toHaveClass(/tab-selected/, {
+      timeout: 15_000,
+    });
+
+    const selectedVisual = await sharedTabVisualState(hoverTarget);
+    expect(selectedVisual.iconColor, 'new current-page icon should keep selected feedback').toBe(selectedVisual.tabColor);
+    expect(selectedVisual.labelColor, 'new current-page label should keep selected feedback').toBe(selectedVisual.tabColor);
+    await expectSharedTabSelectedIndicator(hoverTarget, selectedVisual.tabColor, browserName);
+  });
+}
+
+async function selectedSharedTabIndex(tabs: Locator): Promise<number> {
+  return tabs.evaluateAll((elements) => elements.findIndex((element) => element.classList.contains('tab-selected')));
+}
+
+async function sharedTabVisualState(tab: Locator): Promise<SharedTabVisualState> {
+  return tab.evaluate((element) => {
+    const icon = element.querySelector('ion-icon');
+    const label = element.querySelector('ion-label');
+    if (!(icon instanceof HTMLElement) || !(label instanceof HTMLElement)) {
+      throw new Error('SharedTabs page button should expose an icon and label');
+    }
+    return {
+      cursor: getComputedStyle(element).cursor,
+      tabColor: getComputedStyle(element).color,
+      iconColor: getComputedStyle(icon).color,
+      labelColor: getComputedStyle(label).color,
+    };
+  });
+}
+
+async function expectSharedTabSelectedIndicator(tab: Locator, selectedColor: string, browserName: string): Promise<void> {
+  const indicator = await tab.evaluate((element): SharedTabSelectedIndicator => {
+    const label = element.querySelector('ion-label');
+    if (!(label instanceof HTMLElement)) {
+      throw new Error('SharedTabs selected button should expose a label');
+    }
+    const labelStyle = getComputedStyle(label);
+    const pseudoStyle = getComputedStyle(element, '::after');
+    return {
+      labelBorderBottomColor: labelStyle.borderBottomColor,
+      labelBorderBottomStyle: labelStyle.borderBottomStyle,
+      labelBorderBottomWidth: labelStyle.borderBottomWidth,
+      pseudoBackgroundColor: pseudoStyle.backgroundColor,
+      pseudoContent: pseudoStyle.content,
+      pseudoDisplay: pseudoStyle.display,
+      pseudoHeight: pseudoStyle.height,
+      pseudoWidth: pseudoStyle.width,
+    };
+  });
+
+  if (browserName === 'firefox') {
+    expect(indicator.labelBorderBottomWidth, 'Firefox selected label should have a 2px underline').toBe('2px');
+    expect(indicator.labelBorderBottomStyle, 'Firefox selected label underline should be visible').not.toBe('none');
+    expect(indicator.labelBorderBottomColor, 'Firefox selected underline should use the selected color').toBe(selectedColor);
+    expect(indicator.pseudoDisplay, 'Firefox should suppress the stray pseudo-element underscore').toBe('none');
+    expect(indicator.pseudoContent, 'Firefox should suppress pseudo-element content').toMatch(/^(none|normal)$/);
+    return;
+  }
+
+  expect(indicator.pseudoDisplay, 'selected page should expose its underline').not.toBe('none');
+  expect(indicator.pseudoContent, 'selected page underline should have generated content').not.toMatch(/^(none|normal)$/);
+  expect(indicator.pseudoWidth, 'selected page underline should keep its intended width').toBe('10px');
+  expect(indicator.pseudoHeight, 'selected page underline should keep its intended height').toBe('1px');
+  expect(indicator.pseudoBackgroundColor, 'selected page underline should use the selected color').toBe(selectedColor);
+}
 
 export async function navigateToSecondPageThroughViewerNextButton(page: Page): Promise<void> {
   const suffix = Date.now();

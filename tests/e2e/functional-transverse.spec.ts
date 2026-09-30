@@ -8,6 +8,7 @@ import {
   openComponentsPalette,
   openPreview,
   reloadStudioWithLanguage,
+  setTextDefaultValueJavascriptCode,
   setTechnicalId,
   type StudioLanguage,
 } from './helpers/studio';
@@ -75,6 +76,145 @@ test.describe('No-Code Studio functional transverse contract', () => {
     await openPreview(page, SEL.textComponent);
     await expect(page.locator(`${SEL.textComponent}:visible`).first(), 'Text input should render in preview').toBeVisible({
       timeout: 30_000,
+    });
+  });
+
+  /**
+   * #1303: reported on 2.2.0-beta115 and historically validated on
+   * 2.2.0-beta156. Commit 0877f173, first released in 2.2.0-beta154,
+   * restored Monaco's monospace metrics and disabled pointer events on syntax
+   * token spans. In Firefox those spans had intercepted mouse events, leaving
+   * Monaco's hidden input unfocused and preventing text selection.
+   *
+   * The application, Text input, and JavaScript default value are all created
+   * through the Studio UI. Runtime validation on the current test-nocode
+   * release remains pending.
+   */
+  test('X-002 #1303 - Monaco supports mouse selection and replacement in Firefox', async ({ page }) => {
+    test.setTimeout(240_000);
+    const originalMarker = 'firefox_selection_marker_1303';
+    const replacementMarker = 'firefox_replacement_1303';
+
+    await test.step('Create a Text input with a JavaScript default value', async () => {
+      await loginWithUsernamePassword(page);
+      await createBlankApplicationThroughUi(page);
+      await openComponentsPalette(page, PALETTE_ICON.textInput);
+      await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
+      await expect(page.locator(`${SEL.textComponent}:visible`).first(), 'Text input should be added through the palette').toBeVisible({
+        timeout: 30_000,
+      });
+      await openComponentConfigAt(page, SEL.textComponent, 0);
+      await setTechnicalId(page, `functional_monaco_1303_${Date.now()}`);
+      await setTextDefaultValueJavascriptCode(page, `return '${originalMarker}';`);
+    });
+
+    await test.step('Assert the causal Monaco pointer and font contracts', async () => {
+      const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor:visible`).last();
+      await expect(editor, 'JavaScript default-value Monaco editor should be visible').toBeVisible({ timeout: 15_000 });
+      await expect(editor, 'JavaScript default-value code should contain the selection marker').toContainText(originalMarker, {
+        timeout: 15_000,
+      });
+
+      const token = editor.locator('.view-line span').filter({ hasText: originalMarker }).last();
+      await expect(token, 'the JavaScript string should be rendered as a Monaco syntax token').toBeVisible({ timeout: 10_000 });
+      await expect
+        .poll(() => token.evaluate((element) => getComputedStyle(element).pointerEvents), {
+          message: 'Monaco syntax tokens should let the line container handle Firefox mouse events',
+        })
+        .toBe('none');
+
+      const fontFamilies = await editor.locator('.view-line, textarea.inputarea').evaluateAll((elements) =>
+        elements.map((element) => getComputedStyle(element).fontFamily),
+      );
+      expect(fontFamilies.length, 'Monaco should expose its line and hidden input for the font-metric check').toBeGreaterThan(1);
+      for (const fontFamily of fontFamilies) {
+        expect(fontFamily, 'Monaco text surfaces should retain a monospace font stack').toMatch(
+          /Menlo|Monaco|Courier New|monospace/i,
+        );
+      }
+    });
+
+    await test.step('Select JavaScript text with the mouse and replace it', async () => {
+      const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor:visible`).last();
+      const token = editor.locator('.view-line span').filter({ hasText: originalMarker }).last();
+      const tokenBox = await token.boundingBox();
+      expect(tokenBox, 'the JavaScript string token should have mouse-selectable coordinates').not.toBeNull();
+
+      const y = tokenBox!.y + tokenBox!.height / 2;
+      await page.mouse.move(tokenBox!.x + 2, y);
+      await page.mouse.down();
+      await page.mouse.move(tokenBox!.x + tokenBox!.width - 2, y, { steps: 12 });
+      await page.mouse.up();
+
+      const input = editor.locator('textarea.inputarea');
+      await expect(input, 'mouse selection should focus Monaco\'s hidden input in Firefox').toBeFocused();
+      await expect(
+        editor.locator('.selected-text').filter({ visible: true }).first(),
+        'mouse drag should create a visible Monaco selection',
+      ).toBeVisible({ timeout: 5_000 });
+
+      await page.keyboard.insertText(replacementMarker);
+      await expect(editor, 'typing should replace the selected JavaScript string').toContainText(replacementMarker, {
+        timeout: 10_000,
+      });
+      await expect(editor, 'the selected JavaScript marker should have been replaced').not.toContainText(originalMarker, {
+        timeout: 10_000,
+      });
+    });
+  });
+
+  /**
+   * #1330: reported in 2.2.0-beta127, fixed by 01399198 in beta150 and
+   * historically QA-validated in beta154. The editor iteration wrapper was
+   * marked draggable, so Firefox started a component drag when the user tried
+   * to select the Technical ID input with the mouse. The fix removes that
+   * draggable attribute.
+   *
+   * The application and Text input are created only through the Studio UI.
+   * Runtime validation on the current test-nocode Firefox release is pending.
+   */
+  test('X-002 #1330 - Technical ID supports mouse selection in Firefox', async ({ page }) => {
+    test.setTimeout(240_000);
+    const technicalId = `firefox_selectable_technical_id_${Date.now()}`;
+
+    await test.step('Create a Text input and assign a controlled Technical ID', async () => {
+      await loginWithUsernamePassword(page);
+      await createBlankApplicationThroughUi(page);
+      await openComponentsPalette(page, PALETTE_ICON.textInput);
+      await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
+      await expect(page.locator(`${SEL.textComponent}:visible`).first(), 'Text input should be added through the palette').toBeVisible({
+        timeout: 30_000,
+      });
+      await openComponentConfigAt(page, SEL.textComponent, 0);
+      await setTechnicalId(page, technicalId);
+    });
+
+    await test.step('Select the Technical ID with a real Firefox mouse drag', async () => {
+      const input = page.locator(SEL.technicalIdInput).filter({ visible: true }).first();
+      await expect(input, 'Technical ID input should expose the controlled value').toHaveValue(technicalId, {
+        timeout: 15_000,
+      });
+      await expect
+        .poll(() => input.evaluate((element) => element.closest('[draggable="true"]') !== null), {
+          message: 'Technical ID input must not remain inside the draggable editor wrapper',
+          timeout: 10_000,
+        })
+        .toBe(false);
+
+      const box = await input.boundingBox();
+      expect(box, 'Technical ID input should have mouse-selectable coordinates').not.toBeNull();
+      const y = box!.y + box!.height / 2;
+      await page.mouse.move(box!.x + box!.width - 8, y);
+      await page.mouse.down();
+      await page.mouse.move(box!.x + 8, y, { steps: 16 });
+      await page.mouse.up();
+
+      await expect(input, 'mouse selection should keep focus on the Technical ID input').toBeFocused();
+      const selectionLength = await input.evaluate((element) => {
+        const field = element as HTMLInputElement;
+        return Math.abs((field.selectionEnd ?? 0) - (field.selectionStart ?? 0));
+      });
+      expect(selectionLength, 'mouse drag should select a meaningful part of the Technical ID').toBeGreaterThan(5);
     });
   });
 

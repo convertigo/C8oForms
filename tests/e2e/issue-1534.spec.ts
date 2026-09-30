@@ -14,6 +14,9 @@ import {
  * Regression test for https://github.com/convertigo/C8oForms/issues/1534
  * "Uncaught "c8oSkipError" in the console when switching pages via the tab bar"
  *
+ * Also covers https://github.com/convertigo/C8oForms/issues/1281: the rebuilt
+ * SharedTabs control exposes real tabs and supports page navigation.
+ *
  * Reported on 2.2.0-beta338 in the Firefox console and reproduced on 2.2.0-beta347.
  * Fixed by 24e9dcc1, merged into NGX by bd01058e, first in 2.2.0-beta348.
  * Root cause: the SharedTabs tab click handler (UIControlEvent 1664292958758) picks

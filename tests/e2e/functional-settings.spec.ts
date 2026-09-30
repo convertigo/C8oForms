@@ -31,12 +31,14 @@ test.describe('No-Code Studio functional settings contract', () => {
     await verifyCustomHeaderLogoServerSymbolThroughUi(page);
   });
 
+  // #1319: cover both the localized GDPR viewer toast contract and the legacy symbol fallback.
   test('SET-003 - GDPR viewer toast configuration impacts the published viewer', async ({ page }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);
     await verifyGdprViewerToastConfigurationThroughUi(page);
   });
 
+  // #1319: verify the GDPR page in every supported Studio language, not only French.
   test('SET-003 - GDPR menu configuration follows the active Studio language', async ({ page }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);

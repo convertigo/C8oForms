@@ -15,6 +15,7 @@ import {
   renameApplicationAndAssertPersistenceThroughUi,
   reopenExistingApplicationFromSelectorThroughUi,
   searchApplicationsByNameVariantsThroughUi,
+  verifyLongApplicationNamePresentationThroughUi,
 } from './helpers/functional-studio';
 
 // Runs on the worker's shared, already signed-in browser context (./fixtures).
@@ -96,5 +97,18 @@ test.describe('No-Code Studio functional authoring', () => {
   test('APP-010 - open an existing application from selector', async ({ page }) => {
     await loginWithUsernamePassword(page);
     await reopenExistingApplicationFromSelectorThroughUi(page);
+  });
+
+  /**
+   * #1358 was reported in 2.2.0-beta150. Commits 0f4ae709 and b8f2087e
+   * replaced the centered overflow with one-line ellipsis plus full-name
+   * tooltips in grid and list views; both first shipped and were historically
+   * validated in 2.2.0-beta159. Current test-nocode runtime validation remains
+   * pending.
+   */
+  test('APP-012 #1358 - long application names remain identifiable in grid and list views', async ({ page }) => {
+    test.setTimeout(240_000);
+    await loginWithUsernamePassword(page);
+    await verifyLongApplicationNamePresentationThroughUi(page);
   });
 });

@@ -2,6 +2,8 @@ import { test } from './fixtures';
 import {
   exerciseCheckboxGroupCustomRowsOptionsThroughUi,
   exerciseCheckboxGroupDefaultValuesThroughUi,
+  exerciseChoiceAddControlsStayVisibleThroughUi,
+  exerciseChoiceGroupLineColumnAddControlsStayVisibleThroughUi,
   exerciseCheckboxLocalOptionsThroughUi,
   exerciseRadioGroupCustomRowsOptionsThroughUi,
   exerciseRadioGroupDefaultValuesThroughUi,
@@ -50,7 +52,12 @@ test.describe('No-Code Studio functional choice component values', () => {
     await exerciseRadioGroupDefaultValuesThroughUi(page);
   });
 
-  test('CMP-RADIOGROUP-001 - Radio group custom rows and options', async ({ page }) => {
+  /**
+   * #1274: reported while beta104 was current, fixed by c3f102a1 in beta107
+   * and historically validated in beta107. The Ionic wrapper must remain
+   * display: contents so headers and radio cells share the same table columns.
+   */
+  test('CMP-RADIOGROUP-001 #1274 - Radio group custom rows, options and alignment', async ({ page }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -62,5 +69,23 @@ test.describe('No-Code Studio functional choice component values', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await exerciseSelectLocalOptionsSearchAndDropdownThroughUi(page);
+  });
+
+  /**
+   * #1285: reported in beta104. Group Line/Column controls were corrected in beta202;
+   * Checkbox/Radio/Select followed in beta203; QA validated beta204.
+   */
+  test('CMP-CHOICE-001 #1285 - local option Add controls stay visible', async ({ page }) => {
+    test.setTimeout(480_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await exerciseChoiceAddControlsStayVisibleThroughUi(page);
+  });
+
+  test('CMP-CHECKGROUP-003 #1285 - Line and Column Add controls stay visible', async ({ page }) => {
+    test.setTimeout(300_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await exerciseChoiceGroupLineColumnAddControlsStayVisibleThroughUi(page);
   });
 });

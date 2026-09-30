@@ -54,11 +54,34 @@ import {
 
 const FUNCTIONAL_SOURCE_WORKSPACE = 'C8oForms E2E';
 const FUNCTIONAL_SOURCE_DATABASE = 'Functional Fixtures';
+const SOURCE_FILTER_WITNESS_WORKSPACE = 'Functional Search Witness';
+const SOURCE_FILTER_WITNESS_DATABASE = 'Picker Search Witness';
+const SOURCE_FILTER_WITNESS_TABLE = 'Picker Search Witness Table';
 const GRID_SOURCE_TABLE = 'Functional Source Grid';
 const GRID_SOURCE_COLUMNS = ['Name', 'Status', 'Marker'];
 const GRID_SOURCE_ROWS = [
   { Name: 'functional_source_grid_alpha', Status: 'Active', Marker: 'visible_grid_alpha' },
   { Name: 'functional_source_grid_bravo', Status: 'Pending', Marker: 'visible_grid_bravo' },
+];
+const GRID_LONG_TABLE_NAME =
+  'Functional Source Table With A Deliberately Very Long Name That Must Stay Truncated And Selectable 1277';
+const GRID_LONG_TABLE_COLUMNS = ['Name', 'Long Name Marker'];
+const GRID_LONG_TABLE_ROW = 'functional_source_long_table_1277';
+const GRID_URL_TABLE = 'Functional Grid URL Contract';
+const GRID_URL_COLUMN = 'Website';
+const GRID_URL_TEXT_COLUMN = 'URL Looking Text';
+const GRID_URL_COLUMNS = ['Name', GRID_URL_COLUMN, GRID_URL_TEXT_COLUMN];
+const GRID_URL_ROWS = [
+  {
+    Name: 'functional_grid_url_absolute',
+    [GRID_URL_COLUMN]: 'https://example.com/c8oforms-url-contract',
+    [GRID_URL_TEXT_COLUMN]: 'https://example.com/plain-text-contract',
+  },
+  {
+    Name: 'functional_grid_url_domain',
+    [GRID_URL_COLUMN]: 'example.org/c8oforms-url-contract',
+    [GRID_URL_TEXT_COLUMN]: 'example.org/plain-text-contract',
+  },
 ];
 const GRID_FORMAT_TABLE = 'Functional Grid Typed Formats';
 const GRID_FORMAT_ROW_NAME = 'functional_grid_typed_formats';
@@ -241,8 +264,17 @@ const SELECT_SOURCE_VALUE_COLUMN_CHECKBOX = 'ion-checkbox.class1776352314668';
 const SELECT_SOURCE_SUMMARY = '.class1776013865512';
 const SOURCE_PICKER_CONFIRM_BUTTON = 'ion-button.class1599830132445';
 const TABLE_PICKER_SAVE_BUTTON = 'ion-button.class1776244653366';
+const SOURCE_PICKER_NAVIGATION_SEARCH_INPUT = 'ion-input.class1776256596569 input:visible';
+const SOURCE_PICKER_COLUMN_SEARCH_INPUT = 'ion-input.class1776260626658 input:visible';
+const SOURCE_PICKER_SEARCH_PLACEHOLDER =
+  /^(Search|Rechercher|Buscar|Cerca)( columns| des colonnes| columnas| colonne)?$/i;
 const GRID_COLUMN_DISPLAYED_LABEL_RE = /Displayed|Affich|Mostrado|Visualizzati/i;
 const GRID_COLUMN_HIDDEN_LABEL_RE = /Hidden|Masqu|Oculto|Nascosti/i;
+const GRID_COLUMN_INCLUDE_CHECKBOX = 'ion-checkbox.class1776161384894';
+const GRID_COLUMN_DISPLAY_BUTTON = 'ion-button.class1776332952453';
+const GRID_COLUMN_SUMMARY = 'ion-text.class1776260306611';
+const SOURCE_PICKER_NAVIGATION_BUTTON = 'ion-button.initial.btn';
+const GRID_SELECTION_CHECKBOX = '.ag-selection-checkbox .ag-checkbox-input-wrapper';
 
 export async function openSourceSelectionPanelFromSelectThroughUi(page: Page): Promise<void> {
   await test.step('Create a Select component and open Source selection', async () => {
@@ -336,6 +368,397 @@ export async function configureGridBaserowTableAndAssertViewerRowsThroughUi(page
       const text = await normalizedText(gridRow);
       expect(text, `Grid row ${row.Name} should contain its Status`).toContain(row.Status);
       expect(text, `Grid row ${row.Name} should contain its Marker`).toContain(row.Marker);
+    }
+  });
+}
+
+async function ensureGridSourcePickerFixtures(): Promise<void> {
+  const catalog = await ensureBaserowTable({
+    workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+    database: FUNCTIONAL_SOURCE_DATABASE,
+    table: GRID_SOURCE_TABLE,
+    primaryField: 'Name',
+    columns: GRID_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
+    rows: GRID_SOURCE_ROWS,
+    upsertKey: 'Name',
+  });
+  assertGridSourceFixture(catalog);
+
+  await ensureBaserowTable({
+    workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+    database: SOURCE_FILTER_WITNESS_DATABASE,
+    table: SOURCE_FILTER_WITNESS_TABLE,
+    primaryField: 'Name',
+    columns: [{ name: 'Name', type: 'text' }],
+  });
+  await ensureBaserowTable({
+    workspace: SOURCE_FILTER_WITNESS_WORKSPACE,
+    database: SOURCE_FILTER_WITNESS_DATABASE,
+    table: SOURCE_FILTER_WITNESS_TABLE,
+    primaryField: 'Name',
+    columns: [{ name: 'Name', type: 'text' }],
+  });
+}
+
+async function expectLocalizedLiveSearchPlaceholder(search: Locator, context: string): Promise<void> {
+  await expect(search, `${context} should be visible`).toBeVisible({ timeout: 30_000 });
+  await expect(search, `${context} should use localized live-search copy`).toHaveAttribute(
+    'placeholder',
+    SOURCE_PICKER_SEARCH_PLACEHOLDER,
+  );
+  const placeholder = (await search.getAttribute('placeholder')) ?? '';
+  expect(placeholder, `${context} should not advertise an Enter key`).not.toMatch(/[⏎↵]/);
+}
+
+export async function assertGridSourceSearchPlaceholdersThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the Grid source and live-search witness fixtures exist', async () => {
+    await ensureGridSourcePickerFixtures();
+  });
+
+  await test.step('Prove navigation search is live and inspect both picker placeholders', async () => {
+    const picker = await openGridBaserowWorkspacePicker(page);
+    const navigationSearch = picker.locator(SOURCE_PICKER_NAVIGATION_SEARCH_INPUT).first();
+    await expectLocalizedLiveSearchPlaceholder(navigationSearch, 'navigation search');
+
+    const targetWorkspace = sourcePickerNavigationEntry(picker, FUNCTIONAL_SOURCE_WORKSPACE);
+    const witnessWorkspace = sourcePickerNavigationEntry(picker, SOURCE_FILTER_WITNESS_WORKSPACE);
+    await expect(targetWorkspace, 'target workspace should be visible before live filtering').toBeVisible({ timeout: 60_000 });
+    await expect(witnessWorkspace, 'witness workspace should be visible before live filtering').toBeVisible({ timeout: 60_000 });
+    await navigationSearch.fill(FUNCTIONAL_SOURCE_WORKSPACE);
+    await expect(targetWorkspace, 'matching workspace should remain visible without pressing Enter').toBeVisible();
+    await expect(witnessWorkspace, 'non-matching workspace should be hidden while typing without pressing Enter').toBeHidden();
+    await navigationSearch.fill('');
+    await expect(witnessWorkspace, 'clearing live search should restore the witness workspace').toBeVisible({ timeout: 15_000 });
+
+    await clickSourcePickerNavigationEntry(picker, FUNCTIONAL_SOURCE_WORKSPACE, 'workspace');
+    await clickSourcePickerNavigationEntry(picker, FUNCTIONAL_SOURCE_DATABASE, 'database');
+    const table = sourcePickerNavigationEntry(picker, GRID_SOURCE_TABLE);
+    await expect(table, 'Grid source table should be visible').toBeVisible({ timeout: 60_000 });
+    await table.click({ timeout: 10_000 }).catch(async () => table.dispatchEvent('click'));
+    await expect(gridSourceColumnRow(picker, 'Marker'), 'selecting the table should expose its columns').toBeVisible({
+      timeout: 30_000,
+    });
+
+    await expectLocalizedLiveSearchPlaceholder(picker.locator(SOURCE_PICKER_COLUMN_SEARCH_INPUT).first(), 'column search');
+    await saveGridBaserowTablePicker(picker);
+    await closeComponentConfig(page);
+  });
+}
+
+export async function assertGridSourceColumnSearchFiltersLiveThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the functional Grid Baserow table exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_SOURCE_TABLE,
+      primaryField: 'Name',
+      columns: GRID_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
+      rows: GRID_SOURCE_ROWS,
+      upsertKey: 'Name',
+    });
+    assertGridSourceFixture(catalog);
+  });
+
+  await test.step('Configure a Data Grid and reopen its source columns', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_SOURCE_TABLE,
+      expectedColumns: GRID_SOURCE_COLUMNS,
+    });
+
+    const picker = await openGridBaserowTablePickerFromConfig(page);
+    for (const column of GRID_SOURCE_COLUMNS) {
+      await expect(gridSourceColumnRow(picker, column), `Grid source column ${column} should initially be visible`).toBeVisible({
+        timeout: 30_000,
+      });
+    }
+
+    const search = picker.locator(SOURCE_PICKER_COLUMN_SEARCH_INPUT).first();
+    await expect(search, 'Grid source column live-search input should be visible').toBeVisible({ timeout: 15_000 });
+    await search.pressSequentially('Marker', { delay: 25 });
+    await expect(gridSourceColumnRow(picker, 'Marker'), 'matching source column should remain visible without pressing Enter').toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(gridSourceColumnRow(picker, 'Name'), 'non-matching Name column should be filtered live').toBeHidden({ timeout: 10_000 });
+    await expect(gridSourceColumnRow(picker, 'Status'), 'non-matching Status column should be filtered live').toBeHidden({ timeout: 10_000 });
+
+    await search.fill('');
+    for (const column of GRID_SOURCE_COLUMNS) {
+      await expect(gridSourceColumnRow(picker, column), `clearing live search should restore ${column}`).toBeVisible({ timeout: 10_000 });
+    }
+    await saveGridBaserowTablePicker(picker);
+    await closeComponentConfig(page);
+  });
+}
+
+export async function assertExcludedGridColumnLeavesDisplayedCountThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the functional Grid Baserow table exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_SOURCE_TABLE,
+      primaryField: 'Name',
+      columns: GRID_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
+      rows: GRID_SOURCE_ROWS,
+      upsertKey: 'Name',
+    });
+    assertGridSourceFixture(catalog);
+  });
+
+  await test.step('Exclude one included Grid column and compare picker counters', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_SOURCE_TABLE,
+      expectedColumns: GRID_SOURCE_COLUMNS,
+    });
+
+    const picker = await openGridBaserowTablePickerFromConfig(page);
+    const summary = picker.locator(GRID_COLUMN_SUMMARY).first();
+    const initial = await gridColumnSummaryCounts(summary);
+    expect(initial, 'Grid source summary should expose total, included and displayed counts').toHaveLength(3);
+
+    const row = gridSourceColumnRow(picker, 'Marker');
+    const include = row.locator(GRID_COLUMN_INCLUDE_CHECKBOX).first();
+    const display = row.locator(GRID_COLUMN_DISPLAY_BUTTON).first();
+    await expect(include, 'Marker Include checkbox should initially be checked').toHaveAttribute('aria-checked', 'true');
+    await include.click({ timeout: 10_000 }).catch(async () => include.dispatchEvent('click'));
+    await expect(include, 'Marker Include checkbox should become unchecked').toHaveAttribute('aria-checked', 'false', {
+      timeout: 10_000,
+    });
+    await expect(display, 'Displayed control should be disabled for an excluded column').toBeDisabled({ timeout: 10_000 });
+
+    await expect
+      .poll(() => gridColumnSummaryCounts(summary), {
+        message: 'excluding Marker should decrement both included and displayed counts',
+        timeout: 10_000,
+      })
+      .toEqual([initial[0], initial[1] - 1, initial[2] - 1]);
+    await saveGridBaserowTablePicker(picker);
+    await closeComponentConfig(page);
+  });
+}
+
+export async function assertGridLongTableNameLayoutThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure a Baserow table with a deliberately long name exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_LONG_TABLE_NAME,
+      primaryField: 'Name',
+      columns: GRID_LONG_TABLE_COLUMNS.map((name) => ({ name, type: 'text' })),
+      rows: [{ Name: GRID_LONG_TABLE_ROW, 'Long Name Marker': 'visible_long_table_1277' }],
+      upsertKey: 'Name',
+    });
+    const table = catalog.tables.find((candidate) => candidate.name === GRID_LONG_TABLE_NAME);
+    expect(table, `Baserow table ${GRID_LONG_TABLE_NAME} should exist`).toBeTruthy();
+    for (const columnName of GRID_LONG_TABLE_COLUMNS) {
+      expect(
+        table?.columns?.find((column) => column.name === columnName)?.type,
+        `Baserow column ${GRID_LONG_TABLE_NAME}.${columnName} should be text`,
+      ).toBe('text');
+    }
+  });
+
+  await test.step('Open the Grid source picker and navigate to the long table name', async () => {
+    const picker = await openGridBaserowWorkspacePicker(page);
+    await clickSourcePickerNavigationEntry(picker, FUNCTIONAL_SOURCE_WORKSPACE, 'workspace');
+    await clickSourcePickerNavigationEntry(picker, FUNCTIONAL_SOURCE_DATABASE, 'database');
+
+    const tableButton = sourcePickerNavigationEntry(picker, GRID_LONG_TABLE_NAME);
+    const tableIcon = tableButton.locator('ion-icon').first();
+    await expect(tableButton, 'long Baserow table should remain visible and actionable').toBeVisible({ timeout: 30_000 });
+    await expect(tableButton, 'long Baserow table should expose its complete name').toHaveAttribute(
+      'title',
+      GRID_LONG_TABLE_NAME,
+    );
+    await expect(tableIcon, 'long table row should keep its leading table icon').toBeVisible({ timeout: 10_000 });
+
+    const layout = await tableButton.evaluate((button, expectedName) => {
+      const text = [...button.querySelectorAll('ion-text')].find(
+        (candidate) => (candidate.textContent ?? '').replace(/\s+/g, ' ').trim() === expectedName,
+      ) as HTMLElement | undefined;
+      const icon = button.querySelector('ion-icon') as HTMLElement | null;
+      const panel = button.closest('ion-card-content') as HTMLElement | null;
+      if (!text || !icon || !panel) {
+        return null;
+      }
+      const textStyle = getComputedStyle(text);
+      const buttonBox = (button as HTMLElement).getBoundingClientRect();
+      const panelBox = panel.getBoundingClientRect();
+      const iconBox = icon.getBoundingClientRect();
+      return {
+        textOverflow: textStyle.textOverflow,
+        overflow: textStyle.overflow,
+        whiteSpace: textStyle.whiteSpace,
+        textAlign: textStyle.textAlign,
+        textClientWidth: text.clientWidth,
+        textScrollWidth: text.scrollWidth,
+        iconWidth: iconBox.width,
+        buttonRight: buttonBox.right,
+        panelRight: panelBox.right,
+      };
+    }, GRID_LONG_TABLE_NAME);
+
+    expect(layout, 'long table row should expose text, icon and panel layout witnesses').not.toBeNull();
+    expect(layout?.overflow, 'long table name should be clipped inside its row').toBe('hidden');
+    expect(layout?.textOverflow, 'long table name should use an ellipsis').toBe('ellipsis');
+    expect(layout?.whiteSpace, 'long table name should stay on one line').toBe('nowrap');
+    expect(layout?.textAlign, 'long table name should stay left aligned').toBe('left');
+    expect(layout?.textScrollWidth, 'the long fixture name should actually overflow its text box').toBeGreaterThan(
+      (layout?.textClientWidth ?? 0) + 1,
+    );
+    expect(layout?.iconWidth, 'the leading table icon should not collapse').toBeGreaterThanOrEqual(12);
+    expect(layout?.buttonRight, 'the long table row should remain inside the picker panel').toBeLessThanOrEqual(
+      (layout?.panelRight ?? 0) + 1,
+    );
+
+    await tableButton.click({ timeout: 10_000 }).catch(async () => tableButton.dispatchEvent('click'));
+    await expect(
+      gridSourceColumnRow(picker, 'Long Name Marker'),
+      'clicking the truncated long table should still load its columns',
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      picker.locator('.class1776246576145'),
+      'selected table summary should expose the complete long table name',
+    ).toContainText(GRID_LONG_TABLE_NAME, { timeout: 30_000 });
+
+    await saveGridBaserowTablePicker(picker);
+    await closeComponentConfig(page);
+  });
+}
+
+export async function assertFilteredGridSourceItemsSelectOnFirstClickThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the Grid source and negative filtering witnesses exist', async () => {
+    await ensureGridSourcePickerFixtures();
+  });
+
+  await test.step('Select each filtered picker level with one click', async () => {
+    const picker = await openGridBaserowWorkspacePicker(page);
+    const search = picker.locator(SOURCE_PICKER_NAVIGATION_SEARCH_INPUT).first();
+    await expect(search, 'source picker navigation search should be visible').toBeVisible({ timeout: 30_000 });
+
+    const witnessWorkspace = sourcePickerNavigationEntry(picker, SOURCE_FILTER_WITNESS_WORKSPACE);
+    await expect(witnessWorkspace, 'non-matching workspace witness should initially be visible').toBeVisible({ timeout: 60_000 });
+    await search.fill(FUNCTIONAL_SOURCE_WORKSPACE);
+    const workspace = sourcePickerNavigationEntry(picker, FUNCTIONAL_SOURCE_WORKSPACE);
+    await expect(workspace, 'filtered workspace should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(witnessWorkspace, 'filtering a workspace should hide the non-matching witness').toBeHidden({ timeout: 15_000 });
+    await workspace.click({ timeout: 10_000 });
+    await expect(search, 'selecting a filtered workspace should clear the navigation search').toHaveValue('', {
+      timeout: 10_000,
+    });
+    await expect(
+      sourcePickerNavigationEntry(picker, FUNCTIONAL_SOURCE_DATABASE),
+      'one workspace click should advance to databases',
+    ).toBeVisible({ timeout: 30_000 });
+
+    const witnessDatabase = sourcePickerNavigationEntry(picker, SOURCE_FILTER_WITNESS_DATABASE);
+    await expect(witnessDatabase, 'non-matching database witness should initially be visible').toBeVisible({ timeout: 60_000 });
+    await search.fill(FUNCTIONAL_SOURCE_DATABASE);
+    const database = sourcePickerNavigationEntry(picker, FUNCTIONAL_SOURCE_DATABASE);
+    await expect(database, 'filtered database should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(witnessDatabase, 'filtering a database should hide the non-matching witness').toBeHidden({ timeout: 15_000 });
+    await database.click({ timeout: 10_000 });
+    await expect(search, 'selecting a filtered database should clear the navigation search').toHaveValue('', {
+      timeout: 10_000,
+    });
+    await expect(
+      sourcePickerNavigationEntry(picker, GRID_SOURCE_TABLE),
+      'one database click should advance to tables',
+    ).toBeVisible({ timeout: 30_000 });
+
+    await search.fill('Functional Source Grid');
+    const table = sourcePickerNavigationEntry(picker, GRID_SOURCE_TABLE);
+    await expect(table, 'filtered table should be visible').toBeVisible({ timeout: 15_000 });
+    await table.click({ timeout: 10_000 });
+    await expect(search, 'selecting a filtered table should clear the navigation search').toHaveValue('', {
+      timeout: 10_000,
+    });
+    await expect(
+      gridSourceColumnRow(picker, 'Marker'),
+      'one table click should load its columns',
+    ).toBeVisible({ timeout: 30_000 });
+
+    await saveGridBaserowTablePicker(picker);
+    await closeComponentConfig(page);
+  });
+}
+
+export async function assertGridUrlColumnTypeAndRenderingThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure an isolated Grid URL fixture exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_URL_TABLE,
+      primaryField: 'Name',
+      columns: [
+        { name: 'Name', type: 'text' },
+        { name: GRID_URL_COLUMN, type: 'url' },
+        { name: GRID_URL_TEXT_COLUMN, type: 'text' },
+      ],
+      rows: GRID_URL_ROWS,
+      upsertKey: 'Name',
+    });
+    const table = catalog.tables.find((candidate) => candidate.name === GRID_URL_TABLE);
+    expect(table, `Baserow table ${GRID_URL_TABLE} should exist`).toBeTruthy();
+    expect(
+      table?.columns.find((column) => column.name === GRID_URL_COLUMN)?.type,
+      `${GRID_URL_COLUMN} should remain a URL field`,
+    ).toBe('url');
+  });
+
+  await test.step('Configure the URL-backed Grid and verify its picker type label', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_URL_TABLE,
+      expectedColumns: GRID_URL_COLUMNS,
+    });
+
+    const picker = await openGridBaserowTablePickerFromConfig(page);
+    const urlRow = gridSourceColumnRow(picker, GRID_URL_COLUMN);
+    await expect(urlRow, 'URL source column should be visible in the picker').toBeVisible({ timeout: 30_000 });
+    await expect(urlRow, 'URL source column should expose its field type').toContainText('URL');
+    await expect(urlRow, 'URL source column should not fall back to an unknown type').not.toContainText(
+      /Unknown type|Type inconnu|Tipo desconocido|Tipo sconosciuto/i,
+    );
+    await saveGridBaserowTablePicker(picker);
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Verify URL fields render as safe links while URL-looking text stays plain', async () => {
+    await openPreview(page, SEL.gridComponent);
+    await expectGridHeaderVisible(page, GRID_URL_COLUMN);
+    await expectGridHeaderVisible(page, GRID_URL_TEXT_COLUMN);
+
+    for (const fixture of GRID_URL_ROWS) {
+      const row = await visibleGridRow(page, fixture.Name);
+      const urlValue = fixture[GRID_URL_COLUMN];
+      const link = row.locator('a').filter({ hasText: urlValue }).first();
+      await expect(link, `URL field ${urlValue} should render as a link`).toBeVisible({ timeout: 30_000 });
+      const expectedHref = urlValue.startsWith('http') ? urlValue : `https://${urlValue}`;
+      await expect(link).toHaveAttribute('href', expectedHref);
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', /\bnoopener\b/);
+      await expect(link).toHaveAttribute('rel', /\bnoreferrer\b/);
+
+      const plainText = fixture[GRID_URL_TEXT_COLUMN];
+      await expect(row, `text field ${plainText} should still render`).toContainText(plainText);
+      await expect(row.locator('a').filter({ hasText: plainText }), `text field ${plainText} should not become a link`).toHaveCount(0);
     }
   });
 }
@@ -624,6 +1047,149 @@ export async function exerciseGridFilterSortSelectionAndReloadThroughUi(page: Pa
       }),
       'filtered-out Grid row should remain hidden after reload',
     ).toHaveCount(0, { timeout: 10_000 });
+  });
+}
+
+export async function assertGridJavaScriptFilterAwaitsAsyncValueThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the functional Grid interactions Baserow table exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_INTERACTION_TABLE,
+      primaryField: GRID_INTERACTION_NAME,
+      columns: [
+        { name: GRID_INTERACTION_NAME, type: 'text' },
+        { name: GRID_INTERACTION_STATUS, type: 'text' },
+        { name: GRID_INTERACTION_RANK, type: 'number' },
+        { name: GRID_INTERACTION_NOTES, type: 'text' },
+      ],
+      rows: GRID_INTERACTION_ROWS,
+      upsertKey: GRID_INTERACTION_NAME,
+    });
+    assertGridInteractionFixture(catalog);
+  });
+
+  await test.step('Configure a Grid filter with an asynchronous JavaScript value', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await expect(page.locator(`${SEL.gridComponent}:visible`).first(), 'Data Grid component should be present').toBeVisible({
+      timeout: 30_000,
+    });
+
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_INTERACTION_TABLE,
+      expectedColumns: GRID_INTERACTION_COLUMNS,
+    });
+    await configureDataSourceFilterMonacoPaletteValue(page, {
+      column: GRID_INTERACTION_STATUS,
+      operator: 'equal',
+      sourceSection: 'translation',
+      sourceLabel: 'getBrowserLang',
+      expectedCode: FILTER_SOURCE_JS_EXPECTED_CODE,
+    });
+    await replaceVisibleFilterMonacoCode(
+      page,
+      `(async ()=>{\n\treturn ${JSON.stringify(GRID_INTERACTION_VISIBLE_STATUS)};\n})();`,
+    );
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Verify the resolved filter value keeps only matching Grid rows', async () => {
+    await openPreview(page, SEL.gridComponent);
+    await expect(page.locator(`${SEL.gridComponent}:visible`).first(), 'viewer Data Grid should render').toBeVisible({
+      timeout: 45_000,
+    });
+    await expectGridVisibleRowsInOrder(page, GRID_INTERACTION_EXPECTED_ORDER);
+    await expect(
+      page.locator(`${SEL.gridComponent}:visible .ag-center-cols-container .ag-row`).filter({
+        hasText: GRID_INTERACTION_ROWS[0][GRID_INTERACTION_NAME],
+      }),
+      'the row whose status does not match the resolved JavaScript value should be filtered out',
+    ).toHaveCount(0, { timeout: 15_000 });
+  });
+}
+
+export async function assertGridMultipleRowSelectionCheckboxesThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the functional Grid Baserow table exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_SOURCE_TABLE,
+      primaryField: 'Name',
+      columns: GRID_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
+      rows: GRID_SOURCE_ROWS,
+      upsertKey: 'Name',
+    });
+    assertGridSourceFixture(catalog);
+  });
+
+  await test.step('Configure the Grid to return multiple selected rows', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await expect(page.locator(`${SEL.gridComponent}:visible`).first(), 'Data Grid component should be present').toBeVisible({
+      timeout: 30_000,
+    });
+
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_SOURCE_TABLE,
+      expectedColumns: GRID_SOURCE_COLUMNS,
+    });
+    await setGridReturnedValueToMultipleRowsThroughUi(page);
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Verify row-selection checkboxes use the Grid glyph and remain aligned', async () => {
+    await openPreview(page, SEL.gridComponent);
+    const grid = page.locator(`${SEL.gridComponent}:visible`).first();
+    await expect(grid, 'viewer Data Grid should render').toBeVisible({ timeout: 45_000 });
+    for (const row of GRID_SOURCE_ROWS) {
+      await visibleGridRow(page, row.Name);
+    }
+
+    const rows = grid.locator('.ag-center-cols-container .ag-row');
+    const checkboxes = rows.locator(GRID_SELECTION_CHECKBOX);
+    await expect(checkboxes, 'multiple-row selection should render one checkbox per visible row').toHaveCount(
+      GRID_SOURCE_ROWS.length,
+      { timeout: 30_000 },
+    );
+
+    const checkboxLayout = await checkboxes.evaluateAll((elements) =>
+      elements.map((element) => {
+        const checkboxBox = (element as HTMLElement).getBoundingClientRect();
+        const rowBox = (element.closest('.ag-row') as HTMLElement | null)?.getBoundingClientRect();
+        return {
+          beforeFontFamily: getComputedStyle(element, '::before').fontFamily,
+          afterFontFamily: getComputedStyle(element, '::after').fontFamily,
+          width: checkboxBox.width,
+          centerOffset: rowBox
+            ? Math.abs(checkboxBox.top + checkboxBox.height / 2 - (rowBox.top + rowBox.height / 2))
+            : Number.POSITIVE_INFINITY,
+        };
+      }),
+    );
+    for (const [index, state] of checkboxLayout.entries()) {
+      expect(state.beforeFontFamily, `row ${index + 1} checkbox ::before should use the AG Grid glyph font`).toContain(
+        'agGridQuartz',
+      );
+      expect(state.afterFontFamily, `row ${index + 1} checkbox ::after should use the AG Grid glyph font`).toContain(
+        'agGridQuartz',
+      );
+      expect(state.width, `row ${index + 1} checkbox should keep a readable width`).toBeGreaterThanOrEqual(14);
+      expect(state.centerOffset, `row ${index + 1} checkbox should stay vertically centered`).toBeLessThanOrEqual(3);
+    }
+
+    await checkboxes.nth(0).click();
+    await checkboxes.nth(1).click();
+    await expect(checkboxes.nth(0), 'first Grid row checkbox should become selected').toHaveClass(/ag-checked/);
+    await expect(checkboxes.nth(1), 'second Grid row checkbox should become selected').toHaveClass(/ag-checked/);
   });
 }
 
@@ -981,6 +1547,127 @@ export async function filterSelectBaserowSourceByHiddenTextColumnThroughUi(page:
     await openPreview(page, SEL.selectComponent);
     const visibleOptions = await sourceSelectVisibleOptions(page, FILTER_SOURCE_ACTIVE_NAMES, FILTER_SOURCE_INACTIVE_NAMES);
     expect(visibleOptions, 'filtered Select should expose only active source rows').toEqual(FILTER_SOURCE_ACTIVE_NAMES);
+  });
+}
+
+export async function assertSelectSourceFilterControlLayoutThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the functional source Filter Baserow table exists', async () => {
+    await ensureFunctionalFilterSourceTable();
+  });
+
+  await test.step('Create a Select source with a text filter', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.select);
+    await addComponent(page, PALETTE_ICON.select, { allowEditorApiFallback: false });
+    await expect(page.locator(`${SEL.selectComponent}:visible`).first(), 'filtered Select component should be present').toBeVisible({
+      timeout: 30_000,
+    });
+
+    await openComponentConfig(page, SEL.selectComponent);
+    await configureSelectBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: FILTER_SOURCE_TABLE,
+      expectedColumns: FILTER_SOURCE_COLUMNS,
+      displayColumn: FILTER_SOURCE_NAME,
+      valueColumn: FILTER_SOURCE_NAME,
+    });
+    await configureDataSourceFilterTextValue(page, {
+      column: FILTER_SOURCE_FLAG,
+      operator: 'equal',
+      value: FILTER_SOURCE_ACTIVE_VALUE,
+    });
+  });
+
+  await test.step('Verify Aa, JavaScript and delete controls share the fixed layout contract', async () => {
+    const filter = page.locator('c8oforms-datasourceeditor c8oforms-filterbr:visible').last();
+    await expect(filter, 'the configured Baserow filter row should remain visible').toBeVisible({ timeout: 15_000 });
+
+    const textButton = filter.locator('ion-button:visible', {
+      has: page.locator('ion-icon[name="text-outline"]'),
+    }).last();
+    const javaScriptButton = filter.locator('ion-button:visible', {
+      has: page.locator('ion-icon[name="logo-javascript"]'),
+    }).last();
+    const deleteButton = filter.locator('ion-button:visible', {
+      has: page.locator('ion-icon[src$="trash-2.svg"]'),
+    }).last();
+    const controls = [
+      { label: 'Aa', button: textButton },
+      { label: 'JavaScript', button: javaScriptButton },
+      { label: 'delete', button: deleteButton },
+    ];
+
+    for (const control of controls) {
+      await expect(control.button, `${control.label} filter control should be visible`).toBeVisible({ timeout: 15_000 });
+    }
+
+    const layouts = await Promise.all(
+      controls.map(async ({ label, button }) => ({
+        label,
+        layout: await button.evaluate((element) => {
+          const host = element as HTMLElement;
+          const icon = host.querySelector('ion-icon') as HTMLElement | null;
+          const native = host.shadowRoot?.querySelector('[part="native"]') as HTMLElement | null;
+          const container = host.parentElement;
+          if (!icon || !native || !container) {
+            return null;
+          }
+
+          const hostBox = host.getBoundingClientRect();
+          const nativeBox = native.getBoundingClientRect();
+          const iconBox = icon.getBoundingClientRect();
+          const containerBox = container.getBoundingClientRect();
+          const center = (box: DOMRect) => ({
+            x: box.left + box.width / 2,
+            y: box.top + box.height / 2,
+          });
+          const hostCenter = center(hostBox);
+          const nativeCenter = center(nativeBox);
+          const iconCenter = center(iconBox);
+
+          return {
+            hostWidth: hostBox.width,
+            hostHeight: hostBox.height,
+            nativeWidth: nativeBox.width,
+            nativeHeight: nativeBox.height,
+            iconWidth: iconBox.width,
+            iconHeight: iconBox.height,
+            iconNativeOffsetX: Math.abs(iconCenter.x - nativeCenter.x),
+            iconNativeOffsetY: Math.abs(iconCenter.y - nativeCenter.y),
+            hostCenterY: hostCenter.y,
+            containerWidth: containerBox.width,
+            containerHeight: containerBox.height,
+            hostContainerOffsetX: Math.abs(hostCenter.x - center(containerBox).x),
+            hostContainerOffsetY: Math.abs(hostCenter.y - center(containerBox).y),
+          };
+        }),
+      })),
+    );
+
+    for (const { label, layout } of layouts) {
+      expect(layout, `${label} filter control should expose its host, native part and icon`).not.toBeNull();
+      expect(layout?.hostWidth, `${label} button width`).toBeCloseTo(32, 0);
+      expect(layout?.hostHeight, `${label} button height`).toBeCloseTo(32, 0);
+      expect(layout?.nativeWidth, `${label} native button width`).toBeCloseTo(32, 0);
+      expect(layout?.nativeHeight, `${label} native button height`).toBeCloseTo(32, 0);
+      expect(layout?.iconWidth, `${label} icon width`).toBeCloseTo(20, 0);
+      expect(layout?.iconHeight, `${label} icon height`).toBeCloseTo(20, 0);
+      expect(layout?.iconNativeOffsetX, `${label} icon should be horizontally centered`).toBeLessThanOrEqual(1);
+      expect(layout?.iconNativeOffsetY, `${label} icon should be vertically centered`).toBeLessThanOrEqual(1);
+    }
+
+    const deleteLayout = layouts.find(({ label }) => label === 'delete')?.layout;
+    expect(deleteLayout?.containerWidth, 'delete control container width').toBeCloseTo(32, 0);
+    expect(deleteLayout?.containerHeight, 'delete control container height').toBeCloseTo(32, 0);
+    expect(deleteLayout?.hostContainerOffsetX, 'delete button should be horizontally centered in its container').toBeLessThanOrEqual(1);
+    expect(deleteLayout?.hostContainerOffsetY, 'delete button should be vertically centered in its container').toBeLessThanOrEqual(1);
+
+    const centerLines = layouts.map(({ layout }) => layout?.hostCenterY ?? Number.POSITIVE_INFINITY);
+    expect(
+      Math.max(...centerLines) - Math.min(...centerLines),
+      'Aa, JavaScript and delete buttons should stay on the same vertical center line',
+    ).toBeLessThanOrEqual(1);
   });
 }
 
@@ -1599,8 +2286,79 @@ async function gridSourceColumnHasHiddenState(picker: Locator, column: string, h
   return row.locator('ion-button, button').filter({ hasText: label }).first().isVisible({ timeout: 1_000 }).catch(() => false);
 }
 
+function sourcePickerNavigationEntry(picker: Locator, name: string): Locator {
+  return picker.locator(SOURCE_PICKER_NAVIGATION_BUTTON).filter({ hasText: name }).first();
+}
+
+async function clickSourcePickerNavigationEntry(
+  picker: Locator,
+  name: string,
+  level: 'workspace' | 'database',
+): Promise<void> {
+  const entry = sourcePickerNavigationEntry(picker, name);
+  await expect(entry, `Baserow ${level} ${name} should be visible`).toBeVisible({ timeout: 60_000 });
+  await entry.click({ timeout: 10_000 }).catch(async () => entry.dispatchEvent('click'));
+}
+
+async function replaceVisibleFilterMonacoCode(page: Page, code: string): Promise<void> {
+  const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor:visible`).last();
+  await expect(editor, 'data source Filter JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.insertText(code);
+  await page.keyboard.press('Tab');
+  await expect
+    .poll(() => editor.locator('.view-lines').innerText().then(normalizedText), {
+      message: 'data source Filter JavaScript editor should keep the asynchronous return value',
+      timeout: 15_000,
+    })
+    .toContain(`return ${JSON.stringify(GRID_INTERACTION_VISIBLE_STATUS)};`);
+  await page.waitForTimeout(1_000);
+}
+
+async function setGridReturnedValueToMultipleRowsThroughUi(page: Page): Promise<void> {
+  await openConfigTabById(page, 'data_interactions');
+  const returnedValue = page.locator('.class1775842589999');
+  const select = returnedValue.locator('ion-select').first();
+  if (await select.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    const optionIndex = await select.evaluate((element) =>
+      Array.from(element.querySelectorAll('ion-select-option')).findIndex(
+        (option) => (option as HTMLOptionElement & { value?: string }).value === 'multiple_row_selected',
+      ),
+    );
+    expect(optionIndex, 'multiple_row_selected option should exist').toBeGreaterThanOrEqual(0);
+    await select.click({ timeout: 10_000 });
+    const option = page.locator('ion-select-popover ion-item').nth(optionIndex);
+    await expect(option, 'multiple-row selection option should be visible').toBeVisible({ timeout: 10_000 });
+    await option.click({ timeout: 10_000 });
+    await expect
+      .poll(() => select.evaluate((element) => (element as HTMLElement & { value?: unknown }).value), {
+        message: 'Grid returned value should be multiple_row_selected',
+        timeout: 10_000,
+      })
+      .toBe('multiple_row_selected');
+    return;
+  }
+
+  const returnedValueButtons = returnedValue.locator('button.class1776074264497:visible');
+  const multipleRowsButton = returnedValueButtons.nth(3);
+  await expect(multipleRowsButton, 'multiple-row returned-value button should be visible').toBeVisible({ timeout: 10_000 });
+  await multipleRowsButton.click({ timeout: 10_000 });
+  await expect
+    .poll(() => multipleRowsButton.evaluate((element) => element.classList.contains('c8o-btn-selected')), {
+      message: 'Grid returned value should be multiple selected rows',
+      timeout: 10_000,
+    })
+    .toBe(true);
+}
+
 function gridSourceColumnRow(picker: Locator, column: string): Locator {
   return picker.locator(SELECT_SOURCE_COLUMN_ROW).filter({ hasText: column }).first();
+}
+
+async function gridColumnSummaryCounts(summary: Locator): Promise<number[]> {
+  const text = await summary.innerText().catch(() => '');
+  return [...text.matchAll(/\d+/g)].map((match) => Number(match[0]));
 }
 
 async function saveGridBaserowTablePicker(picker: Locator): Promise<void> {

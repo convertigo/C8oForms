@@ -13,6 +13,7 @@ test.describe('No-Code Studio functional date and time component values', () => 
     viewport: { width: 1920, height: 1080 },
   });
 
+  // #1272: Slider Data/Interactions and Style options remain available in every supported browser.
   test('CMP-SLIDER-001 - Slider bounds labels and viewer value', async ({ page }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);

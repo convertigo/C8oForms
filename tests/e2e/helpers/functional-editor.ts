@@ -9,6 +9,7 @@ import {
   closePageSettings,
   closeComponentConfig,
   countComponents,
+  expectEditorSidebarButtonTitles,
   expectEditorSidebarButtonsVisible,
   expectPagesPanelDefaultAfterWorkflowNavigation,
   openComponentConfig,
@@ -17,6 +18,7 @@ import {
   openComponentsPalette,
   openPageButtonsConfig,
   openPagesPanel,
+  openPageSettings,
   openPageSettingsForPage,
   openWorkflowsPanel,
   recordedToasts,
@@ -27,6 +29,8 @@ import {
 const EMPTY_PAGE_NAME_MESSAGE = /Ce champ ne peut etre vide|Ce champ ne peut .tre vide|This field can't be empty/i;
 const DUPLICATE_PAGE_NAME_MESSAGE = /Ce nom existe deja|Ce nom existe d.j.|This name already exists/i;
 const PAGE_DUPLICATE_ACTION = '[data-id="duplicate-action-pages"]';
+const WORKFLOWS_SCROLL_CONTAINER = '#bloc-palette .class1773251123673';
+const WORKFLOW_STRESS_BUTTON_COUNT = 10;
 
 export async function navigateEditorShellSectionsThroughUi(page: Page): Promise<void> {
   await test.step('Open the component Palette panel', async () => {
@@ -35,6 +39,7 @@ export async function navigateEditorShellSectionsThroughUi(page: Page): Promise<
       timeout: 15_000,
     });
     await expectEditorSidebarButtonsVisible(page);
+    await expectEditorSidebarButtonTitles(page);
     await expectEditorCanvasVisible(page);
   });
 
@@ -79,6 +84,78 @@ export async function navigateEditorShellSectionsThroughUi(page: Page): Promise<
     });
     await expectEditorSidebarButtonsVisible(page);
     await expectEditorCanvasVisible(page);
+  });
+}
+
+export async function openOnePageIconPickerAfterRapidClicksThroughUi(page: Page): Promise<void> {
+  await test.step('Open one page icon picker after rapid clicks', async () => {
+    await openPageSettings(page);
+    const iconSetting = page.locator(SEL.pageIconSetting).filter({ visible: true }).first();
+    await expect(iconSetting, 'page icon setting should be visible').toBeVisible({ timeout: 15_000 });
+
+    await iconSetting.click({ clickCount: 5, delay: 10 });
+
+    const modals = page.locator(SEL.iconPickerModal);
+    await expect(modals, 'rapid page icon clicks should create exactly one picker').toHaveCount(1, { timeout: 15_000 });
+    await expect(modals.first(), 'the single page icon picker should be visible').toBeVisible({ timeout: 15_000 });
+
+    await page.waitForTimeout(1_000);
+    await expect(modals, 'no delayed page icon picker should stack after the rapid burst').toHaveCount(1);
+  });
+
+  await test.step('Close the picker and prove its modal lock is released', async () => {
+    await page.keyboard.press('Escape');
+    await expect(page.locator(`${SEL.iconPickerModal}:visible`), 'page icon picker should close').toHaveCount(0, {
+      timeout: 15_000,
+    });
+
+    const iconSetting = page.locator(SEL.pageIconSetting).filter({ visible: true }).first();
+    await expect(iconSetting, 'page icon setting should remain usable after closing its picker').toBeVisible({ timeout: 15_000 });
+    await iconSetting.click({ timeout: 10_000 });
+    await expect(
+      page.locator(`${SEL.iconPickerModal}:visible`),
+      'one page icon picker should reopen after the modal lock is released',
+    ).toHaveCount(1, { timeout: 15_000 });
+  });
+}
+
+export async function keepLastWorkflowFullyVisibleAfterScrollThroughUi(page: Page): Promise<void> {
+  await test.step('Create enough Button workflows through the Studio palette', async () => {
+    const buttons = page.locator(SEL.buttonComponent);
+    const before = await buttons.count();
+    await openComponentsPalette(page, PALETTE_ICON.button);
+    for (let index = 0; index < WORKFLOW_STRESS_BUTTON_COUNT; index++) {
+      await addComponent(page, PALETTE_ICON.button, { allowEditorApiFallback: false });
+    }
+    await expect
+      .poll(() => buttons.count(), {
+        message: 'every palette Button should create a component and its workflow',
+        timeout: 30_000,
+      })
+      .toBe(before + WORKFLOW_STRESS_BUTTON_COUNT);
+  });
+
+  await test.step('Scroll the constrained Workflows panel to its last flow', async () => {
+    await page.setViewportSize({ width: 1280, height: 520 });
+    await openWorkflowsPanel(page);
+
+    const scroller = page.locator(`${WORKFLOWS_SCROLL_CONTAINER}:visible`).first();
+    await expect(scroller, 'Workflows should expose the dedicated scroll container').toBeVisible({ timeout: 15_000 });
+    const buttonFlows = scroller.locator('[draggable="true"]:not(#unique_formulas):not(#unique_submit)');
+    await expect(buttonFlows, 'each Studio Button should expose a workflow entry').toHaveCount(WORKFLOW_STRESS_BUTTON_COUNT, {
+      timeout: 30_000,
+    });
+
+    const initialState = await workflowScrollState(scroller);
+    expect(initialState.overflowY, 'Workflows list should be vertically scrollable').toMatch(/^(?:auto|scroll)$/);
+    expect(initialState.scrollHeight, 'the workflow fixture should overflow the constrained panel').toBeGreaterThan(
+      initialState.clientHeight,
+    );
+
+    await scrollWorkflowContainerToBottom(page, scroller);
+    const lastFlow = scroller.locator('[draggable="true"]').last();
+    await expect(lastFlow, 'the last workflow should remain rendered after scrolling').toBeAttached();
+    await expectLastWorkflowInsideVisibleScroller(lastFlow);
   });
 }
 
@@ -239,6 +316,7 @@ export async function deletePageCancelThenConfirmThroughUi(page: Page): Promise<
 export async function reorderPagesAndAssertPersistenceThroughUi(page: Page): Promise<void> {
   const secondPageName = await addPageThroughPagesPanel(page);
   const thirdPageName = await addPageThroughPagesPanel(page);
+  const finalOrder = ['Page 1', thirdPageName, secondPageName];
 
   await test.step('Reorder the third page before the first page', async () => {
     await acceptRgpdIfVisible(page);
@@ -256,6 +334,18 @@ export async function reorderPagesAndAssertPersistenceThroughUi(page: Page): Pro
       .toEqual([thirdPageName, 'Page 1', secondPageName]);
   });
 
+  await test.step('Move the first page downward and keep every page exactly once', async () => {
+    await dragPageBefore(page, thirdPageName, secondPageName);
+    await expect
+      .poll(() => visiblePageNames(page), {
+        message: 'page rows should support downward drag-and-drop without duplicates',
+        timeout: 20_000,
+      })
+      .toEqual(finalOrder);
+    const names = await visiblePageNames(page);
+    expect(new Set(names).size, `reordered pages should stay unique: ${names.join(', ')}`).toBe(names.length);
+  });
+
   await test.step('Reload the editor and assert the page order persists', async () => {
     const editorUrl = page.url();
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -269,7 +359,7 @@ export async function reorderPagesAndAssertPersistenceThroughUi(page: Page): Pro
         message: 'page rows should keep the reordered order after reload',
         timeout: 30_000,
       })
-      .toEqual([thirdPageName, 'Page 1', secondPageName]);
+      .toEqual(finalOrder);
   });
 }
 
@@ -486,6 +576,93 @@ async function closeApplicationSettingsIfOpen(page: Page): Promise<void> {
   await expect(page.locator(SEL.appSettingsCategories).first(), 'application Settings panel should close').toBeHidden({
     timeout: 15_000,
   });
+}
+
+async function workflowScrollState(scroller: Locator): Promise<{
+  clientHeight: number;
+  overflowY: string;
+  scrollHeight: number;
+  scrollTop: number;
+}> {
+  return scroller.evaluate((element) => {
+    const container = element as HTMLElement;
+    return {
+      clientHeight: container.clientHeight,
+      overflowY: window.getComputedStyle(container).overflowY,
+      scrollHeight: container.scrollHeight,
+      scrollTop: container.scrollTop,
+    };
+  });
+}
+
+async function scrollWorkflowContainerToBottom(page: Page, scroller: Locator): Promise<void> {
+  const box = await scroller.boundingBox();
+  expect(box, 'Workflows scroll container should have a measurable box').not.toBeNull();
+  if (!box) {
+    return;
+  }
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const state = await workflowScrollState(scroller);
+    if (state.scrollHeight - state.clientHeight - state.scrollTop <= 1) {
+      break;
+    }
+    await page.mouse.wheel(0, Math.max(160, Math.floor(state.clientHeight * 0.8)));
+    await page.waitForTimeout(75);
+  }
+
+  const finalState = await workflowScrollState(scroller);
+  expect(finalState.scrollTop, 'the constrained Workflows list should actually scroll').toBeGreaterThan(0);
+  expect(
+    finalState.scrollHeight - finalState.clientHeight - finalState.scrollTop,
+    'the Workflows list should reach its bottom through user scrolling',
+  ).toBeLessThanOrEqual(1);
+}
+
+async function expectLastWorkflowInsideVisibleScroller(lastFlow: Locator): Promise<void> {
+  const geometry = await lastFlow.evaluate((element, scrollerSelector) => {
+    const scroller = element.closest<HTMLElement>(scrollerSelector);
+    if (!scroller) {
+      throw new Error(`Last workflow is not inside ${scrollerSelector}`);
+    }
+    const flowRect = element.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const contentTop = scrollerRect.top + scroller.clientTop;
+    const contentLeft = scrollerRect.left + scroller.clientLeft;
+    return {
+      flow: {
+        bottom: flowRect.bottom,
+        height: flowRect.height,
+        left: flowRect.left,
+        right: flowRect.right,
+        top: flowRect.top,
+        width: flowRect.width,
+      },
+      visibleScroller: {
+        bottom: Math.min(contentTop + scroller.clientHeight, window.innerHeight),
+        left: Math.max(contentLeft, 0),
+        right: Math.min(contentLeft + scroller.clientWidth, window.innerWidth),
+        top: Math.max(contentTop, 0),
+      },
+    };
+  }, WORKFLOWS_SCROLL_CONTAINER);
+
+  const tolerance = 1;
+  expect(geometry.flow.width, 'last workflow should have a measurable width').toBeGreaterThan(0);
+  expect(geometry.flow.height, 'last workflow should have a measurable height').toBeGreaterThan(0);
+  expect(geometry.flow.top, 'last workflow top should be inside the visible scroller').toBeGreaterThanOrEqual(
+    geometry.visibleScroller.top - tolerance,
+  );
+  expect(geometry.flow.bottom, 'last workflow bottom should be inside the visible scroller').toBeLessThanOrEqual(
+    geometry.visibleScroller.bottom + tolerance,
+  );
+  expect(geometry.flow.left, 'last workflow left edge should be inside the visible scroller').toBeGreaterThanOrEqual(
+    geometry.visibleScroller.left - tolerance,
+  );
+  expect(geometry.flow.right, 'last workflow right edge should be inside the visible scroller').toBeLessThanOrEqual(
+    geometry.visibleScroller.right + tolerance,
+  );
 }
 
 async function clickPageDeleteAction(page: Page, pageName: string): Promise<void> {

@@ -1,5 +1,6 @@
 import { test } from './fixtures';
 import {
+  assertSharedTabsHoverAndSelectedStylesThroughUi,
   navigateConditionallyByCheckboxValueThroughUi,
   navigateConditionallyByRadioValueThroughUi,
   navigateConditionallyBySelectValueThroughUi,
@@ -18,6 +19,21 @@ test.describe('No-Code Studio functional navigation contract', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await navigateToSecondPageThroughViewerNextButton(page);
+  });
+
+  /**
+   * #1290: SharedTabs was first converted to real Ionic Tabs/TabButton beans in
+   * 2.2.0-beta109. Firefox still lost the selected color and rendered the tiny
+   * pseudo-element underline as a stray underscore. The explicit hover/selected
+   * color rules and Firefox label underline shipped in 2.2.0-beta116, where QA
+   * historically validated the fix. Current runtime validation remains pending
+   * and must include Firefox.
+   */
+  test('NAV-001 #1290 - SharedTabs expose hover and selected-page feedback', async ({ page, browserName }) => {
+    test.setTimeout(240_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertSharedTabsHoverAndSelectedStylesThroughUi(page, browserName);
   });
 
   test('NAV-002 - conditional navigation by Radio value', async ({ page }) => {

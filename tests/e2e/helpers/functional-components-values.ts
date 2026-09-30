@@ -8,12 +8,15 @@ import {
   addComponent,
   addButtonStateCondition,
   checkViewerCheckboxOption,
+  clickSelectBaserowColumnRole,
   choiceViewerValue,
   clearButtonIcon,
   closeComponentConfig,
   configureSelectBaserowSource,
+  configureVisibleTinyMceSpacingThroughUi,
   createTextBusinessLogicFormula,
   dragUserEmailPaletteToTinyMce,
+  dropSourcePaletteEntryIntoVisibleMonaco,
   checkedSelectBaserowDisplayColumns,
   checkedSelectBaserowValueColumns,
   expectButtonDefaultIconName,
@@ -33,12 +36,16 @@ import {
   openButtonFlowToastActionConfig,
   openComponentsPalette,
   openPreview,
+  openTextDefaultValueJavascriptModeThroughUi,
   openSelectBaserowSourceConfiguration,
   openSelectBaserowTablePicker,
   openStyleTabById,
   openWorkflowsPanel,
   recordedToasts,
   recordToasts,
+  saveSelectBaserowTablePicker,
+  settledSelectBaserowDisplayColumns,
+  settledSelectBaserowValueColumns,
   expectSelectBaserowColumnsVisible,
   setCheckboxDefaultSelected,
   setCheckboxLocalOptions,
@@ -209,10 +216,13 @@ export async function exerciseTextInputAdvancedDefaultValuesThroughUi(page: Page
 
 export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page: Page): Promise<void> {
   const suffix = Date.now();
-  const technicalId = `functional_description_${suffix}`;
+  const descriptionTechnicalId = `functional_description_${suffix}`;
+  const textTechnicalId = `functional_text_rich_question_${suffix}`;
   const introText = `Functional description intro ${suffix}`;
   const boldText = `Functional bold ${suffix}`;
   const italicText = `Functional italic ${suffix}`;
+  const questionText = `Functional rich question ${suffix}`;
+  const spacing = { marginBottom: '16px', padding: '12px' };
 
   await test.step('Create and configure a Description with rich text and a Source Palette value', async () => {
     await acceptRgpdIfVisible(page);
@@ -223,23 +233,56 @@ export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page:
     });
 
     await openComponentConfig(page, SEL.descriptionComponent);
-    await setTechnicalId(page, technicalId);
+    await setTechnicalId(page, descriptionTechnicalId);
     await setDescriptionRichText(page, { introText, boldText, italicText });
     await dragUserEmailPaletteToTinyMce(page);
+    await configureVisibleTinyMceSpacingThroughUi(page, spacing);
+    await openConfigTabById(page, 'data_interactions');
+    await expectDescriptionRichTextEditorHidden(page);
     await closeComponentConfig(page);
   });
 
   await test.step('Verify Description rendering in the editor canvas', async () => {
-    const component = await visibleDescriptionComponent(page, technicalId);
+    const component = await visibleDescriptionComponent(page, descriptionTechnicalId);
     await expectDescriptionText(component, [introText, boldText, italicText], 'editor');
     await expectDescriptionRichMarkup(component, { boldText, italicText }, 'editor');
+    await expectDescriptionSpacing(component, introText, spacing, 'editor');
   });
 
-  await test.step('Open Preview and verify Description rich text and Source Palette rendering', async () => {
-    await openPreview(page, SEL.descriptionComponent);
-    const component = await visibleDescriptionComponent(page, technicalId);
-    await expectDescriptionText(component, [introText, boldText, italicText, TEST_USER], 'viewer');
-    await expectDescriptionRichMarkup(component, { boldText, italicText }, 'viewer');
+  await test.step('Create a Text input with a persistent rich-text question', async () => {
+    await openComponentsPalette(page, PALETTE_ICON.textInput);
+    await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
+    const textComponent = page.locator(`${SEL.textComponent}:visible`).first();
+    await expect(textComponent, 'Text input component should be visible').toBeVisible({ timeout: 30_000 });
+
+    await openComponentConfig(page, SEL.textComponent);
+    await setTechnicalId(page, textTechnicalId);
+    await openTextInputQuestionTab(page);
+    await typeVisibleRichTextValueThroughUi(page, questionText, 'Text input question');
+    await closeComponentConfig(page);
+    await expect(textComponent, 'Text input should render the rich question in the editor').toContainText(questionText, {
+      timeout: 30_000,
+    });
+
+    await openComponentConfig(page, SEL.textComponent);
+    await openTextInputQuestionTab(page);
+    await expect(await visibleTinyMceBody(page), 'Text input rich question should persist after reopening').toContainText(
+      questionText,
+      { timeout: 15_000 },
+    );
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Open Preview and verify Description and Text input rich-text rendering', async () => {
+    await openPreview(page, SEL.textComponent);
+    const description = await visibleDescriptionComponent(page, descriptionTechnicalId);
+    await expectDescriptionText(description, [introText, boldText, italicText, TEST_USER], 'viewer');
+    await expectDescriptionRichMarkup(description, { boldText, italicText }, 'viewer');
+    await expectDescriptionSpacing(description, introText, spacing, 'viewer');
+    await expect(
+      page.locator(`${SEL.textComponent}:visible`).first(),
+      'Preview Text input should render the persisted rich question',
+    ).toContainText(questionText, { timeout: 30_000 });
   });
 }
 
@@ -288,6 +331,55 @@ export async function exerciseCheckboxLocalOptionsThroughUi(page: Page): Promise
     await expect(page.locator(SEL.responseCompletedPage), 'Checkbox response completion page should render').toBeAttached({
       timeout: 60_000,
     });
+  });
+}
+
+export async function exerciseChoiceAddControlsStayVisibleThroughUi(page: Page): Promise<void> {
+  const scenarios = [
+    { name: 'Checkbox', icon: PALETTE_ICON.checkbox, selector: SEL.checkboxComponent, scroller: SEL.checkboxOptionsScroller },
+    { name: 'Radio', icon: PALETTE_ICON.radio, selector: SEL.radioComponent, scroller: SEL.radioOptionsScroller },
+    { name: 'Select', icon: PALETTE_ICON.select, selector: SEL.selectComponent, scroller: SEL.selectOptionsScroller },
+  ];
+
+  for (const scenario of scenarios) {
+    await test.step(`${scenario.name} keeps Add option fixed outside its overflowing list`, async () => {
+      await acceptRgpdIfVisible(page);
+      await openComponentsPalette(page, scenario.icon);
+      await addComponent(page, scenario.icon, { allowEditorApiFallback: false });
+      await openComponentConfig(page, scenario.selector);
+      await setChoiceLocalOptions(
+        page,
+        Array.from({ length: 20 }, (_, index) => `Functional ${scenario.name} overflow ${index + 1}`),
+      );
+      await expectAddControlOutsideScroller(page, scenario.scroller, SEL.checkboxOptionAddButton, SEL.choiceOptionInput);
+      await closeComponentConfig(page);
+    });
+  }
+}
+
+export async function exerciseChoiceGroupLineColumnAddControlsStayVisibleThroughUi(page: Page): Promise<void> {
+  await test.step('Create a Checkbox Group and overflow its Line and Column lists', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.checkboxGroup);
+    await addComponent(page, PALETTE_ICON.checkboxGroup, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.checkboxGroupComponent);
+    await openConfigTabById(page, 'tab_selector_conf_source');
+
+    await growChoiceGroupListAndAssertFixedAddControl(
+      page,
+      SEL.checkboxGroupLinesScroller,
+      SEL.checkboxGroupAddLineButton,
+      18,
+      'Line',
+    );
+    await growChoiceGroupListAndAssertFixedAddControl(
+      page,
+      SEL.checkboxGroupColumnsScroller,
+      SEL.checkboxGroupAddColumnButton,
+      18,
+      'Column',
+    );
+    await closeComponentConfig(page);
   });
 }
 
@@ -381,6 +473,67 @@ export async function exerciseCheckboxBaserowSourceConfigurationThroughUi(page: 
         timeout: 10_000,
       })
       .toEqual([CHECKBOX_SOURCE_VALUE]);
+    await closeSourceSelectionModal(tablePicker);
+    await closeComponentConfig(page);
+  });
+}
+
+export async function exerciseCheckboxGroupBaserowSingleAxisRolesThroughUi(page: Page): Promise<void> {
+  const expectedColumns = [CHECKBOX_SOURCE_LABEL, CHECKBOX_SOURCE_VALUE];
+  await ensureFunctionalCheckboxBaserowFixture(page);
+
+  await test.step('Create a Checkbox Group backed by a Baserow source', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.checkboxGroup);
+    await addComponent(page, PALETTE_ICON.checkboxGroup, { allowEditorApiFallback: false });
+    await expect(
+      page.locator(`${SEL.checkboxGroupComponent}:visible`).first(),
+      'Baserow Checkbox Group component should be visible',
+    ).toBeVisible({ timeout: 30_000 });
+
+    await openComponentConfig(page, SEL.checkboxGroupComponent);
+    await configureSelectBaserowSource(page, {
+      workspace: FUNCTIONAL_BASEROW_WORKSPACE,
+      database: FUNCTIONAL_BASEROW_BASE,
+      table: CHECKBOX_SOURCE_TABLE,
+      expectedColumns,
+      displayColumn: CHECKBOX_SOURCE_LABEL,
+      valueColumn: CHECKBOX_SOURCE_VALUE,
+    });
+  });
+
+  await test.step('Switch each Checkbox Group axis and require automatic exclusivity', async () => {
+    await openSelectBaserowSourceConfiguration(page);
+    const tablePicker = await openSelectBaserowTablePicker(page);
+    await expectSelectBaserowColumnsVisible(tablePicker, expectedColumns);
+    await expect.poll(() => settledSelectBaserowDisplayColumns(tablePicker, expectedColumns)).toEqual([CHECKBOX_SOURCE_LABEL]);
+    await expect.poll(() => settledSelectBaserowValueColumns(tablePicker, expectedColumns)).toEqual([CHECKBOX_SOURCE_VALUE]);
+
+    await clickSelectBaserowColumnRole(tablePicker, CHECKBOX_SOURCE_VALUE, 'display');
+    await expect
+      .poll(() => settledSelectBaserowDisplayColumns(tablePicker, expectedColumns), {
+        message: 'selecting a second Checkbox Group row axis should deselect the first',
+        timeout: 10_000,
+      })
+      .toEqual([CHECKBOX_SOURCE_VALUE]);
+    await expect.poll(() => settledSelectBaserowValueColumns(tablePicker, expectedColumns)).toEqual([CHECKBOX_SOURCE_VALUE]);
+
+    await clickSelectBaserowColumnRole(tablePicker, CHECKBOX_SOURCE_LABEL, 'value');
+    await expect
+      .poll(() => settledSelectBaserowValueColumns(tablePicker, expectedColumns), {
+        message: 'selecting a second Checkbox Group column axis should deselect the first',
+        timeout: 10_000,
+      })
+      .toEqual([CHECKBOX_SOURCE_LABEL]);
+    await expect.poll(() => settledSelectBaserowDisplayColumns(tablePicker, expectedColumns)).toEqual([CHECKBOX_SOURCE_VALUE]);
+    await saveSelectBaserowTablePicker(tablePicker);
+  });
+
+  await test.step('Reopen the picker and verify both singleton axes persist', async () => {
+    await openSelectBaserowSourceConfiguration(page);
+    const tablePicker = await openSelectBaserowTablePicker(page);
+    await expect.poll(() => settledSelectBaserowDisplayColumns(tablePicker, expectedColumns)).toEqual([CHECKBOX_SOURCE_VALUE]);
+    await expect.poll(() => settledSelectBaserowValueColumns(tablePicker, expectedColumns)).toEqual([CHECKBOX_SOURCE_LABEL]);
     await closeSourceSelectionModal(tablePicker);
     await closeComponentConfig(page);
   });
@@ -499,6 +652,11 @@ export async function exerciseRadioGroupCustomRowsOptionsThroughUi(page: Page): 
     }),
   });
 
+  await test.step('Verify Radio Group columns align with their rows in the editor', async () => {
+    const component = await visibleChoiceComponent(page, technicalId, SEL.radioGroupComponent);
+    await expectRadioGroupRowsAndColumnsAligned(component, options, 'editor');
+  });
+
   await verifyCustomChoiceGroupInViewer(page, {
     kind: 'radioGroup',
     selector: SEL.radioGroupComponent,
@@ -506,6 +664,7 @@ export async function exerciseRadioGroupCustomRowsOptionsThroughUi(page: Page): 
     lines,
     options,
     expected,
+    verifyRadioAlignment: true,
   });
 }
 
@@ -928,6 +1087,44 @@ export async function exerciseBusinessLogicFormulaSourceThroughUi(page: Page): P
         timeout: 30_000,
       })
       .toBe(formulaValue);
+  });
+}
+
+export async function exerciseBusinessLogicFormulaDropIntoJavascriptThroughUi(page: Page): Promise<void> {
+  const suffix = Date.now();
+  const formulaTechnicalId = `functional_formula_drop_${suffix}`;
+  const textTechnicalId = `functional_formula_drop_target_${suffix}`;
+
+  await test.step('Create a Business logic formula through Workflows', async () => {
+    await createTextBusinessLogicFormula(page, formulaTechnicalId, `Functional formula drop ${suffix}`);
+  });
+
+  await test.step('Drop the formula from Source Palette into a Text JavaScript default value', async () => {
+    await openComponentsPalette(page, PALETTE_ICON.text);
+    await addComponent(page, PALETTE_ICON.text, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.textComponent);
+    await setTechnicalId(page, textTechnicalId);
+    await openTextDefaultValueJavascriptModeThroughUi(page);
+
+    const payload = await dropSourcePaletteEntryIntoVisibleMonaco(
+      page,
+      'formulas',
+      formulaTechnicalId,
+      formulaTechnicalId,
+    );
+    expect(payload.internalData, 'formula drag should be identified as an internal Source Palette drag').toBe('true');
+    expect(payload.plainData, 'formula drag should expose JavaScript text to Monaco').toContain(formulaTechnicalId);
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Reopen the Text default value and verify the dropped formula persists', async () => {
+    await openComponentConfigByTechnicalId(page, textTechnicalId, SEL.textComponent);
+    await openTextDefaultValueJavascriptModeThroughUi(page);
+    await expect(
+      page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor`).last(),
+      'reopened JavaScript default value should retain the dropped formula',
+    ).toContainText(formulaTechnicalId, { timeout: 15_000 });
+    await closeComponentConfig(page);
   });
 }
 
@@ -1546,6 +1743,7 @@ async function verifyCustomChoiceGroupInViewer(
     lines: string[];
     options: string[];
     expected: ChoiceGroupExpected;
+    verifyRadioAlignment?: boolean;
   },
 ): Promise<void> {
   await test.step(`Open Preview and verify ${config.kind} custom rows and options`, async () => {
@@ -1566,6 +1764,10 @@ async function verifyCustomChoiceGroupInViewer(
       });
     }
 
+    if (config.verifyRadioAlignment) {
+      await expectRadioGroupRowsAndColumnsAligned(component, config.options, 'viewer');
+    }
+
     await expect
       .poll(() => customChoiceGroupViewerValue(component, config.kind, config.lines, config.options), {
         message: `${config.technicalId} should render the configured custom default values`,
@@ -1578,6 +1780,71 @@ async function verifyCustomChoiceGroupInViewer(
       timeout: 60_000,
     });
   });
+}
+
+async function expectRadioGroupRowsAndColumnsAligned(
+  component: Locator,
+  optionLabels: string[],
+  surface: 'editor' | 'viewer',
+): Promise<void> {
+  const metrics = await component.evaluate((root, labels) => {
+    const visible = (element: Element): boolean => {
+      const box = (element as HTMLElement).getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const normalize = (value: string | null | undefined) => (value ?? '').replace(/\s+/g, ' ').trim();
+    const tableCell = (element: Element | null): HTMLElement | null => {
+      let current = element as HTMLElement | null;
+      while (current && current !== root) {
+        if (getComputedStyle(current).display === 'table-cell') {
+          return current;
+        }
+        current = current.parentElement;
+      }
+      return null;
+    };
+    const box = (element: HTMLElement | null) => {
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { x: Math.round(rect.x * 10) / 10, width: Math.round(rect.width * 10) / 10 };
+    };
+
+    const elements = [...root.querySelectorAll('*')].filter(visible);
+    const headers = labels.map((label) => {
+      const text = elements.find((element) => normalize(element.textContent) === label) ?? null;
+      return box(tableCell(text));
+    });
+    const groups = [...root.querySelectorAll('ion-radio-group')].filter(visible);
+    return {
+      headers,
+      wrappers: groups.map((group) => {
+        const wrapper = group.querySelector('.radio-group-wrapper');
+        return wrapper ? getComputedStyle(wrapper).display : null;
+      }),
+      rows: groups.map((group) => [...group.querySelectorAll('ion-radio')].filter(visible).map((radio) => box(tableCell(radio)))),
+    };
+  }, optionLabels);
+
+  expect(metrics.headers, `${surface}: every Radio Group option should have a table-cell header`).not.toContain(null);
+  expect(metrics.rows.length, `${surface}: Radio Group should render more than one row`).toBeGreaterThan(1);
+  expect(metrics.wrappers, `${surface}: Ionic Radio Group wrappers should preserve the table layout`).not.toContain(null);
+  expect(metrics.wrappers, `${surface}: Ionic Radio Group wrappers should not introduce an extra layout box`).toEqual(
+    metrics.wrappers.map(() => 'contents'),
+  );
+
+  for (const [rowIndex, row] of metrics.rows.entries()) {
+    expect(row, `${surface}: Radio Group row ${rowIndex + 1} should expose one cell per option`).toHaveLength(optionLabels.length);
+    expect(row, `${surface}: Radio Group row ${rowIndex + 1} cells should be measurable`).not.toContain(null);
+    for (const [columnIndex, cell] of row.entries()) {
+      const header = metrics.headers[columnIndex];
+      expect(Math.abs(cell!.x - header!.x), `${surface}: Radio Group column ${columnIndex + 1} x alignment`).toBeLessThanOrEqual(2);
+      expect(
+        Math.abs(cell!.width - header!.width),
+        `${surface}: Radio Group column ${columnIndex + 1} width alignment`,
+      ).toBeLessThanOrEqual(2);
+    }
+  }
 }
 
 async function customChoiceGroupViewerValue(
@@ -1632,6 +1899,76 @@ async function expectChoiceOptionInputValues(page: Page, expectedValues: string[
       timeout: 10_000,
     });
   }
+}
+
+async function growChoiceGroupListAndAssertFixedAddControl(
+  page: Page,
+  scrollerSelector: string,
+  addButtonSelector: string,
+  targetCount: number,
+  label: string,
+): Promise<void> {
+  const scroller = page.locator(`${scrollerSelector}:visible`).first();
+  const addButton = page.locator(`${addButtonSelector}:visible`).first();
+  await expect(scroller, `${label} list should be visible`).toBeVisible({ timeout: 15_000 });
+  await expect(addButton, `Add ${label} should be visible`).toBeVisible({ timeout: 15_000 });
+  const inputs = scroller.locator('input:visible');
+
+  while ((await inputs.count()) < targetCount) {
+    const before = await inputs.count();
+    await addButton.click({ timeout: 10_000 }).catch(async () => addButton.dispatchEvent('click'));
+    await expect
+      .poll(() => inputs.count(), {
+        message: `Add ${label} should append an editable entry`,
+        timeout: 10_000,
+      })
+      .toBeGreaterThan(before);
+  }
+
+  await expectAddControlOutsideScroller(page, scrollerSelector, addButtonSelector, 'input:visible');
+}
+
+async function expectAddControlOutsideScroller(
+  page: Page,
+  scrollerSelector: string,
+  addButtonSelector: string,
+  itemSelector: string,
+): Promise<void> {
+  const scroller = page.locator(`${scrollerSelector}:visible`).first();
+  const addButton = page.locator(`${addButtonSelector}:visible`).first();
+  await expect(scroller, 'choice list scroller should be visible').toBeVisible({ timeout: 15_000 });
+  await expect(addButton, 'choice Add control should remain visible').toBeVisible({ timeout: 15_000 });
+
+  const metrics = await scroller.evaluate((element) => ({
+    clientHeight: (element as HTMLElement).clientHeight,
+    scrollHeight: (element as HTMLElement).scrollHeight,
+  }));
+  expect(metrics.scrollHeight, 'choice list should genuinely overflow before checking the fixed Add control').toBeGreaterThan(
+    metrics.clientHeight,
+  );
+
+  const beforeBox = await addButton.boundingBox();
+  expect(beforeBox, 'choice Add control should have a bounding box before list scrolling').not.toBeNull();
+  await scroller.evaluate((element) => {
+    (element as HTMLElement).scrollTop = (element as HTMLElement).scrollHeight;
+  });
+  await expect.poll(() => scroller.evaluate((element) => (element as HTMLElement).scrollTop)).toBeGreaterThan(0);
+  await expect(addButton, 'choice Add control should remain visible after list scrolling').toBeVisible({ timeout: 10_000 });
+  const afterBox = await addButton.boundingBox();
+  expect(afterBox, 'choice Add control should keep a bounding box after list scrolling').not.toBeNull();
+  expect(Math.abs(afterBox!.y - beforeBox!.y), 'choice Add control should stay vertically fixed while its list scrolls').toBeLessThanOrEqual(
+    2,
+  );
+
+  const items = scroller.locator(itemSelector);
+  const beforeCount = await items.count();
+  await addButton.click({ timeout: 10_000 }).catch(async () => addButton.dispatchEvent('click'));
+  await expect
+    .poll(() => items.count(), {
+      message: 'fixed choice Add control should remain usable after list scrolling',
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(beforeCount);
 }
 
 async function visibleChoiceComponent(page: Page, technicalId: string, componentSelector: string): Promise<Locator> {
@@ -2254,6 +2591,27 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+async function typeVisibleRichTextValueThroughUi(page: Page, text: string, context: string): Promise<void> {
+  const editor = page.locator('.tox-hugerte:visible, .tox-tinymce:visible').last();
+  await expect(editor, `${context} should use a rich-text editor instead of a plain field`).toBeVisible({ timeout: 15_000 });
+
+  const toolbar = editor.locator('.tox-toolbar-overlord:visible, .tox-toolbar:visible').first();
+  await expect(toolbar, `${context} rich-text toolbar should be visible`).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(() => toolbar.locator('button:visible').count(), {
+      message: `${context} rich-text toolbar should expose formatting controls`,
+      timeout: 10_000,
+    })
+    .toBeGreaterThanOrEqual(3);
+
+  const body = await visibleTinyMceBody(page);
+  await body.click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.insertText(text);
+  await page.keyboard.press('Tab');
+  await expect(body, `${context} rich-text editor should keep the entered value`).toContainText(text, { timeout: 10_000 });
+}
+
 async function setDescriptionRichText(
   page: Page,
   content: { introText: string; boldText: string; italicText: string },
@@ -2307,6 +2665,15 @@ async function visibleTinyMceBody(page: Page): Promise<Locator> {
   const eventualInlineEditor = page.locator('[contenteditable="true"].mce-content-body, .tox-edit-area [contenteditable="true"]').last();
   await expect(eventualInlineEditor, 'Description HugeRTE editor should be visible').toBeVisible({ timeout: 10_000 });
   return eventualInlineEditor;
+}
+
+async function expectDescriptionRichTextEditorHidden(page: Page): Promise<void> {
+  await expect(
+    page.locator(
+      '[contenteditable="true"].mce-content-body:visible, .tox-edit-area [contenteditable="true"]:visible, iframe.tox-edit-area__iframe:visible, iframe[title="Rich Text Area"]:visible',
+    ),
+    'Description rich-text editor should be limited to the Question configuration tab',
+  ).toHaveCount(0, { timeout: 10_000 });
 }
 
 async function fireActiveTinyMceChange(page: Page, editorBody?: Locator): Promise<void> {
@@ -2399,6 +2766,34 @@ async function expectDescriptionRichMarkup(
       },
     )
     .toBe(true);
+}
+
+async function expectDescriptionSpacing(
+  component: Locator,
+  paragraphText: string,
+  expected: { marginBottom: string; padding: string },
+  surface: 'editor' | 'viewer',
+): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        component.evaluate((root, text) => {
+          const paragraph = [...root.querySelectorAll<HTMLElement>('p')].find((element) =>
+            (element.textContent ?? '').includes(text),
+          );
+          return paragraph
+            ? {
+                marginBottom: paragraph.style.marginBottom,
+                padding: paragraph.style.padding,
+              }
+            : null;
+        }, paragraphText),
+      {
+        message: `${surface}: Description should preserve configured margin and padding`,
+        timeout: 20_000,
+      },
+    )
+    .toEqual(expected);
 }
 
 async function openTextInputQuestionTab(page: Page): Promise<void> {

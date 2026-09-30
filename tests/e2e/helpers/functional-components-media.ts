@@ -447,6 +447,7 @@ export async function exerciseLocationAcceptedPermissionValueAndSubmitThroughUi(
 
       const button = locationActionButton(component);
       await expect(button, 'Location component should expose a get-position action button').toBeVisible({ timeout: 15_000 });
+      await expectLocationActionStyle(button);
       await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
 
       await expect(component, 'Location component should render the mocked latitude after permission is accepted').toContainText(
@@ -988,6 +989,38 @@ async function visibleLocationComponent(page: Page, technicalId: string): Promis
 
 function locationActionButton(component: Locator): Locator {
   return component.locator('ion-button:visible:has(ion-icon[name="location-outline"]), ion-button:visible').first();
+}
+
+async function expectLocationActionStyle(button: Locator): Promise<void> {
+  const icon = button.locator('ion-icon[name="location-outline"]').first();
+  await expect(icon, 'Location action should expose the location-outline icon').toBeVisible({ timeout: 15_000 });
+  const iconBox = await icon.boundingBox();
+  expect(iconBox, 'Location action icon should have a measurable bounding box').not.toBeNull();
+  expect(iconBox?.width ?? 0, 'Location action icon should have a measurable width').toBeGreaterThan(0);
+  expect(iconBox?.height ?? 0, 'Location action icon should have a measurable height').toBeGreaterThan(0);
+
+  const actionStyle = await button.evaluate((host) => {
+    const native = host.shadowRoot?.querySelector<HTMLElement>('[part="native"], .button-native');
+    if (!native) {
+      throw new Error('Location ion-button has no native shadow part');
+    }
+    const nativeStyle = window.getComputedStyle(native);
+    const hostStyle = window.getComputedStyle(host);
+    return {
+      backgroundColor: nativeStyle.backgroundColor,
+      boxShadow: nativeStyle.boxShadow,
+      backgroundVariable: hostStyle.getPropertyValue('--background').trim(),
+      boxShadowVariable: hostStyle.getPropertyValue('--box-shadow').trim(),
+    };
+  });
+
+  expect(
+    actionStyle.backgroundColor.replace(/\s+/g, ''),
+    'Location action native part should have a transparent background',
+  ).toMatch(/^(?:transparent|rgba\(0,0,0,0\))$/);
+  expect(actionStyle.boxShadow, 'Location action native part should not render a box shadow').toBe('none');
+  expect(actionStyle.backgroundVariable, 'Location action should explicitly override the Ionic background').toContain('transparent');
+  expect(actionStyle.boxShadowVariable, 'Location action should explicitly disable the Ionic box shadow').toBe('none');
 }
 
 async function simulateRefusedGeolocationPermission(page: Page): Promise<void> {
