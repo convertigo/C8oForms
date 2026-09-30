@@ -221,6 +221,8 @@ export const SEL = {
   selectorApplyFiltersButton: 'ion-button.class1750693491899',
   selectorCardTitle: '.class1603968061706',
   selectorListTitle: '.class1780484375240',
+  selectorGridViewButton: 'ion-button.class1761574287897',
+  selectorListViewButton: 'ion-button.class1761576075026',
   cardMenuButton: 'ion-button.class1606574763560',
   selectorCollaboratorsMenuItem:
     'ion-item.class1594313281739, ion-item:has(ion-icon.class1603730321735)',
@@ -1666,6 +1668,56 @@ export async function returnToSelectorFromEditor(page: Page): Promise<void> {
     await page.locator(SEL.selectorPageRoot).first().waitFor({ state: 'visible', timeout: 30_000 });
     await waitForIonicLoading(page, 15_000);
   });
+}
+
+export async function switchSelectorApplicationsView(page: Page, view: 'grid' | 'list'): Promise<void> {
+  await test.step(`Switch applications to ${view} view`, async () => {
+    const button = page.locator(view === 'grid' ? SEL.selectorGridViewButton : SEL.selectorListViewButton).first();
+    await expect(button, `${view} view button should be visible`).toBeVisible({ timeout: 10_000 });
+    await button.click({ timeout: 10_000 });
+    await expect(page.locator(view === 'grid' ? SEL.selectorCardTitle : SEL.selectorListTitle).first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+}
+
+export async function selectorApplicationTitleClipping(
+  title: Locator,
+  view: 'grid' | 'list',
+): Promise<{
+  overflow: string;
+  textOverflow: string;
+  whiteSpace: string;
+  scrollWidth: number;
+  clientWidth: number;
+  firstGlyphLeft: number;
+  firstGlyphRight: number;
+  containerLeft: number;
+  containerRight: number;
+}> {
+  return title.evaluate((element, mode) => {
+    const container = mode === 'grid' ? element : element.parentElement;
+    if (!container) throw new Error('Application title has no clipping container');
+    const firstText = document.createTreeWalker(element, NodeFilter.SHOW_TEXT).nextNode();
+    if (!firstText?.textContent) throw new Error('Application title has no text node');
+    const range = document.createRange();
+    range.setStart(firstText, 0);
+    range.setEnd(firstText, Math.min(5, firstText.textContent.length));
+    const glyph = range.getBoundingClientRect();
+    const bounds = container.getBoundingClientRect();
+    const style = getComputedStyle(container);
+    return {
+      overflow: style.overflow,
+      textOverflow: style.textOverflow,
+      whiteSpace: style.whiteSpace,
+      scrollWidth: container.scrollWidth,
+      clientWidth: container.clientWidth,
+      firstGlyphLeft: glyph.left,
+      firstGlyphRight: glyph.right,
+      containerLeft: bounds.left,
+      containerRight: bounds.right,
+    };
+  }, view);
 }
 
 export async function openEditorCollaboratorsModal(page: Page): Promise<Locator> {
@@ -4403,6 +4455,14 @@ export async function closeComponentConfig(page: Page): Promise<void> {
     .toBe(0);
 }
 
+export async function duplicateOpenComponentHere(page: Page): Promise<void> {
+  await test.step('Duplicate the open component on the current page', async () => {
+    const copyButton = page.locator('button.c8o-btn-copy:visible').first();
+    await expect(copyButton, 'component configuration should expose Copy here').toBeVisible({ timeout: 10_000 });
+    await copyButton.click({ timeout: 10_000 }).catch(async () => copyButton.dispatchEvent('click'));
+  });
+}
+
 export async function deleteOpenComponent(page: Page): Promise<void> {
   await test.step('Delete the currently opened component through the configuration panel', async () => {
     const del = page.locator(`${SEL.componentDeleteButton}:visible`).first();
@@ -5782,7 +5842,7 @@ async function replaceVisibleMonacoReturn(page: Page, returnExpression: string, 
   await page.waitForTimeout(1_000);
 }
 
-async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
+export async function openButtonWorkflow(page: Page, flowName?: string | RegExp): Promise<void> {
   await openWorkflowsPanel(page);
   let flow = await defaultButtonWorkflowLocator(page);
   if (flowName) {
