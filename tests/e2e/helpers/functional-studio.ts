@@ -39,6 +39,10 @@ const FUNCTIONAL_SEL = {
   selectorImportButton: 'ion-button.class1761574287978',
   selectorImportModal: 'ion-modal.show-modal page-dropfilepage',
   selectorImportModalCloseButton: 'ion-button.close-button',
+  selectorImportModalConfirmButton: 'ion-button.class1658764714718',
+  selectorTemplateCard: '.class1645547241674',
+  selectorTemplateList: '.class1645547166673',
+  selectorTemplateMoreButton: 'ion-button.class1761563584596',
   selectorAdvancedSearchButton: 'ion-button.class1783947965453',
   selectorAdvancedSearchPanel: '.class1645545984242',
   selectorCommittedSearchBadge: 'ion-badge.class1645887518298',
@@ -160,10 +164,15 @@ export async function expectForgottenPasswordModalOpensAndCloses(page: Page): Pr
       modal.locator('ion-input.class1757510564581 input, ion-input.class1582285458300 input').first(),
       'forgotten password email input should be visible',
     ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      modal.locator('ion-button.send-button, ion-button.class1757510317776, ion-button.class1582285458387').first(),
-      'forgotten password send action should be visible',
-    ).toBeVisible({ timeout: 15_000 });
+    const send = modal
+      .locator('ion-button.send-button, ion-button.class1757510317776, ion-button.class1582285458387')
+      .first();
+    await expect(send, 'forgotten password send action should be visible').toBeVisible({ timeout: 15_000 });
+    await expectButtonUsesSolidThemeColor(
+      send,
+      '--ion-color-convertigo',
+      'forgotten password send action',
+    );
 
     const close = modal.locator('ion-button.close-button, ion-button.class1757510386777').first();
     await expect(close, 'forgotten password modal close action should be visible').toBeVisible({ timeout: 15_000 });
@@ -200,32 +209,33 @@ export async function expectLoginSymbolsThroughUi(page: Page): Promise<void> {
 
   const browser = page.context().browser();
   expect(browser, 'the identity symbol check requires a Playwright browser context').not.toBeNull();
-  const appBaseUrl = new URL('.', page.url()).href;
+  const appBaseUrl = page.url().match(/^(.*\/DisplayObjects\/mobile\/)/)?.[1] ?? '';
+  expect(appBaseUrl, 'the identity symbol check should resolve the C8OForms mobile root URL').not.toBe('');
   const viewport = page.viewportSize() ?? { width: 1440, height: 900 };
   const checks: LoginTextSymbolCheck[] = [
     {
       symbol: 'C8Oforms.IdentifierValue',
       value: `QA identifier ${token}`,
-      selector: 'page-loginpage ion-label:visible',
+      selector: 'ion-label.class1757506269316:visible',
       description: 'identifier label',
       revealLoginForm: true,
     },
     {
       symbol: 'C8Oforms.customHeaderDescription',
       value: `QA header description ${token}`,
-      selector: 'page-loginpage .hero-subtitle:visible',
+      selector: '.hero-subtitle:visible',
       description: 'header description',
     },
     {
       symbol: 'C8Oforms.customContentTitle',
       value: `QA content title ${token}`,
-      selector: 'page-loginpage .login-form-header h1.main-title:visible',
+      selector: '.login-form-header h1.main-title:visible',
       description: 'login-card title',
     },
     {
       symbol: 'C8Oforms.customContentDescription',
       value: `QA content description ${token}`,
-      selector: 'page-loginpage .login-form-header .description:visible',
+      selector: '.login-form-header .description:visible',
       description: 'login-card description',
     },
   ];
@@ -719,7 +729,12 @@ export async function createBlankApplicationThroughUi(page: Page, title = `Funct
 export async function createApplicationFromFirstTemplateThroughUi(page: Page): Promise<string> {
   return test.step('Create an application from the first available template', async () => {
     await expectNoCodeDashboardReady(page);
-    const templateCard = await firstVisibleFromLocator(page, page.locator('.class1645547241674'), 'template application card');
+    await expectTemplateCardsRemainContainedThroughUi(page);
+    const templateCard = await firstVisibleFromLocator(
+      page,
+      page.locator(FUNCTIONAL_SEL.selectorTemplateCard),
+      'template application card',
+    );
     await templateCard.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
     await templateCard.click({ timeout: 10_000 }).catch(async () => templateCard.dispatchEvent('click'));
 
@@ -1040,6 +1055,7 @@ export async function verifyDashboardStateSurvivesImportModalAndViewSwitchThroug
 
     const modal = page.locator(FUNCTIONAL_SEL.selectorImportModal).last();
     await expect(modal, 'application import modal should open over the selector').toBeVisible({ timeout: 15_000 });
+    await expectSolidPrimaryImportAction(modal);
     await expectStatePreserved('opening the import modal');
 
     const close = modal.locator(FUNCTIONAL_SEL.selectorImportModalCloseButton).filter({ visible: true }).first();
@@ -1066,6 +1082,115 @@ export async function verifyDashboardStateSurvivesImportModalAndViewSwitchThroug
     await expectStatePreserved('switching back to grid view');
     await expectSelectorApplicationVisible(page, title);
   });
+}
+
+async function expectTemplateCardsRemainContainedThroughUi(page: Page): Promise<void> {
+  const originalViewport = page.viewportSize();
+
+  try {
+    for (const viewport of [
+      { name: 'desktop', width: 1440, height: 900 },
+      { name: 'narrow desktop', width: 1024, height: 900 },
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const cards = page.locator(`${FUNCTIONAL_SEL.selectorTemplateCard}:visible`);
+      await expect(cards.first(), `${viewport.name} selector should expose a template card`).toBeVisible({ timeout: 30_000 });
+      const cardCount = await cards.count();
+      expect(cardCount, `${viewport.name} selector should expose at least one template`).toBeGreaterThan(0);
+
+      const layout = await page.evaluate(
+        ({ cardSelector, listSelector, moreSelector }) => {
+          const visible = (element: Element): element is HTMLElement => {
+            const rect = (element as HTMLElement).getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+          };
+          const cardElements = [...document.querySelectorAll(cardSelector)].filter(visible);
+          const list = document.querySelector(listSelector) as HTMLElement | null;
+          const more = [...document.querySelectorAll(moreSelector)].find(visible);
+          if (cardElements.length === 0 || !list || !more) return null;
+
+          const listRect = list.getBoundingClientRect();
+          const cardRects = cardElements.map((element) => element.getBoundingClientRect());
+          const edgeCards = [cardRects[0], cardRects[cardRects.length - 1]];
+          const moreRect = more.getBoundingClientRect();
+          const tolerance = 1;
+          return {
+            edgeCardsContained: edgeCards.every(
+              (rect) =>
+                rect.left >= listRect.left - tolerance &&
+                rect.right <= listRect.right + tolerance &&
+                rect.top >= listRect.top - tolerance &&
+                rect.bottom <= listRect.bottom + tolerance,
+            ),
+            edgeCardsInsideViewport: edgeCards.every(
+              (rect) =>
+                rect.left >= -tolerance &&
+                rect.right <= window.innerWidth + tolerance &&
+                rect.top >= -tolerance &&
+                rect.bottom <= window.innerHeight + tolerance,
+            ),
+            maxCardBottom: Math.max(...cardRects.map((rect) => rect.bottom)),
+            moreTop: moreRect.top,
+            listBottom: listRect.bottom,
+            firstPointerEvents: getComputedStyle(cardElements[0]).pointerEvents,
+          };
+        },
+        {
+          cardSelector: FUNCTIONAL_SEL.selectorTemplateCard,
+          listSelector: FUNCTIONAL_SEL.selectorTemplateList,
+          moreSelector: FUNCTIONAL_SEL.selectorTemplateMoreButton,
+        },
+      );
+
+      expect(layout, `${viewport.name} template cards and See more control should share the selector layout`).not.toBeNull();
+      expect(layout!.edgeCardsContained, `${viewport.name} first and last template cards should fit their list`).toBe(true);
+      expect(layout!.edgeCardsInsideViewport, `${viewport.name} first and last template cards should not be clipped`).toBe(true);
+      expect(layout!.listBottom, `${viewport.name} template list should extend below every card`).toBeGreaterThanOrEqual(
+        layout!.maxCardBottom - 1,
+      );
+      expect(layout!.moreTop, `${viewport.name} See more control should start after the template cards`).toBeGreaterThanOrEqual(
+        layout!.maxCardBottom - 1,
+      );
+      expect(layout!.firstPointerEvents, `${viewport.name} first template card should remain actionable`).not.toBe('none');
+    }
+  } finally {
+    if (originalViewport) await page.setViewportSize(originalViewport);
+  }
+}
+
+async function expectSolidPrimaryImportAction(modal: Locator): Promise<void> {
+  const button = modal.locator(FUNCTIONAL_SEL.selectorImportModalConfirmButton).filter({ visible: true }).first();
+  await expect(button, 'application import modal should expose its Import action').toBeVisible({ timeout: 15_000 });
+
+  await expectButtonUsesSolidThemeColor(button, '--ion-color-primary', 'application Import action');
+}
+
+async function expectButtonUsesSolidThemeColor(
+  button: Locator,
+  colorVariable: `--${string}`,
+  description: string,
+): Promise<void> {
+  const colors = await button.evaluate((host, variable) => {
+    const native = host.shadowRoot?.querySelector<HTMLElement>('[part="native"]') ?? (host as HTMLElement);
+    const hostStyle = getComputedStyle(host);
+    const nativeStyle = getComputedStyle(native);
+    const themeValue = hostStyle.getPropertyValue(variable).trim();
+    const probe = document.createElement('span');
+    probe.style.backgroundColor = themeValue;
+    document.body.appendChild(probe);
+    const themeColor = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return {
+      backgroundImage: nativeStyle.backgroundImage,
+      backgroundColor: nativeStyle.backgroundColor,
+      themeColor,
+    };
+  }, colorVariable);
+
+  expect(colors.backgroundImage, `${description} should not retain a gradient`).toBe('none');
+  expect(colors.themeColor, `${description} should resolve ${colorVariable}`).not.toBe('rgba(0, 0, 0, 0)');
+  expect(colors.backgroundColor, `${description} should use the resolved ${colorVariable}`).toBe(colors.themeColor);
 }
 
 export async function assertSelectorFiltersThroughUi(

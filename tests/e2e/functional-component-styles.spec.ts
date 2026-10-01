@@ -18,17 +18,16 @@ test.describe("No-Code Studio functional component style contract", () => {
    * Button target the container and removed that special mapping; QA
    * historically validated the final behavior in beta253.
    *
-   * PARTIAL epic scope: this owner protects the application -> Button
-   * inheritance, component override, reset, and finalized Button border
-   * default/removal contract. Page, layout/group-child, per-side border, and
-   * style-provenance indicator contracts remain outside this scenario.
+   * This owner protects application -> page -> Button inheritance, component
+   * override/reset, independent border sides, localized application/page
+   * inheritance indicators, and layout/group-child override/reset defaults.
    * Runtime validation of this functional owner on current test-nocode is
    * pending; the fixture is authored exclusively through the Studio UI.
    */
   test("CMP-STYLE-001 #1411 - inherit override and reset a Button container border", async ({
     page,
   }) => {
-    test.setTimeout(300_000);
+    test.setTimeout(480_000);
     await loginWithUsernamePassword(page);
     const applicationId = await createBlankApplicationThroughUi(page);
     await verifyApplicationToButtonBorderInheritanceThroughUi(

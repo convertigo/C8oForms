@@ -3,11 +3,16 @@ import {
   PALETTE_ICON,
   SEL,
   addComponent,
+  addHorizontalLayout,
+  dragPaletteComponentInto,
   openApplicationSettingsFromSidebar,
   openComponentConfig,
+  openComponentConfigAt,
   openEditor,
+  openPageSettingsForPage,
   openPreview,
 } from "./studio";
+import { addPaletteComponentIntoGroup } from "./functional-components-common";
 
 const COMPONENT_STYLE_SEL = {
   editor: ".c8o-style-manager-shell:visible",
@@ -16,6 +21,8 @@ const COMPONENT_STYLE_SEL = {
   borderWidthInput: ".c8o-border-controls .c8o-border-unit-field input:visible",
   settingRow: ".c8o-box-setting-row",
   resetButton: ".c8o-mini-button:visible",
+  inheritanceNote: ".c8o-box-inheritance-note:visible",
+  borderSidePicker: ".c8o-border-side-picker",
   applicationCategoryButton: "button.app-settings-btn:visible",
 } as const;
 
@@ -29,6 +36,8 @@ export async function verifyApplicationToButtonBorderInheritanceThroughUi(
   page: Page,
   applicationId: string,
 ): Promise<void> {
+  let applicationInheritanceNote = "";
+
   await test.step("Add a Button and assert its finalized 1px border default", async () => {
     await addComponent(page, PALETTE_ICON.button, {
       allowEditorApiFallback: false,
@@ -42,10 +51,24 @@ export async function verifyApplicationToButtonBorderInheritanceThroughUi(
   await test.step("Set a 4px application border and observe Button inheritance in Preview", async () => {
     await closeComponentConfiguration(page);
     const editor = await openApplicationBoxStyleEditor(page);
+    applicationInheritanceNote = await expectInheritanceNote(editor, "application");
     await setBorderWidthThroughVisualEditor(editor, "4");
 
     await openPreview(page, SEL.buttonComponent);
     await expectButtonViewerBorderWidths(page, "4px");
+  });
+
+  await test.step("Override the application border at page scope and expose its inheritance indicator", async () => {
+    await reopenEditorWithButton(page, applicationId);
+    const editor = await openPageBoxStyleEditor(page);
+    const pageInheritanceNote = await expectInheritanceNote(editor, "page");
+    expect(pageInheritanceNote, "page and application inheritance indicators should identify distinct scopes").not.toBe(
+      applicationInheritanceNote,
+    );
+    await setBorderWidthThroughVisualEditor(editor, "3");
+
+    await openPreview(page, SEL.buttonComponent);
+    await expectButtonViewerBorderWidths(page, "3px");
   });
 
   await test.step("Override the Button border to 0 and remove all four visible sides", async () => {
@@ -58,10 +81,36 @@ export async function verifyApplicationToButtonBorderInheritanceThroughUi(
     await expectButtonViewerBorderWidths(page, "0px");
   });
 
-  await test.step("Reset the Button border and inherit the 4px application border again", async () => {
+  await test.step("Configure every Button border side independently", async () => {
     await reopenEditorWithButton(page, applicationId);
     await openComponentConfig(page, SEL.buttonComponent);
     const editor = await openButtonBoxStyleEditor(page);
+    await setIndividualBorderWidthsThroughVisualEditor(editor, {
+      top: "2",
+      right: "4",
+      bottom: "6",
+      left: "8",
+    });
+
+    await openPreview(page, SEL.buttonComponent);
+    await expectButtonViewerBorderWidths(page, ["2px", "4px", "6px", "8px"]);
+  });
+
+  await test.step("Reset the Button border and inherit the 3px page border again", async () => {
+    await reopenEditorWithButton(page, applicationId);
+    await openComponentConfig(page, SEL.buttonComponent);
+    const editor = await openButtonBoxStyleEditor(page);
+    await resetBorderThroughVisualEditor(editor);
+    await expectBorderWidthInput(editor, "1");
+
+    await openPreview(page, SEL.buttonComponent);
+    await expectButtonViewerBorderWidths(page, "3px");
+  });
+
+  await test.step("Reset the page border and inherit the 4px application border again", async () => {
+    await reopenEditorWithButton(page, applicationId);
+    const editor = await openPageBoxStyleEditor(page);
+    await expectInheritanceNote(editor, "page");
     await resetBorderThroughVisualEditor(editor);
     await expectBorderWidthInput(editor, "1");
 
@@ -78,6 +127,61 @@ export async function verifyApplicationToButtonBorderInheritanceThroughUi(
     await openPreview(page, SEL.buttonComponent);
     await expectButtonViewerBorderWidths(page, "1px");
   });
+
+  await test.step("Override and reset a Layout child border against its parent-context default", async () => {
+    await reopenEditorWithButton(page, applicationId);
+    await addHorizontalLayout(page);
+    await dragPaletteComponentInto(page, PALETTE_ICON.button, SEL.layoutViewer);
+    await expect(page.locator(`${SEL.layoutViewer} ${SEL.buttonComponent}:visible`), "Layout should contain its Button child").toHaveCount(
+      1,
+      { timeout: 30_000 },
+    );
+    await openComponentConfigAt(page, SEL.buttonComponent, 1);
+    let editor = await openButtonBoxStyleEditor(page);
+    await expectChildStyleHint(editor, "Layout");
+    await expectBorderWidthInput(editor, "1");
+    await setBorderWidthThroughVisualEditor(editor, "5");
+
+    await openPreview(page, SEL.buttonComponent);
+    await expectButtonViewerBorderWidthsAt(page, 1, "5px");
+
+    await reopenEditorWithButton(page, applicationId);
+    await openComponentConfigAt(page, SEL.buttonComponent, 1);
+    editor = await openButtonBoxStyleEditor(page);
+    await resetBorderThroughVisualEditor(editor);
+    await openPreview(page, SEL.buttonComponent);
+    await expectButtonViewerBorderWidthsAt(page, 1, "1px");
+  });
+
+  await test.step("Override and reset a Group child border against its parent-context default", async () => {
+    await reopenEditorWithButton(page, applicationId);
+    await addComponent(page, PALETTE_ICON.group, { allowEditorApiFallback: false });
+    await addPaletteComponentIntoGroup(page, PALETTE_ICON.button, 1);
+    await expect(
+      page.locator(`c8oforms-itemcardeditorviewer:visible ${SEL.buttonComponent}:visible`),
+      "Group should contain its Button child",
+    ).toHaveCount(1, { timeout: 30_000 });
+    await openComponentConfigAt(page, SEL.buttonComponent, 2);
+    let editor = await openButtonBoxStyleEditor(page);
+    await expectChildStyleHint(editor, "Group");
+    await expectBorderWidthInput(editor, "0");
+    await setBorderWidthThroughVisualEditor(editor, "7");
+
+    await openPreview(page, SEL.buttonComponent);
+    await expectButtonViewerBorderWidthsAt(page, 2, "7px");
+
+    await reopenEditorWithButton(page, applicationId);
+    await openComponentConfigAt(page, SEL.buttonComponent, 2);
+    editor = await openButtonBoxStyleEditor(page);
+    await resetBorderThroughVisualEditor(editor);
+    await openPreview(page, SEL.buttonComponent);
+    await expectButtonViewerBorderWidthsAt(page, 2, "0px");
+  });
+}
+
+async function openPageBoxStyleEditor(page: Page): Promise<Locator> {
+  await openPageSettingsForPage(page, "Page 1");
+  return visibleBoxStyleEditor(page, "page Box style editor");
 }
 
 async function openButtonBoxStyleEditor(page: Page): Promise<Locator> {
@@ -171,6 +275,53 @@ async function setBorderWidthThroughVisualEditor(
   await editor.page().waitForTimeout(1_200);
 }
 
+async function setIndividualBorderWidthsThroughVisualEditor(
+  editor: Locator,
+  widths: { top: string; right: string; bottom: string; left: string },
+): Promise<void> {
+  const selectors = {
+    top: ".c8o-side-top",
+    right: ".c8o-side-right",
+    bottom: ".c8o-side-bottom",
+    left: ".c8o-side-left",
+  } as const;
+  for (const side of ["top", "right", "bottom", "left"] as const) {
+    const button = editor
+      .locator(`${COMPONENT_STYLE_SEL.borderSidePicker} .c8o-side-button${selectors[side]}:visible`)
+      .first();
+    await expect(button, `${side} border selector should be visible`).toBeVisible({ timeout: 10_000 });
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent("click"));
+    await expect(button, `${side} border selector should become active`).toHaveClass(/is-active/, { timeout: 10_000 });
+    await setBorderWidthThroughVisualEditor(editor, widths[side]);
+    await expect(button, `${side} border should record its independent override`).toHaveClass(/has-override/, {
+      timeout: 10_000,
+    });
+  }
+}
+
+async function expectInheritanceNote(editor: Locator, scope: "application" | "page"): Promise<string> {
+  const note = editor.locator(COMPONENT_STYLE_SEL.inheritanceNote).first();
+  await expect(note, `${scope} Box style editor should expose its inheritance indicator`).toBeVisible({
+    timeout: 10_000,
+  });
+  const text = (await note.innerText()).replace(/\s+/g, " ").trim();
+  expect(text, `${scope} inheritance indicator should contain a localized explanation`).not.toBe("");
+  return text;
+}
+
+async function expectChildStyleHint(editor: Locator, parent: "Layout" | "Group"): Promise<void> {
+  const hint = editor.locator(".c8o-box-child-warning:visible").first();
+  await expect(hint, `${parent} child Box editor should expose its parent-context style hint`).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect
+    .poll(() => hint.innerText().then((text) => text.replace(/\s+/g, " ").trim()), {
+      message: `${parent} child style hint should contain a localized explanation`,
+      timeout: 10_000,
+    })
+    .not.toBe("");
+}
+
 async function resetBorderThroughVisualEditor(editor: Locator): Promise<void> {
   const borderEditor = editor.locator(COMPONENT_STYLE_SEL.borderEditor).first();
   const row = borderEditor.locator(
@@ -200,18 +351,32 @@ async function expectBorderWidthInput(
 
 async function expectButtonViewerBorderWidths(
   page: Page,
-  expected: string,
+  expected: string | [string, string, string, string],
 ): Promise<void> {
+  const expectedSides = typeof expected === "string" ? [expected, expected, expected, expected] : expected;
   await expect
     .poll(() => buttonViewerBorderWidths(page), {
-      message: `Button viewer container should render ${expected} on every border side`,
+      message: `Button viewer container should render border widths ${expectedSides.join(", ")}`,
+      timeout: 20_000,
+    })
+    .toEqual(expectedSides);
+}
+
+async function expectButtonViewerBorderWidthsAt(page: Page, index: number, expected: string): Promise<void> {
+  await expect
+    .poll(() => buttonViewerBorderWidthsAt(page, index), {
+      message: `Button #${index + 1} viewer container should render ${expected} on every border side`,
       timeout: 20_000,
     })
     .toEqual([expected, expected, expected, expected]);
 }
 
 async function buttonViewerBorderWidths(page: Page): Promise<string[]> {
-  const button = page.locator(`${SEL.buttonComponent}:visible`).first();
+  return buttonViewerBorderWidthsAt(page, 0);
+}
+
+async function buttonViewerBorderWidthsAt(page: Page, index: number): Promise<string[]> {
+  const button = page.locator(`${SEL.buttonComponent}:visible`).nth(index);
   await expect(button, "Button should be visible in Preview").toBeVisible({
     timeout: 30_000,
   });

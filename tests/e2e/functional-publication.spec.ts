@@ -13,6 +13,7 @@ import {
   verifyPublishedPwaCacheMetadataThroughUi,
   verifyPublishedViewerResponsiveLayoutThroughUi,
   verifyPublishedViewerToolbarThemeThroughUi,
+  verifyAnonymousRepublishReplacesToastFlowThroughUi,
 } from './helpers/functional-publication-sharing';
 import {
   functionalAdminUserCredentials,
@@ -163,5 +164,17 @@ test.describe('No-Code Studio functional publication contract', () => {
     test.setTimeout(540_000);
     await loginWithUsernamePassword(page);
     await verifyAnonymousPwaLanguagePersistenceWithGridThroughUi(page, browser);
+  });
+
+  /**
+   * #1455 was fixed by 6513fa56: anonymous publication now overrides the
+   * complete flow definition instead of retaining stale actions. The fix first
+   * shipped in 2.2.0-beta268 and was historically QA-validated in beta320.
+   * Runtime validation of this functional owner is pending.
+   */
+  test('PUB-015 #1455 - republishing an anonymous PWA replaces stale Toast flows', async ({ page, browser }) => {
+    test.setTimeout(480_000);
+    await loginWithUsernamePassword(page);
+    await verifyAnonymousRepublishReplacesToastFlowThroughUi(page, browser);
   });
 });

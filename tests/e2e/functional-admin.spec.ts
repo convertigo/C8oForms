@@ -21,8 +21,8 @@ test.describe('No-Code Studio functional admin contract', () => {
    * #1310 was reported in 2.2.0-beta118. Commit 63ff4503 added an explicit
    * border/background and inset outline to unchecked permission boxes in the
    * Add group and Add user modals; it first shipped in 2.2.0-beta125 and QA
-   * historically validated it in 2.2.0-beta127. Current runtime validation is
-   * intentionally outside this authoring pass.
+   * historically validated it in 2.2.0-beta127. This contract was
+   * runtime-validated on test-nocode running 2.2.0-beta371.
    */
   test('ADM-001 #1310 - admin group can be created with visible unchecked permissions and cleaned through the UI', async ({ page }) => {
     // Measured on CI run 35616797087 (shared server, admin calls 12-33s each): login 61s, and
@@ -38,8 +38,8 @@ test.describe('No-Code Studio functional admin contract', () => {
    * #1311 was reported in 2.2.0-beta118. Commit 80854397 persisted displayName
    * for manually created users and added name/surname fallbacks to the Users,
    * Groups, group-picker and menu renderers; it first shipped and was
-   * historically validated in 2.2.0-beta125. Current runtime validation is
-   * intentionally outside this authoring pass.
+   * historically validated in 2.2.0-beta125. This contract was
+   * runtime-validated on test-nocode running 2.2.0-beta371.
    */
   test('ADM-002 #1311 - a manually created user keeps its complete name across Admin surfaces', async ({ page }) => {
     test.setTimeout(360_000);

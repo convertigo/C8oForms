@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import {
   PALETTE_ICON,
   SEL,
@@ -39,6 +39,10 @@ const WORKFLOW_EDIT_ACTION = '[data-id="edit-action-workflows"]';
 const EDITABLE_WORKFLOW_NAME_INPUT = 'ion-input.class1742208653180';
 const FLOW_HEADER = '.class1780661784366';
 const FLOW_HEADER_HOVER_AFFORDANCE = '.class1780661784486';
+const CURRENT_PAGE_ADD_ACTION = 'ion-button.class1780583331059';
+const LEGACY_PAGE_ADD_ACTION = 'ion-button.class1750084426535';
+const AI_FAB = 'ion-fab.class1730193473111';
+const AI_FAB_BUTTON = 'ion-fab-button.class1730193473102';
 const LOCALIZED_DISABLED_LABEL =
   /^(?:Disabled|Désactivé|Discapacitado|Disabilitato|已禁用)$/;
 
@@ -392,7 +396,74 @@ export async function openSettingsFromWorkflowsAndKeepSidebarNavigable(page: Pag
 }
 
 export async function addPageAndNavigateThroughPagesPanel(page: Page): Promise<void> {
-  const newPageName = await addPageThroughPagesPanel(page);
+  let newPageName = '';
+
+  await test.step('Use the single prominent Add Page action', async () => {
+    await acceptRgpdIfVisible(page);
+    await openPagesPanel(page);
+
+    const addPage = page.locator(`${CURRENT_PAGE_ADD_ACTION}:visible`);
+    await expect(addPage, 'Pages should expose exactly one current Add Page action').toHaveCount(1, {
+      timeout: 15_000,
+    });
+    await expect(
+      page.locator(LEGACY_PAGE_ADD_ACTION),
+      'the obsolete upper-right Add Page action should not remain in the DOM',
+    ).toHaveCount(0);
+
+    const button = addPage.first();
+    await expect(button, 'current Add Page action should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(button.locator('ion-icon[src$="plus.svg"]'), 'current Add Page action should keep its plus icon').toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(button.locator('ion-label'), 'current Add Page action should expose a localized visible label').not.toHaveText(
+      /^\s*$/,
+    );
+
+    const layout = await button.evaluate((element) => {
+      const host = element as HTMLElement;
+      const panel = host.closest<HTMLElement>('#bloc-palette');
+      const paintedPanel = panel?.querySelector<HTMLElement>('.class1650357035508') ?? panel;
+      const native = host.shadowRoot?.querySelector<HTMLElement>('[part="native"]') ?? null;
+      const hostBox = host.getBoundingClientRect();
+      const panelBox = panel?.getBoundingClientRect() ?? null;
+      const hostStyle = getComputedStyle(host);
+      const panelStyle = paintedPanel ? getComputedStyle(paintedPanel) : null;
+      return {
+        borderTopWidth: Number.parseFloat(hostStyle.borderTopWidth),
+        height: hostBox.height,
+        nativeWidth: native?.getBoundingClientRect().width ?? 0,
+        panelBackground: panelStyle?.backgroundColor ?? '',
+        withinPanel:
+          panelBox != null &&
+          hostBox.left >= panelBox.left - 1 &&
+          hostBox.right <= panelBox.right + 1 &&
+          hostBox.top >= panelBox.top - 1 &&
+          hostBox.bottom <= panelBox.bottom + 1,
+        width: hostBox.width,
+      };
+    });
+    expect(layout.width, 'Add Page action should span a readily discoverable panel row').toBeGreaterThanOrEqual(120);
+    expect(layout.height, 'Add Page action should retain a usable click height').toBeGreaterThanOrEqual(28);
+    expect(layout.nativeWidth, 'Add Page native button should expose a measurable click target').toBeGreaterThanOrEqual(60);
+    expect(layout.borderTopWidth, 'Add Page action should be visually separated from the page list').toBeGreaterThanOrEqual(1);
+    expect(layout.panelBackground, 'Add Page action should sit on a painted Pages-panel background').not.toMatch(
+      /^(?:transparent|rgba\(0,\s*0,\s*0,\s*0\))$/,
+    );
+    expect(layout.withinPanel, 'Add Page action should remain fully contained in the Pages panel').toBe(true);
+
+    const beforeNames = await visiblePageNames(page);
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+    await expect
+      .poll(() => visiblePageNames(page), {
+        message: 'clicking the current Add Page action should create exactly one page',
+        timeout: 20_000,
+      })
+      .toHaveLength(beforeNames.length + 1);
+    const afterNames = await visiblePageNames(page);
+    newPageName = afterNames.find((name) => !beforeNames.includes(name)) ?? '';
+    expect(newPageName, `new page should be identifiable after ${afterNames.join(', ')}`).not.toBe('');
+  });
 
   await test.step('Navigate to the newly added page from the Pages panel', async () => {
     await openPagesPanel(page);
@@ -406,6 +477,109 @@ export async function addPageAndNavigateThroughPagesPanel(page: Page): Promise<v
       timeout: 15_000,
     });
   });
+}
+
+/** #1487: the AI FAB remains fully visible when the optional Brevo widget is absent. */
+export async function verifyAiFloatingActionButtonWithoutBrevoThroughUi(page: Page): Promise<void> {
+  const sequencesEndpoint = '**/projects/C8Oforms/.json';
+  let hasProjectRequests = 0;
+  let brevoConfigurationRequests = 0;
+  const environmentGuard = async (route: Route): Promise<void> => {
+    const body = route.request().postData() ?? '';
+    if (body.includes('HasProject')) {
+      hasProjectRequests += 1;
+      await route.fulfill({
+        body: JSON.stringify({ has: true }),
+        contentType: 'application/json',
+        status: 200,
+      });
+      return;
+    }
+    if (body.includes('getBrevoChatId')) {
+      brevoConfigurationRequests += 1;
+      await route.fulfill({
+        body: JSON.stringify({ BrevoConversationsID: '' }),
+        contentType: 'application/json',
+        status: 200,
+      });
+      return;
+    }
+    await route.continue();
+  };
+
+  await page.route(sequencesEndpoint, environmentGuard);
+  try {
+    await test.step('Reload Edit mode with AI present and Brevo absent', async () => {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await expect
+        .poll(() => hasProjectRequests, {
+          message: 'Edit mode should check that the AI project is present',
+          timeout: 30_000,
+        })
+        .toBeGreaterThan(0);
+      await expect
+        .poll(() => brevoConfigurationRequests, {
+          message: 'the application shell should resolve the absent Brevo configuration',
+          timeout: 30_000,
+        })
+        .toBeGreaterThan(0);
+      await expect(page.locator('#brevo-conversations'), 'Brevo widget should remain absent for this regression guard').toHaveCount(0);
+    });
+
+    await test.step('Keep the 60x60 AI FAB fully inside the viewport', async () => {
+      const fab = page.locator(`${AI_FAB}:visible`).first();
+      const button = fab.locator(`${AI_FAB_BUTTON}:visible`).first();
+      await expect(fab, 'AI FAB container should be visible when HasProject returns true').toBeVisible({ timeout: 30_000 });
+      await expect(button, 'AI FAB button should be visible without Brevo').toBeVisible({ timeout: 15_000 });
+      await expect
+        .poll(() => fab.evaluate((element) => (element as HTMLElement).style.marginBottom), {
+          message: 'AI FAB should use the no-Brevo bottom offset',
+          timeout: 15_000,
+        })
+        .toBe('70px');
+
+      const geometry = await fab.evaluate((element, buttonSelector) => {
+        const host = element as HTMLElement;
+        const button = host.querySelector<HTMLElement>(buttonSelector);
+        const hostBox = host.getBoundingClientRect();
+        const buttonBox = button?.getBoundingClientRect() ?? null;
+        const centerTarget = document.elementFromPoint(
+          hostBox.left + hostBox.width / 2,
+          hostBox.top + hostBox.height / 2,
+        );
+        return {
+          buttonHeight: buttonBox?.height ?? 0,
+          buttonWidth: buttonBox?.width ?? 0,
+          clickableAtCenter: centerTarget != null && (centerTarget === host || host.contains(centerTarget)),
+          height: hostBox.height,
+          insideViewport:
+            hostBox.left >= 0 &&
+            hostBox.top >= 0 &&
+            hostBox.right <= window.innerWidth &&
+            hostBox.bottom <= window.innerHeight,
+          width: hostBox.width,
+        };
+      }, AI_FAB_BUTTON);
+
+      expect(geometry.width, 'AI FAB container width').toBeCloseTo(60, 0);
+      expect(geometry.height, 'AI FAB container height').toBeCloseTo(60, 0);
+      expect(geometry.buttonWidth, 'AI FAB button width').toBeCloseTo(60, 0);
+      expect(geometry.buttonHeight, 'AI FAB button height').toBeCloseTo(60, 0);
+      expect(geometry.insideViewport, 'AI FAB should remain entirely within the visible viewport').toBe(true);
+      expect(geometry.clickableAtCenter, 'AI FAB center should not be clipped or covered').toBe(true);
+    });
+
+    await test.step('Open the AI assistant from the visible FAB', async () => {
+      const button = page.locator(`${AI_FAB_BUTTON}:visible`).first();
+      await button.click({ timeout: 10_000 });
+      await expect(
+        page.locator('ion-modal.aichat:visible page-aichat').first(),
+        'clicking the AI FAB should open the AI assistant modal',
+      ).toBeVisible({ timeout: 30_000 });
+    });
+  } finally {
+    await page.unroute(sequencesEndpoint, environmentGuard);
+  }
 }
 
 export async function renamePageWithValidationThroughUi(page: Page, validName = `Functional page ${Date.now()}`): Promise<void> {

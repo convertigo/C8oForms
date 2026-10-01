@@ -32,7 +32,12 @@ test.describe('No-Code Studio functional sharing editor contract', () => {
     await verifyEditorCollaboratorsCsvImportAddsExistingUserThroughUi(page);
   });
 
-  test('SHARE-001 - add a collaborator from the editor', async ({ page }) => {
+  /**
+   * #1451: the generic collaborator modal still used a gradient Save action
+   * after the solid-button redesign. Commit 7ec0f78c aligned the modal in
+   * beta315/beta316 and the fix was historically QA-validated in beta320.
+   */
+  test('SHARE-001 #1451 - add a collaborator with a solid-color Save action', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await verifyEditorCollaboratorCanBeAddedThroughUi(page);

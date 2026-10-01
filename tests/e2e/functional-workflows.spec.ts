@@ -13,6 +13,7 @@ import {
   verifyNavigateToPageGoBackUsesViewerHistoryThroughUi,
   verifyConfiguredActionReplacementWarningThroughUi,
   verifyWorkflowPersistenceAfterReloadThroughUi,
+  verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroughUi,
 } from './helpers/functional-workflows';
 import { createBlankApplicationThroughUi, loginWithUsernamePassword } from './helpers/functional-studio';
 
@@ -161,5 +162,20 @@ test.describe('No-Code Studio functional workflow contract', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await verifyNavigateToPageGoBackUsesViewerHistoryThroughUi(page);
+  });
+
+  /**
+   * #1492 was reported on 2.2.0-beta309. Studio fix 6623b0a6 made a
+   * field_name variable serialize the selected component's technical name,
+   * while lib_Actions_C8Oforms bde2b16a persisted the corresponding response
+   * edit. The complete fix first shipped in beta329 and was historically
+   * QA-validated in beta337. Runtime validation of this functional owner is
+   * pending.
+   */
+  test('WF-014 #1492 - Generic Task changes only the named stored response field', async ({ page }) => {
+    test.setTimeout(420_000);
+    await loginWithUsernamePassword(page);
+    const formId = await createBlankApplicationThroughUi(page);
+    await verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroughUi(page, formId);
   });
 });

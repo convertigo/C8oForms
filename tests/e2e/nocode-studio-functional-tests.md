@@ -1,6 +1,6 @@
 # No-Code Studio Functional Test Catalog
 
-Last updated: 2026-09-30
+Last updated: 2026-10-01
 
 Purpose: maintain a living list of functional tests to create for the C8oForms
 No-Code Studio. This catalog is intentionally separate from non-regression
@@ -35,18 +35,30 @@ here if it belongs to the expected functional baseline.
 
 Current catalog state:
 
-- Implemented: 142 functional items.
+- Implemented: 168 functional items.
 - Partially covered / known product gap: 0 functional items.
-- Needs clarification: 6 functional items.
-- Out of scope: 4 placeholders.
+- Needs clarification: 5 functional items.
+- Out of scope: 3 placeholders.
 - No remaining item is marked as to create.
-- Playwright currently collects 176 functional test cases. Some cross-user,
+- Playwright currently collects 209 functional test cases. Some cross-user,
   source-isolation, and administrator scenarios remain conditional on their
   documented fixtures; dedicated `fixme` cases continue to track undefined
   product contracts.
 
-The next automation pass should start only after one of the clarification inputs
-below is resolved.
+The 2026-10-01 coverage wave is statically discoverable. Runtime validation on
+test-nocode `2.2.0-beta371` passed CMP-COM-010/#505, the deliberately bounded
+CMP-COM-013/#1371/#1387 contract, AUTH-007/#1259/#1391, ADM-001/#1310, and
+ADM-002/#1311. AUTH-006/#1451 had already passed on the same version. The
+APP-011/#1344 standard-user guard passed, while its administrator availability
+contract failed because the expected user filter was absent from the opened
+advanced-search UI.
+
+During the same campaign, the currently served backend returned an
+`APIV2_updateFormulaireDocument` JavaScript evaluation error while creating a
+blank application. Owners whose setup requires new form creation remain
+`BLOCKED_DEPENDENCY`; their terminal regression assertions were not claimed as
+validated. Firefox and WebKit remain absent, and example-file values are not
+treated as active secrets.
 
 ## Open Clarifications
 
@@ -105,11 +117,11 @@ No known product gap is currently tracked in this catalog.
 | `[x]` | AUTH-003 | Session persistence after reload. | User is logged in on selector. | Reload keeps the user authenticated and applications remain accessible. |
 | `[x]` | AUTH-004 | Change the user language. | User is logged in. | After changing language and reloading, the UI loads without breaking i18n-neutral selectors. |
 | `[x]` | AUTH-005 | Invalid login. | None. | The error state appears and selector does not open. |
-| `[x]` | AUTH-006 | Open the forgotten password modal. | User is on the username/password login screen. | The forgotten password modal opens, exposes the expected email input/action, and can be closed without logging in. Email delivery is not asserted unless a test mailbox or mail sink is available. |
+| `[x]` | AUTH-006 | Open the forgotten password modal; keep its Send action on the configured solid color (#1451). | User is on the username/password login screen. | The modal opens, exposes its email input, and the Send action has no gradient and resolves to `--ion-color-convertigo`; the modal can be closed without logging in. Email delivery is not asserted unless a test mailbox or mail sink is available. |
 | `[x]` | AUTH-007 | Customize the login identifier label and placeholder through server symbols (#1259). | Convertigo administrator credentials are available; each global symbol is changed and restored sequentially under the shared symbol lock. | Fresh signed-out login pages render the unique `C8Oforms.IdentifierPlaceHolderValue` and `C8Oforms.IdentifierValue` values verbatim without relying on translated fallback text. |
 | `[n/a]` | AUTH-SSO-001 | SSO login providers: Google, Microsoft, LinkedIn, OpenID. | Explicitly excluded from the current username/password login scope. | Keep as a catalog placeholder; define provider-specific expectations before any future automation. |
 | `[x]` | APP-001 | Create a blank application. | User is logged in. | The editor opens on `/editor/<id>` and the page is empty. |
-| `[x]` | APP-002 | Create an application from a template. | User is logged in; at least one template is available. | The created application contains the expected template components. |
+| `[x]` | APP-002 | Create an application from a fully visible template card (#1444). | User is logged in; at least one template is available. | At desktop and narrow-desktop widths the first/last cards remain inside their list and viewport, See more follows rather than overlaps them, the first card stays actionable, and the created application contains the expected template components. |
 | `[x]` | APP-003 | Create a folder and validate its title. | User is on selector. | The save button is disabled for an empty title; the folder appears after creation. |
 | `[x]` | APP-004 | Rename an application. | Application created by the test. | The new name is visible on selector and persists after reload. |
 | `[x]` | APP-005 | Delete an application with cancel then confirm. | Application created by the test. | Cancel keeps the app; confirm removes it from the list. |
@@ -120,7 +132,7 @@ No known product gap is currently tracked in this catalog.
 | `[x]` | APP-010 | Open an existing application from selector. | App created, then user returned to selector. | The editor reopens the correct app and components are present. |
 | `[x]` | APP-011 | Restrict selector user search to administrators (#1344). | The advanced-search panel is opened once with a standard user and once with an administrator. | The user autocomplete is absent for the standard user and remains visible and editable for the administrator. |
 | `[x]` | APP-012 | Keep long application names identifiable in grid and list views (#1358). | An application with a deliberately overflowing name is created through Studio. | Both selector views use one-line ellipsis without edge overflow and expose the complete name in a hover tooltip. |
-| `[x]` | APP-013 | Keep selector context across modal/view changes (#1441). | Selector URL, instance, search and app witnesses are captured. | Opening/closing Import and switching grid/list preserve the same selector context and applications. |
+| `[x]` | APP-013 | Keep Import styling and selector context across modal/view changes (#1440, #1441). | Selector URL, instance, search and app witnesses are captured. | The Import action uses the resolved solid primary color without a gradient; opening/closing the modal and switching grid/list preserve the same selector context and applications. |
 | `[x]` | APP-BRAND-001 | Keep thumbnail and background roles independent (#1448). | Colors and an in-memory PNG are configured through the Studio UI and the app is published. | Edition/published cards retain distinct background/thumbnail roles; the uploaded attachment loads without placeholder and persists after reopening. |
 
 ## Dashboard Sections
@@ -141,7 +153,7 @@ publication, and external Baserow table preconditions.
 | `[x]` | EDT-001 | Navigate between Palette, Pages, Workflows, and Settings (#1271). | Blank application open. | Each panel opens, the canvas remains usable, and every sidebar button stays visible with its localized native title. |
 | `[x]` | EDT-002 | Open application settings from Workflows. | Editor is on Workflows. | Settings open without blocking sidebar navigation. |
 | `[x]` | EDT-003 | Autosave a configuration after close/reload. | Component added and configured. | The configured value reappears after close, reopen, and browser reload. |
-| `[x]` | EDT-004 | Add a page. | Blank application. | The page appears in the Pages panel and becomes navigable. |
+| `[x]` | EDT-004 | Add a page from the single prominent Pages action (#1385). | Blank application. | Exactly one redesigned Add Page action is visible and usable, the retired action is absent, and the created page appears and becomes navigable. |
 | `[x]` | EDT-005 | Rename a page: empty, duplicate, valid name. | Two pages. | Expected errors appear; the valid name persists. |
 | `[x]` | EDT-006 | Delete a page with cancel then confirm. | Two pages. | Cancel keeps the page; confirm deletes it without breaking the active page. |
 | `[x]` | EDT-007 | Reorder pages upward and downward (#1308). | Three pages. | Both directions update the order without duplicates, and the final order remains stable after reload. |
@@ -154,6 +166,7 @@ publication, and external Baserow table preconditions.
 | `[x]` | EDT-014 | Keep the last workflow fully visible at the bottom of its scroller (#1361). | Ten Button workflows are created through the palette and the viewport is constrained to force real overflow. | After wheel-scrolling to the bottom, all four edges of the final workflow remain inside the visible scroller/viewport intersection. |
 | `[x]` | EDT-015 | Disabled Page/Application icon controls (#1321). | Page and application settings are opened through the editor. | Disabled icon actions expose a neutral disabled state and localized disabled feedback. |
 | `[x]` | EDT-016 | Editable workflow affordances (#1372, #1373). | A Button user workflow and the two system workflows are visible. | Rename/edit affordances appear only for the user workflow; selecting either system workflow closes stale rename UI. |
+| `[x]` | EDT-017 | Keep the AI floating action visible without Brevo (#1487). | AI project availability is deterministically enabled while the Brevo chat ID is absent. | The Brevo widget is absent; the 60×60 AI action remains fully inside the viewport, receives pointer hit-testing, and opens the AI modal. |
 
 ## Common Component Contract
 
@@ -169,14 +182,15 @@ Location, Business logic.
 | `[x]` | CMP-COM-002 | Rename the technical identifier. | Component added. | The field keeps its value after blur. |
 | `[x]` | CMP-COM-003 | Validate empty, duplicate, and invalid technical identifiers. | Two components. | Errors block save or restore a valid state. |
 | `[x]` | CMP-COM-004 | Delete a component: cancel then confirm. | Component added. | Cancel keeps the component; confirm removes it from canvas and viewer. |
-| `[x]` | CMP-COM-005 | Duplicate a component (#1298). | Configured component. | The copy keeps expected properties, receives a distinct technical ID, is scrolled into view and highlighted with success feedback. |
+| `[x]` | CMP-COM-005 | Duplicate a component locally or to another page (#1298, #1388). | Configured component and a second page for the cross-page branch. | The local copy keeps expected properties, receives a distinct technical ID, is scrolled into view and highlighted, and feedback identifies source and copy. Cross-page copy uses the modern alert, preserves styles, persists with a distinct ID, and leaves the source intact. |
 | `[x]` | CMP-COM-006 | Reorder components by drag-and-drop. | Three components. | DOM/viewer order follows the drag and persists after reload. |
 | `[x]` | CMP-COM-007 | Configure common label, placeholder, and required state. | Compatible component. | Values render in editor and viewer. |
 | `[x]` | CMP-COM-008 | Default value in visual, Aa, and JS modes. | Compatible component. | The viewer initializes the value according to each mode. |
 | `[x]` | CMP-COM-009 | Visibility on the main target component types. | Text source created through UI. | One visible and one hidden instance behave correctly for Text, Description, Checkbox, Checkbox group, Select, Radio, Radio group, Slider, Button, Date, Time, Camera, Barcode, Import file, Signature, and Location. |
-| `[x]` | CMP-COM-010 | Component navigation with a condition. | Two pages and source component. | Page change occurs only when the condition is true. |
+| `[x]` | CMP-COM-010 | Component navigation with complete condition authoring (#505). | Two pages and source components. | Operator families and literal/Source Palette/JavaScript right-hand modes persist; false conditions stay put and true conditions navigate to the target page. |
 | `[x]` | CMP-COM-011 | Filter the Components palette and hover a result (#1251). | Blank application with the Components palette available. | Hovering the filtered result triggers no HTTP 404 response. |
 | `[x]` | CMP-COM-012 | Disable and re-enable a configured component (#1436). | A Text input is present in Studio. | Disabled state persists in Studio, the component is omitted from Preview, and re-enabling restores it. |
+| `[x]` | CMP-COM-013 | Keep representative component action rails consistent and explicit (#1371, #1387). | Button and Radio components are present in the editor. | Representative rails share relational geometry and actions; every localized action label is complete and untruncated. |
 | `[x]` | CMP-CHOICE-001 | Choice Add controls remain fixed (#1285). | Checkbox, Radio and Select contain enough local options to overflow their editors. | Each list owns the scroll while its Add control stays visible, vertically stable and usable. |
 
 ## Component Matrix
@@ -219,7 +233,7 @@ Location, Business logic.
 | `[x]` | CMP-GROUP-001 | Group | Add child components, visibility on group, deletion/reorder. |
 | `[x]` | CMP-BIZ-001 | Business logic | Static and dynamic Business logic formulas are created through Workflows and consumed from the Source Palette by Select defaults. | A static formula is evaluated in Preview and again after viewer reload; a JavaScript formula returning `fields[id]` initializes the Select from a Text source and refreshes when that source value changes, without parsing toasts. |
 | `[x]` | CMP-BIZ-002 | Formula-to-JavaScript Source Palette drop (#1249). | A Business logic formula and a Text input are created through the Studio UI. | Dragging the formula into the Text JavaScript default editor exposes an internal plain-text payload, inserts the formula expression into Monaco, and persists it after reopening the configuration. |
-| `[?]` | CMP-STYLE-001 | Visual style inheritance and reset (#1411). | A Button is created and application/component border settings are changed through Studio. | Preview proves default 1px, inherited application 4px, component override 0, component reset back to inherited 4px, then application reset to 1px. Page/layout/group, per-side and provenance contracts remain future coverage. |
+| `[x]` | CMP-STYLE-001 | Visual style inheritance, per-side overrides, provenance and reset (#1411). | Button, Layout and Group-child witnesses are created and application/page/component border settings are changed through Studio. | Preview proves the application→page→component inheritance chain, independent border sides, component override/reset, localized provenance indicators, and Layout/Group-child override/reset defaults. |
 
 ## Sources, Data, And Source Palette
 
@@ -279,6 +293,7 @@ Location, Business logic.
 | `[x]` | WF-011 | Refresh target scopes (#1378). | Refresh actions are configured for the supported component scopes. | Component refresh resets only its target and preserves an outside field; page/application authoring remains tracked separately where runtime proof is not deterministic. |
 | `[x]` | WF-012 | Flow names survive Button replacement (#1482). | Three Button workflows exist and the middle Button is deleted then replaced. | Existing flow names remain unique and the replacement receives a new unique retained flow. |
 | `[x]` | WF-013 | Go back uses navigation history (#1484). | Page 1 jumps directly to Page 3. | Go back returns to Page 1 through history rather than behaving like Previous page. |
+| `[x]` | WF-014 | Generic Task edits the named response field (#1492). | Two Text fields and a Generic Task `forms_edit_field` action are authored through Studio. | The action targets the selected field's technical name, mutates that stored response value, and leaves the witness field unchanged. |
 
 ## Publication, PWA, Viewer, And Responses
 
@@ -298,12 +313,23 @@ Location, Business logic.
 | `[x]` | PUB-012 | Preserve encoded navigation data on manual resubmission (#1302). | Loop-to-form is disabled and a Text response contains accented and reserved characters. | The manual “another response” action reopens the viewer, accepts a second exact special-character value, and completes the second submission; passed on test-nocode beta371. |
 | `[x]` | PUB-013 | Combine selected-owner and collaboration-only filters (#1338, #1350). | Distinct admin and secondary users own/share three controlled applications through Studio. | Selecting the owner excludes apps where that user is only a collaborator; enabling Collaborations only keeps just the selected owner’s app shared with the current admin. |
 | `[x]` | PUB-014 | Persist anonymous PWA language with sourced data (#1452). | An anonymous published PWA contains a Baserow Grid and opens in a fresh context. | UI language and HTML metadata switch to French, survive the application reload control, and leave Grid rows unchanged. |
+| `[x]` | PUB-015 | Republish the same PWA after replacing a Toast action (#1455). | An anonymous PWA is first published with an old Toast, then the workflow is edited and the same PWA is republished. | A fresh anonymous viewer sees only the replacement Toast; the removed Toast is not retained from the previous publication. |
+
+## Responses And CSV Export
+
+| Status | ID | Functional test | Preconditions | Main assertions |
+| --- | --- | --- | --- | --- |
+| `[x]` | RESP-001 | Render photo responses without duplication (#1501). | Two anonymous responses with valid synthetic PNG photos are submitted through the published viewer. | Summary and Individual load their images; Individual exposes exactly two responses rather than duplicating asynchronous results. |
+| `[x]` | RESP-002 | Track every anonymous response without leaking identity (#1506). | One response is submitted from an authenticated browser context and two from signed-out contexts to the same anonymous PWA. | Invitee tracking exposes exactly three distinct anonymous rows with ordinals `#1`–`#3` and no `null` identity. |
+| `[x]` | RESP-003 | Preserve local response timestamps and Time answers in CSV (#1512). | A Time value is authored and submitted in the Europe/Paris browser timezone. | Individual keeps the Time answer; its recent local clock is identical to the exported CSV clock, with no timezone shift. |
+| `[x]` | RESP-004 | Export strict BOM-free UTF-8 by default (#1516). | A response contains accented punctuation, euro, CJK, semicolon and quotes. | The untouched default encoding is UTF-8; bytes decode strictly without BOM or replacement and CSV parsing round-trips the exact value. |
+| `[x]` | RESP-005 | Sort advanced CSV questions and responses deterministically (#1522). | Question IDs/labels have deliberately opposite lexical orders and two distinguishable responses are submitted in separate seconds. | ID/text question sorting changes exact column order; ascending/descending date sorting changes exact response-row order. |
 
 ## Sharing, Collaborators, And Rights
 
 | Status | ID | Functional test | Preconditions | Main assertions |
 | --- | --- | --- | --- | --- |
-| `[x]` | SHARE-001 | Add a collaborator from the editor; keep the shared-access indicator positioned (#1347). | Application created and editor collaborators modal opened through the UI. Automation selects the first available collaborator from autocomplete, saves the modal, verifies through `APIV2_GetManageAccessRights` that the collaborator is persisted in the access-rights document, then adds an explicit or auto-provisioned functional secondary user and logs in as that collaborator. | UI add, save, access-rights persistence, and cross-user collaborator discovery are covered. The collaborator finds the shared app with My applications disabled; on desktop and mobile the indicator remains an unclipped sibling positioned at right 50px/bottom 19px. |
+| `[x]` | SHARE-001 | Add a collaborator from the editor; keep Save solid and the shared-access indicator positioned (#1347, #1451). | Application created and editor collaborators modal opened through the UI. Automation selects the first available collaborator from autocomplete, verifies that Save resolves to the solid primary color without a gradient, saves, verifies persistence, then uses a secondary collaborator. | UI add, solid Save styling, access-rights persistence, and cross-user collaborator discovery are covered. The collaborator finds the shared app with My applications disabled; on desktop and mobile the indicator remains unclipped. |
 | `[x]` | SHARE-002 | CSV button available in the collaborators modal. | Application created and the editor collaborators modal opened through the UI. | The modal exposes a `.csv` file input and a visible associated button that opens a single-file chooser. |
 | `[x]` | SHARE-003 | Import collaborators from CSV. | Application created and the editor collaborators modal opened through the UI. The test resolves an existing user through autocomplete, then imports a generated CSV row using `email;Edition_Responses`. | The CSV-imported collaborator is listed before save, the imported rights value is applied, and the modal saves successfully. |
 | `[x]` | SHARE-004 | Remove a collaborator. | Application created, existing collaborator added from autocomplete, modal saved, access-rights persistence verified through `APIV2_GetManageAccessRights`, modal reopened, collaborator removed through the row action, saved again, reopened for UI verification, then `APIV2_GetManageAccessRights` is checked again to confirm the collaborator is absent. Cross-user automation also uses an explicit or auto-provisioned functional secondary user as owner. | UI removal, access-rights persistence/revocation, and cross-user revocation are covered; the revoked user no longer finds the app after revocation. |

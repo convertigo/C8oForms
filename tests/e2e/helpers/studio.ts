@@ -10,7 +10,8 @@ import * as path from 'node:path';
 export const SEL = {
   // loginPage.yaml
   loginReveal: '.class1757337975297, .class1770718494991', // SubmitButton1, plus legacy beta107 login button
-  loginPageRoot: 'page-loginpage',
+  loginPageRoot:
+    ':is(page-loginpage, ion-content[role="main"]:has(.class1757337975297), ion-content[role="main"]:has(.class1770718494991), ion-content[role="main"]:has(.class1757337975207 input))',
   emailInput: '.class1757337975207 input', // email > TextInput
   passwordInput: '.class1757337975249 input', // password > TextInput
   // settingsPage.yaml — MCP tokens section

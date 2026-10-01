@@ -31,6 +31,8 @@ import {
   publishCurrentFormWithPwa,
   publishedPwaUrl,
   publishedViewerToolbarThemeState,
+  recordedToasts,
+  recordToasts,
   searchSelectorApplicationsByName,
   setSelectorMyApplicationsFilter,
   sharePublishedApplicationWithNotification,
@@ -51,6 +53,10 @@ import {
   createFunctionalAdminSequenceClient,
   type FunctionalAdminSequenceClient,
 } from './functional-users';
+import {
+  configureToastButtonForPublicationThroughUi,
+  replaceToastActionForPublicationThroughUi,
+} from './functional-workflows';
 
 type FormDocument = Awaited<ReturnType<typeof getFormDocument>>;
 type PwaDocument = Awaited<ReturnType<typeof getPwaDocument>>;
@@ -143,6 +149,91 @@ export async function publishAnonymousApplicationAndOpenWithoutSessionThroughUi(
       await context.close();
     }
   });
+}
+
+export async function verifyAnonymousRepublishReplacesToastFlowThroughUi(
+  page: Page,
+  browser: Browser,
+): Promise<void> {
+  const suffix = Date.now();
+  const title = `Functional republished flow ${suffix}`;
+  const buttonTechnicalId = `functional_pub_republish_button_${suffix}`;
+  const buttonLabel = `Functional republish button ${suffix}`;
+  const oldToast = `Functional stale Toast ${suffix}`;
+  const newToast = `Functional replacement Toast ${suffix}`;
+  let formId = '';
+  let pwaUrl = '';
+
+  await test.step('Author the old Toast flow in Studio and publish it anonymously', async () => {
+    formId = await createBlankForm(page, title);
+    await configureToastButtonForPublicationThroughUi(page, {
+      technicalId: buttonTechnicalId,
+      label: buttonLabel,
+      message: oldToast,
+    });
+    await publishCurrentFormWithPwa(page, 'anonymous');
+    const pwa = await expectPwaDocument(page, formId, 'anonymous PWA should exist with the old Toast flow');
+    pwaUrl = standalonePwaUrl(page, publishedViewerTargetId(pwa, publishedApplicationId(formId)));
+  });
+
+  await test.step('Prove the initially published anonymous PWA executes the old Toast', async () => {
+    await expectAnonymousPublishedToast(browser, pwaUrl, buttonLabel, oldToast, []);
+  });
+
+  await test.step('Replace the Toast in Studio and republish the same PWA', async () => {
+    await replaceToastActionForPublicationThroughUi(page, {
+      workflowName: buttonTechnicalId,
+      message: newToast,
+    });
+    await publishCurrentFormWithPwa(page, 'anonymous');
+    const republishedPwa = await expectPwaDocument(
+      page,
+      formId,
+      'same anonymous PWA should exist after republishing the replacement flow',
+    );
+    expect(
+      standalonePwaUrl(page, publishedViewerTargetId(republishedPwa, publishedApplicationId(formId))),
+      'republishing should preserve the same anonymous PWA URL',
+    ).toBe(pwaUrl);
+  });
+
+  await test.step('Open a fresh anonymous context and prove only the replacement Toast executes', async () => {
+    await expectAnonymousPublishedToast(browser, pwaUrl, buttonLabel, newToast, [oldToast]);
+  });
+}
+
+async function expectAnonymousPublishedToast(
+  browser: Browser,
+  url: string,
+  buttonLabel: string,
+  expectedToast: string,
+  forbiddenToasts: string[],
+): Promise<void> {
+  const context = await browser.newContext();
+  try {
+    const anonymousPage = await context.newPage();
+    await anonymousPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await acceptRgpdIfVisible(anonymousPage);
+    await expect(anonymousPage.locator(SEL.viewerPage), 'anonymous republished PWA should render').toBeAttached({
+      timeout: 60_000,
+    });
+    const button = anonymousPage.getByRole('button', { name: buttonLabel }).first();
+    await expect(button, 'published workflow Button should be visible').toBeVisible({ timeout: 30_000 });
+    await recordToasts(anonymousPage);
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+    await expect
+      .poll(async () => (await recordedToasts(anonymousPage)).join(' | '), {
+        message: `published workflow should display ${expectedToast}`,
+        timeout: 30_000,
+      })
+      .toContain(expectedToast);
+    const observed = (await recordedToasts(anonymousPage)).join(' | ');
+    for (const forbidden of forbiddenToasts) {
+      expect(observed, `republished workflow must not execute stale Toast ${forbidden}`).not.toContain(forbidden);
+    }
+  } finally {
+    await context.close();
+  }
 }
 
 export async function updateExistingPwaWithoutRepublishingThroughUi(page: Page): Promise<void> {
@@ -1966,13 +2057,39 @@ export async function verifyEditorCollaboratorCanBeAddedThroughUi(page: Page): P
     await expect(modal, 'selected collaborator should be listed before saving').toContainText(collaborator, {
       timeout: 15_000,
     });
-    await modal.locator(SEL.collaboratorsSaveButton).first().click({ timeout: 10_000 });
+    const save = modal.locator(SEL.collaboratorsSaveButton).first();
+    await expect(save, 'collaborator Save action should be visible').toBeVisible({ timeout: 15_000 });
+    await expectSolidPrimaryButton(save, 'collaborator Save action');
+    await save.click({ timeout: 10_000 });
     await expect(modal, 'collaborators modal should close after saving').toBeHidden({ timeout: 30_000 });
   });
 
   await test.step('Verify the collaborator is persisted in the access-rights document', async () => {
     await expectEditorCollaboratorDocumentState(page, formId, collaborator, true);
   });
+}
+
+async function expectSolidPrimaryButton(button: Locator, description: string): Promise<void> {
+  const colors = await button.evaluate((host) => {
+    const native = host.shadowRoot?.querySelector<HTMLElement>('[part="native"]') ?? (host as HTMLElement);
+    const hostStyle = getComputedStyle(host);
+    const nativeStyle = getComputedStyle(native);
+    const primaryValue = hostStyle.getPropertyValue('--ion-color-primary').trim();
+    const probe = document.createElement('span');
+    probe.style.backgroundColor = primaryValue;
+    document.body.appendChild(probe);
+    const primaryColor = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return {
+      backgroundImage: nativeStyle.backgroundImage,
+      backgroundColor: nativeStyle.backgroundColor,
+      primaryColor,
+    };
+  });
+
+  expect(colors.backgroundImage, `${description} should not retain a gradient`).toBe('none');
+  expect(colors.primaryColor, `${description} should resolve --ion-color-primary`).not.toBe('rgba(0, 0, 0, 0)');
+  expect(colors.backgroundColor, `${description} should use the resolved primary color`).toBe(colors.primaryColor);
 }
 
 export async function verifyEditorCollaboratorCanFindSharedApplicationThroughUi(

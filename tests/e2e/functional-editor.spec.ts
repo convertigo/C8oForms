@@ -14,6 +14,7 @@ import {
   reorderPagesAndAssertPersistenceThroughUi,
   returnHomeAndReopenSameApplicationThroughUi,
   verifyEditableWorkflowAffordancesThroughUi,
+  verifyAiFloatingActionButtonWithoutBrevoThroughUi,
 } from './helpers/functional-editor';
 import { createBlankApplicationThroughUi, loginWithUsernamePassword } from './helpers/functional-studio';
 
@@ -44,7 +45,13 @@ test.describe('No-Code Studio functional editor shell', () => {
     await autosaveComponentConfigurationAfterCloseAndReload(page);
   });
 
-  test('EDT-004 - add a page', async ({ page }) => {
+  /**
+   * #1385 was reported in 2.2.0-beta158. The redesigned Pages panel introduced
+   * its bottom Add Page action in 2a7f4f26/fd36404d; c796d08c removed the
+   * obsolete upper-right action. QA historically validated the final result in
+   * beta186. Current test-nocode runtime validation remains pending.
+   */
+  test('EDT-004 #1385 - add a page from the single prominent Pages action', async ({ page }) => {
     test.setTimeout(180_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -151,5 +158,18 @@ test.describe('No-Code Studio functional editor shell', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await verifyEditableWorkflowAffordancesThroughUi(page);
+  });
+
+  /**
+   * #1487 was reported in 2.2.0-beta307. Fix 83ef48e9 gave the AI FAB an
+   * explicit 60x60 geometry and a 70px bottom offset when the optional Brevo
+   * widget is absent, first released in beta311 and historically QA-validated
+   * in beta313. Current test-nocode runtime validation remains pending.
+   */
+  test('EDT-017 #1487 - AI floating action stays fully visible without Brevo', async ({ page }) => {
+    test.setTimeout(180_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await verifyAiFloatingActionButtonWithoutBrevoThroughUi(page);
   });
 });
