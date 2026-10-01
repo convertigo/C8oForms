@@ -9,6 +9,12 @@ const ADMIN_SEL = {
   groupsPage: 'page-admindashboarduserswithingroups',
   gridSurface: '.ag-root:visible, lib-extendedcomponents-ui-ngx-aggrid:visible',
   addUserButton: 'page-admindashboardusers ion-button:visible',
+  addUserCreateButton: 'page-admindashboardusers ion-button.class1770913408988, page-admindashboardusers ion-button.class1758560034313',
+  addUserModal: 'ion-modal.show-modal c8oforms-adduserform, ion-modal:visible c8oforms-adduserform',
+  addUserNameInput: 'ion-input.class1758735188803 input',
+  addUserSurnameInput: 'ion-input.class1758735188845 input',
+  addUserEmailInput: 'ion-input.class1758735188890 input',
+  addUserSubmitButton: 'ion-button.class1758735188998',
   addGroupButton: 'page-admindashboarduserswithingroups ion-button:visible',
   addGroupModal: 'ion-modal.show-modal c8oforms-addgroupform, ion-modal:visible c8oforms-addgroupform',
   addUserToGroupModal:
@@ -38,7 +44,12 @@ const ADMIN_SEL = {
   // adminDashboardUsersWithinGroups.html:308 - the Groups panel's own search box,
   // wired through (ionChange) to agGrid.api.setQuickFilter.
   groupsQuickFilter: 'page-admindashboarduserswithingroups ion-input.class1759575794337',
+  usersSearch: 'page-admindashboardusers ion-input.class1758557718475',
+  groupedUsersQuickFilter: 'page-admindashboarduserswithingroups ion-input.class1759746664380',
+  groupedUsersGrid: 'page-admindashboarduserswithingroups .class1759334322293',
 } as const;
+
+const UNKNOWN_USER_LABEL = /Unknown user|Utilisateur inconnu|Usuario desconocido|Utente sconosciuto/i;
 
 export async function loginAsAdminWithUsernamePassword(page: Page): Promise<void> {
   await test.step('Log in with the configured admin-capable Studio user', async () => {
@@ -284,7 +295,7 @@ export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page
     });
 
     await openAdminGroupsPage(page);
-    await createAdminGroupThroughUi(page, groupName);
+    await createAdminGroupThroughUi(page, groupName, { verifyUncheckedPermissions: true });
 
     await test.step('Verify the temporary group is visible to the Admin group listing', async () => {
       await expect
@@ -371,6 +382,76 @@ export async function verifyAdminGroupCanBeCreatedAndCleanedThroughUi(page: Page
   }
 }
 
+/**
+ * Regression contract for #1311. Create a Forms-provider user through the Admin
+ * modal, prove that the persisted displayName and both rendered Admin surfaces
+ * retain the complete first/surname identity, then remove the temporary user.
+ */
+export async function verifyManualAdminUserFullNameThroughUi(page: Page): Promise<void> {
+  const suffix = Date.now();
+  const firstName = `Functional${suffix}`;
+  const surname = 'Identity';
+  const fullName = `${firstName} ${surname}`;
+  const email = `functional-admin-identity-${suffix}@example.test`;
+
+  try {
+    await openAdminUsersPage(page);
+
+    await test.step(`Create temporary Admin user ${email} through the UI`, async () => {
+      const addUserButton = page.locator(ADMIN_SEL.addUserCreateButton).filter({ visible: true }).first();
+      await expect(addUserButton, 'Admin Users page should expose the New user action').toBeVisible({ timeout: 30_000 });
+      await addUserButton.click({ timeout: 10_000 }).catch(async () => addUserButton.dispatchEvent('click'));
+
+      const modal = page.locator(ADMIN_SEL.addUserModal).last();
+      await expect(modal, 'Add user modal should open').toBeVisible({ timeout: 30_000 });
+
+      // #1310 was fixed on this sibling permission list as well as Add group.
+      await expectUncheckedAdminPermissionCheckboxesVisible(modal, 'Add user');
+
+      await fillNativeInput(modal.locator(ADMIN_SEL.addUserNameInput).first(), firstName, 'first name');
+      await fillNativeInput(modal.locator(ADMIN_SEL.addUserSurnameInput).first(), surname, 'surname');
+      await fillNativeInput(modal.locator(ADMIN_SEL.addUserEmailInput).first(), email, 'email');
+
+      const submit = modal.locator(ADMIN_SEL.addUserSubmitButton).last();
+      await expect(submit, 'Add user modal should enable its submit action after required fields are filled').toBeEnabled({
+        timeout: 15_000,
+      });
+      await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
+      await expect(modal, 'Add user modal should close after successful creation').toBeHidden({ timeout: 60_000 });
+    });
+
+    await test.step('Verify the manually created identity persisted with its complete display name', async () => {
+      await expect
+        .poll(async () => stringValue((await adminUserDocument(page, email))?.displayName), {
+          message: `temporary Admin user ${email} should persist displayName=${fullName}`,
+          timeout: 60_000,
+        })
+        .toBe(fullName);
+    });
+
+    await test.step('Verify the Users dashboard renders the full name and No Code Studio provider', async () => {
+      await applyIonInputFilter(page.locator(ADMIN_SEL.usersSearch).filter({ visible: true }).first(), email);
+      const row = page.locator(`${ADMIN_SEL.usersPage} [role="row"]`).filter({ hasText: email }).first();
+      await expect(row, `Admin Users grid should render temporary user ${email}`).toBeVisible({ timeout: 60_000 });
+      await expect(row.getByText(fullName, { exact: true }), 'Admin Users grid should render the exact complete name').toBeVisible();
+      await expect(row.getByText('No Code Studio', { exact: true }), 'Forms-provider users should be identified as No Code Studio').toBeVisible();
+      await expect(row.getByText(UNKNOWN_USER_LABEL), 'Manually created user should not be rendered as an unknown user').toHaveCount(0);
+    });
+
+    await test.step('Verify the Groups dashboard renders the same complete user name', async () => {
+      await openAdminGroupsPage(page);
+      await applyIonInputFilter(page.locator(ADMIN_SEL.groupedUsersQuickFilter).filter({ visible: true }).first(), email);
+      const visibleRows = page.locator(`${ADMIN_SEL.groupedUsersGrid} [role="row"]`).filter({ visible: true });
+      const row = visibleRows.filter({ hasText: fullName }).first();
+      await expect(row, `Admin Groups users grid should render temporary user ${email}`).toBeVisible({ timeout: 60_000 });
+      await expect(row.getByText(fullName, { exact: true }), 'Admin Groups users grid should render the exact complete name').toBeVisible();
+      await expect(visibleRows.getByText(UNKNOWN_USER_LABEL), 'Admin Groups should not lose a manually created user name').toHaveCount(0);
+    });
+  } finally {
+    await deleteTemporaryAdminUser(page, email).catch(() => undefined);
+  }
+}
+
 async function openAdminGroupsPage(page: Page): Promise<void> {
   await test.step('Open the Admin Groups management page', async () => {
     await gotoWithTransientRetry(page, './admin/dashboard-groups');
@@ -382,7 +463,22 @@ async function openAdminGroupsPage(page: Page): Promise<void> {
   });
 }
 
-async function createAdminGroupThroughUi(page: Page, groupName: string): Promise<void> {
+async function openAdminUsersPage(page: Page): Promise<void> {
+  await test.step('Open the Admin Users management page', async () => {
+    await gotoWithTransientRetry(page, './admin/dashboard-user');
+    const usersPage = page.locator(ADMIN_SEL.usersPage).first();
+    await expect(usersPage, 'Admin Users page should be visible').toBeVisible({ timeout: 60_000 });
+    await expect(usersPage.locator(ADMIN_SEL.gridSurface).first(), 'Admin Users grid should render').toBeVisible({
+      timeout: 60_000,
+    });
+  });
+}
+
+async function createAdminGroupThroughUi(
+  page: Page,
+  groupName: string,
+  options: { verifyUncheckedPermissions?: boolean } = {},
+): Promise<void> {
   await test.step(`Create admin group ${groupName} through the UI`, async () => {
     const addGroupButton = page
       .getByRole('button', {
@@ -410,6 +506,9 @@ async function createAdminGroupThroughUi(page: Page, groupName: string): Promise
     await expect(editingRights, 'Add group modal should expose the Application editing permission').toBeVisible({
       timeout: 15_000,
     });
+    if (options.verifyUncheckedPermissions) {
+      await expectUncheckedAdminPermissionCheckboxesVisible(modal, 'Add group');
+    }
     if (!(await editingRights.isChecked().catch(() => false))) {
       await editingRights.click({ timeout: 10_000 }).catch(async () => editingRights.dispatchEvent('click'));
     }
@@ -426,6 +525,76 @@ async function createAdminGroupThroughUi(page: Page, groupName: string): Promise
     await submit.click({ timeout: 10_000 }).catch(async () => submit.dispatchEvent('click'));
     await expect(modal, 'Add group modal should close after creation').toBeHidden({ timeout: 60_000 });
   });
+}
+
+async function expectUncheckedAdminPermissionCheckboxesVisible(modal: Locator, context: string): Promise<void> {
+  const permissions = modal.locator('ion-checkbox.form-checkbox--small').filter({ visible: true });
+  await expect(permissions.first(), `${context} modal should expose permission checkboxes`).toBeVisible({ timeout: 15_000 });
+
+  const unchecked: Locator[] = [];
+  for (let index = 0; index < (await permissions.count()); index += 1) {
+    const permission = permissions.nth(index);
+    if (!(await ionCheckboxChecked(permission))) {
+      unchecked.push(permission);
+    }
+  }
+  expect(unchecked.length, `${context} modal should expose at least one unchecked permission`).toBeGreaterThan(0);
+
+  for (const permission of unchecked) {
+    await expect(permission, `${context} unchecked permission host should remain visible`).toBeVisible();
+    const visual = await permission.evaluate((element) => {
+      const host = element as HTMLElement;
+      const container = host.shadowRoot?.querySelector<HTMLElement>('[part~="container"], .checkbox-icon') ?? null;
+      if (!container) {
+        return { width: 0, height: 0, opacity: 0, visibleOutline: false };
+      }
+      const box = container.getBoundingClientRect();
+      const style = getComputedStyle(container);
+      const borderWidth = Math.max(
+        Number.parseFloat(style.borderTopWidth) || 0,
+        Number.parseFloat(style.borderRightWidth) || 0,
+        Number.parseFloat(style.borderBottomWidth) || 0,
+        Number.parseFloat(style.borderLeftWidth) || 0,
+      );
+      const borderColor = style.borderColor.replace(/\s/g, '').toLowerCase();
+      const transparentBorder = borderColor === 'transparent' || /rgba\([^)]*,0(?:\.0+)?\)/.test(borderColor);
+      const visibleOutline = (borderWidth >= 1 && !transparentBorder) || (style.boxShadow !== 'none' && style.boxShadow.includes('inset'));
+      return {
+        width: box.width,
+        height: box.height,
+        opacity: Number.parseFloat(style.opacity || '1'),
+        visibleOutline,
+      };
+    });
+    expect(visual.width, `${context} unchecked checkbox should retain a rendered width`).toBeGreaterThanOrEqual(12);
+    expect(visual.height, `${context} unchecked checkbox should retain a rendered height`).toBeGreaterThanOrEqual(12);
+    expect(visual.opacity, `${context} unchecked checkbox should not be transparent`).toBeGreaterThan(0);
+    expect(visual.visibleOutline, `${context} unchecked checkbox should expose a visible border or inset outline`).toBe(true);
+  }
+}
+
+async function fillNativeInput(input: Locator, value: string, label: string): Promise<void> {
+  await expect(input, `Add user modal should expose the ${label} input`).toBeVisible({ timeout: 15_000 });
+  await input.fill(value);
+  await input.blur();
+  await expect(input, `Add user ${label} should retain its value`).toHaveValue(value);
+}
+
+async function applyIonInputFilter(search: Locator, query: string): Promise<void> {
+  await expect(search, 'Admin list should expose its search input').toBeVisible({ timeout: 30_000 });
+  await search.evaluate((element, value) => {
+    const host = element as HTMLElement & { value?: string; shadowRoot?: ShadowRoot | null };
+    const root = host.shadowRoot ?? host;
+    const input = root.querySelector('input') as HTMLInputElement | null;
+    host.value = value;
+    if (input) {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    }
+    host.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, composed: true, detail: { value } }));
+    host.dispatchEvent(new CustomEvent('ionChange', { bubbles: true, composed: true, detail: { value } }));
+  }, query);
 }
 
 async function currentAdminUser(page: Page): Promise<{ acl: string; label: string }> {
@@ -813,6 +982,33 @@ async function deleteTemporaryAdminGroup(page: Page, groupName: string): Promise
   await c8oCall(page, 'admin_group_delete', {
     _use_doc_id: groupName,
   }).catch(() => undefined);
+}
+
+async function adminUserDocument(page: Page, email: string): Promise<Record<string, unknown> | null> {
+  const response = await c8oCall(page, 'admin_users_get', {
+    search: email,
+    limit: '10',
+    skip: '0',
+  }).catch(() => null);
+  if (!response) {
+    return null;
+  }
+  return adminResultValues(response).find((entry) => stringValue(entry.mail) === email || stringValue(entry['~c8oAcl']) === email) ?? null;
+}
+
+async function deleteTemporaryAdminUser(page: Page, email: string): Promise<void> {
+  const user = await adminUserDocument(page, email);
+  if (!user) {
+    return;
+  }
+  const id = stringValue(user._id);
+  const revision = stringValue(user._rev);
+  if (!id || !revision) {
+    return;
+  }
+  await c8oCall(page, 'admin_users_delete', {
+    docs: JSON.stringify([{ _id: id, _rev: revision }]),
+  });
 }
 
 function groupNames(value: unknown): string[] {

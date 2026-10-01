@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import {
   PALETTE_ICON,
   SEL,
@@ -36,6 +36,12 @@ const FUNCTIONAL_SEL = {
   selectorAllApplicationsButton: 'ion-button.class1761754659662',
   selectorGridViewButton: 'ion-button.class1761574287897',
   selectorListViewButton: 'ion-button.class1761576075026',
+  selectorImportButton: 'ion-button.class1761574287978',
+  selectorImportModal: 'ion-modal.show-modal page-dropfilepage',
+  selectorImportModalCloseButton: 'ion-button.close-button',
+  selectorAdvancedSearchButton: 'ion-button.class1783947965453',
+  selectorAdvancedSearchPanel: '.class1645545984242',
+  selectorCommittedSearchBadge: 'ion-badge.class1645887518298',
   selectorUserSearchFilter: '.class1750838881480',
   selectorUserSearchInput: '.class1750838881480 c8oforms-ngxtaginputcustomc8oforms input',
   labelsModal: 'ion-modal.show-modal page-labelspage',
@@ -168,14 +174,13 @@ export async function expectForgottenPasswordModalOpensAndCloses(page: Page): Pr
 }
 
 /**
- * Covers both halves of #1259 without holding two global-symbol locks at once.
- * The second assertion uses a fresh browser context so the login discovery
- * sequence cannot reuse the first phase's long-lived client cache entry.
+ * Covers #1259 and #1391 without holding two global-symbol locks at once.
+ * Every assertion after the first uses a fresh browser context so the login
+ * discovery sequence cannot reuse an earlier priority-server cache entry.
  */
-export async function expectLoginIdentifierSymbolsThroughUi(page: Page): Promise<void> {
+export async function expectLoginSymbolsThroughUi(page: Page): Promise<void> {
   const token = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const placeholderValue = `QA placeholder ${token}`;
-  const identifierValue = `QA identifier ${token}`;
   let restoreSymbol: RestoreGlobalSymbol | undefined;
 
   try {
@@ -196,31 +201,85 @@ export async function expectLoginIdentifierSymbolsThroughUi(page: Page): Promise
   const browser = page.context().browser();
   expect(browser, 'the identity symbol check requires a Playwright browser context').not.toBeNull();
   const appBaseUrl = new URL('.', page.url()).href;
-  const identifierContext = await browser!.newContext({
-    baseURL: appBaseUrl,
-    viewport: page.viewportSize() ?? { width: 1440, height: 900 },
-  });
+  const viewport = page.viewportSize() ?? { width: 1440, height: 900 };
+  const checks: LoginTextSymbolCheck[] = [
+    {
+      symbol: 'C8Oforms.IdentifierValue',
+      value: `QA identifier ${token}`,
+      selector: 'page-loginpage ion-label:visible',
+      description: 'identifier label',
+      revealLoginForm: true,
+    },
+    {
+      symbol: 'C8Oforms.customHeaderDescription',
+      value: `QA header description ${token}`,
+      selector: 'page-loginpage .hero-subtitle:visible',
+      description: 'header description',
+    },
+    {
+      symbol: 'C8Oforms.customContentTitle',
+      value: `QA content title ${token}`,
+      selector: 'page-loginpage .login-form-header h1.main-title:visible',
+      description: 'login-card title',
+    },
+    {
+      symbol: 'C8Oforms.customContentDescription',
+      value: `QA content description ${token}`,
+      selector: 'page-loginpage .login-form-header .description:visible',
+      description: 'login-card description',
+    },
+  ];
+
+  for (const check of checks) {
+    await expectLoginTextSymbolInFreshContext(browser!, appBaseUrl, viewport, check);
+  }
+}
+
+type LoginTextSymbolCheck = {
+  symbol: string;
+  value: string;
+  selector: string;
+  description: string;
+  revealLoginForm?: boolean;
+};
+
+async function expectLoginTextSymbolInFreshContext(
+  browser: Browser,
+  appBaseUrl: string,
+  viewport: { width: number; height: number },
+  check: LoginTextSymbolCheck,
+): Promise<void> {
+  const context = await browser.newContext({ baseURL: appBaseUrl, viewport });
+  let restoreSymbol: RestoreGlobalSymbol | undefined;
 
   try {
-    await test.step('Set and verify the identifier label server symbol', async () => {
-      restoreSymbol = await setGlobalSymbolForTest('C8Oforms.IdentifierValue', identifierValue);
-      const identifierPage = await identifierContext.newPage();
-      await openUsernamePasswordLoginForm(identifierPage);
+    await test.step(`Set and verify the ${check.description} server symbol`, async () => {
+      restoreSymbol = await setGlobalSymbolForTest(check.symbol, check.value);
+      const symbolPage = await context.newPage();
+      if (check.revealLoginForm) {
+        await openUsernamePasswordLoginForm(symbolPage);
+      } else {
+        await symbolPage.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
+        await expect(symbolPage.locator(SEL.loginPageRoot).first(), 'login page should be visible').toBeVisible({
+          timeout: 30_000,
+        });
+      }
 
-      const identifierLabel = identifierPage
-        .locator('page-loginpage ion-label:visible')
-        .filter({ hasText: identifierValue });
-      await expect(identifierLabel, 'the signed-out login page should expose one customized identifier label').toHaveCount(1);
+      const customizedText = symbolPage.locator(check.selector).filter({ hasText: check.value });
       await expect(
-        identifierLabel.first(),
-        'the identifier label should use C8Oforms.IdentifierValue verbatim instead of a translated fallback',
-      ).toHaveText(identifierValue);
+        customizedText,
+        `the signed-out login page should expose one customized ${check.description}`,
+      ).toHaveCount(1);
+      await expect(
+        customizedText.first(),
+        `${check.description} should use ${check.symbol} verbatim instead of its translated fallback`,
+      ).toHaveText(check.value);
     });
   } finally {
     try {
       await restoreSymbol?.();
     } finally {
-      await identifierContext.close();
+      await context.close();
     }
   }
 }
@@ -559,6 +618,13 @@ async function selectorApplicationVisible(page: Page, title: string): Promise<bo
 
 async function searchSelectorApplicationsByNameThroughDashboard(page: Page, query: string): Promise<void> {
   await expectNoCodeDashboardReady(page);
+  const input = await selectorApplicationSearchInput(page);
+  await input.fill(query, { timeout: 10_000 });
+  await input.press('Enter', { timeout: 10_000 });
+  await page.waitForTimeout(1_500);
+}
+
+async function selectorApplicationSearchInput(page: Page): Promise<Locator> {
   const input = page
     .locator(
       [
@@ -570,9 +636,17 @@ async function searchSelectorApplicationsByNameThroughDashboard(page: Page, quer
     )
     .first();
   await expect(input, 'selector application search input should be visible').toBeVisible({ timeout: 15_000 });
-  await input.fill(query, { timeout: 10_000 });
-  await input.press('Enter', { timeout: 10_000 });
-  await page.waitForTimeout(1_500);
+  return input;
+}
+
+async function expectCommittedSelectorSearchQuery(page: Page, query: string | null): Promise<void> {
+  const badge = page.locator(FUNCTIONAL_SEL.selectorCommittedSearchBadge).filter({ visible: true });
+  if (query === null) {
+    await expect(badge, 'selector should not display a committed search chip').toHaveCount(0, { timeout: 15_000 });
+    return;
+  }
+  await expect(badge, 'selector should display the committed search chip').toHaveCount(1, { timeout: 15_000 });
+  await expect(badge.first(), 'search chip should equal the last submitted query').toHaveText(query, { timeout: 15_000 });
 }
 
 async function setSelectorAllApplicationsFilter(page: Page, enabled: boolean): Promise<void> {
@@ -849,6 +923,7 @@ export async function moveApplicationIntoFolderAndAssertThroughUi(
 
 export async function searchApplicationsByNameVariantsThroughUi(page: Page, suffix = `${Date.now()}`): Promise<void> {
   await test.step('Search applications by case, accent, and punctuation', async () => {
+    const folderTitle = `Functional search folder ${suffix}`;
     const cases = [
       {
         title: `Functional Search Case ${suffix}`,
@@ -864,16 +939,132 @@ export async function searchApplicationsByNameVariantsThroughUi(page: Page, suff
       },
     ];
 
+    // A folder makes clearing an empty query observable: #1442 previously
+    // left the selector in a filtered state where folders did not come back.
+    await createFolderAndValidateTitleThroughUi(page, folderTitle);
+
     for (const { title } of cases) {
       await createBlankForm(page, title);
       await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await expectNoCodeDashboardReady(page);
     }
 
-    for (const { title, query } of cases) {
-      await searchSelectorApplicationsByNameThroughDashboard(page, query);
+    for (const [index, { title, query }] of cases.entries()) {
+      const input = await selectorApplicationSearchInput(page);
+      await input.fill(query, { timeout: 10_000 });
+      if (index === 0) {
+        await expectCommittedSelectorSearchQuery(page, null);
+      }
+      await input.press('Enter', { timeout: 10_000 });
+      await expectCommittedSelectorSearchQuery(page, query);
       await expectSelectorSearchKeepsSingleApplication(page, title);
+
+      // Typing and modifier keys edit only the pending query. They must not
+      // erase or rewrite the chip for the last query committed with Enter.
+      await input.press('Control', { timeout: 10_000 });
+      await input.fill(`${query} pending`, { timeout: 10_000 });
+      await expectCommittedSelectorSearchQuery(page, query);
+      await expectSelectorSearchKeepsSingleApplication(page, title);
+      await input.fill(query, { timeout: 10_000 });
     }
+
+    await test.step('Open advanced filters and return to the direct search bar', async () => {
+      const advancedSearch = page.locator(FUNCTIONAL_SEL.selectorAdvancedSearchButton).filter({ visible: true }).first();
+      await expect(advancedSearch, 'direct search should expose the advanced-filter action').toBeVisible({ timeout: 15_000 });
+      await advancedSearch.click({ timeout: 10_000 }).catch(async () => advancedSearch.dispatchEvent('click'));
+
+      const panel = page.locator(FUNCTIONAL_SEL.selectorAdvancedSearchPanel).filter({ visible: true }).first();
+      await expect(panel, 'advanced search panel should open from the direct search bar').toBeVisible({ timeout: 15_000 });
+      const content = page.locator(`${SEL.selectorPageRoot} ion-content`).first();
+      const contentBounds = await content.boundingBox();
+      expect(contentBounds, 'selector content should expose an outside-click surface').not.toBeNull();
+      await page.mouse.click(contentBounds!.x + 4, contentBounds!.y + contentBounds!.height - 4);
+      await expect(panel, 'closing advanced search should restore the direct search bar').toBeHidden({ timeout: 15_000 });
+      await selectorApplicationSearchInput(page);
+    });
+
+    const input = await selectorApplicationSearchInput(page);
+    await input.fill('', { timeout: 10_000 });
+    await input.press('Enter', { timeout: 10_000 });
+    await expectCommittedSelectorSearchQuery(page, null);
+    await expectSelectorFolderVisible(page, folderTitle);
+  });
+}
+
+export async function verifyDashboardStateSurvivesImportModalAndViewSwitchThroughUi(
+  page: Page,
+  title = `Functional dashboard state ${Date.now()}`,
+): Promise<void> {
+  await test.step('Preserve selector state while opening the import modal and switching views', async () => {
+    await createBlankForm(page, title);
+    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await expectNoCodeDashboardReady(page);
+    await searchSelectorApplicationsByNameThroughDashboard(page, title);
+    await expectSelectorApplicationVisible(page, title);
+    await expectCommittedSelectorSearchQuery(page, title);
+
+    const root = page.locator(SEL.selectorPageRoot).first();
+    const input = await selectorApplicationSearchInput(page);
+    const pendingQuery = `${title} pending`;
+    const stateMarker = `e2e-${Date.now()}`;
+    await root.evaluate((element, marker) => ((element as HTMLElement).dataset.e2eSelectorState = marker), stateMarker);
+    const applicationCard = page
+      .locator('[id^="idcard"]:not([id^="idcardO"])')
+      .filter({ hasText: title, visible: true })
+      .first();
+    await expect(applicationCard, 'searched application card should be visible before opening the modal').toBeVisible({
+      timeout: 15_000,
+    });
+    await applicationCard.evaluate(
+      (element, marker) => ((element as HTMLElement).dataset.e2eSelectorCardState = marker),
+      stateMarker,
+    );
+    await input.fill(pendingQuery, { timeout: 10_000 });
+    const dashboardUrl = page.url();
+
+    const expectStatePreserved = async (context: string) => {
+      await expect(page, `${context} should not navigate away from the selector`).toHaveURL(dashboardUrl);
+      await expect
+        .poll(
+          () => root.evaluate((element) => (element as HTMLElement).dataset.e2eSelectorState ?? ''),
+          { message: `${context} should keep the same selector page instance`, timeout: 15_000 },
+        )
+        .toBe(stateMarker);
+      await expect(input, `${context} should preserve the pending search text`).toHaveValue(pendingQuery);
+      await expectCommittedSelectorSearchQuery(page, title);
+    };
+
+    const importButton = page.locator(FUNCTIONAL_SEL.selectorImportButton).filter({ visible: true }).first();
+    await expect(importButton, 'selector import action should be visible').toBeVisible({ timeout: 15_000 });
+    await importButton.click({ timeout: 10_000 }).catch(async () => importButton.dispatchEvent('click'));
+
+    const modal = page.locator(FUNCTIONAL_SEL.selectorImportModal).last();
+    await expect(modal, 'application import modal should open over the selector').toBeVisible({ timeout: 15_000 });
+    await expectStatePreserved('opening the import modal');
+
+    const close = modal.locator(FUNCTIONAL_SEL.selectorImportModalCloseButton).filter({ visible: true }).first();
+    await expect(close, 'application import modal close action should be visible').toBeVisible({ timeout: 10_000 });
+    await close.click({ timeout: 10_000 }).catch(async () => close.dispatchEvent('click'));
+    await expect(modal, 'application import modal should close').toBeHidden({ timeout: 15_000 });
+    await expectStatePreserved('closing the import modal');
+    await expect
+      .poll(
+        () => applicationCard.evaluate((element) => (element as HTMLElement).dataset.e2eSelectorCardState ?? ''),
+        { message: 'closing the import modal should not replace or reload the displayed application data', timeout: 15_000 },
+      )
+      .toBe(stateMarker);
+
+    const listView = page.locator(FUNCTIONAL_SEL.selectorListViewButton).filter({ visible: true }).first();
+    await expect(listView, 'selector list-view action should be visible').toBeVisible({ timeout: 15_000 });
+    await listView.click({ timeout: 10_000 }).catch(async () => listView.dispatchEvent('click'));
+    await expectStatePreserved('switching to list view');
+    await expectSelectorApplicationVisible(page, title);
+
+    const gridView = page.locator(FUNCTIONAL_SEL.selectorGridViewButton).filter({ visible: true }).first();
+    await expect(gridView, 'selector grid-view action should be visible').toBeVisible({ timeout: 15_000 });
+    await gridView.click({ timeout: 10_000 }).catch(async () => gridView.dispatchEvent('click'));
+    await expectStatePreserved('switching back to grid view');
+    await expectSelectorApplicationVisible(page, title);
   });
 }
 

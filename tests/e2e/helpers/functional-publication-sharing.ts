@@ -5,6 +5,7 @@ import {
   addComponent,
   c8oCall,
   clickPublishedQrButton,
+  clickVisibleSelectorCardMenuByTitle,
   closeComponentConfig,
   configurePublishedApplicationPublicLinkAndAssertQrLabel,
   createBlankForm,
@@ -16,6 +17,7 @@ import {
   getFormDocument,
   getPwaDocument,
   login,
+  openEditor,
   openPublishedApplicationsTab,
   openApplicationSettingsFromSidebar,
   openPublishedPwaEditor,
@@ -44,6 +46,7 @@ import {
   changeUserLanguageThroughSettings,
   currentUserLanguageFromSettings,
 } from './functional-studio';
+import { configureGridBaserowTableAndAssertViewerRowsThroughUi } from './functional-sources';
 import {
   createFunctionalAdminSequenceClient,
   type FunctionalAdminSequenceClient,
@@ -217,15 +220,23 @@ export async function switchAnonymousPwaBackToAuthenticatedThroughUi(page: Page)
 export async function verifyPwaConfigurationReopenAndViewerMetadataThroughUi(page: Page): Promise<void> {
   const title = `Functional PWA config ${Date.now()}`;
   let formId = '';
+  let pageName = '';
+  let pwaName = '';
+  let themeColor = '';
   let pwa: NonNullable<PwaDocument>;
 
   await test.step('Create and publish a PWA with the configuration wizard', async () => {
     formId = await createBlankForm(page, title);
     await publishCurrentFormWithPwa(page, 'anonymous');
     pwa = await expectPwaDocument(page, formId, 'PWA configuration document should exist after publication');
-    expect(String(pwa.name ?? ''), 'PWA document should persist a name').not.toBe('');
+    const form = await getFormDocument(page, formId);
+    pageName = firstFormPageName(form);
+    pwaName = String(pwa.name ?? '').trim();
+    themeColor = String(pwa.themeColor ?? pwa.backgroundColor ?? '').trim();
+    expect(pageName, 'published form should expose its first page name for the browser title').not.toBe('');
+    expect(pwaName, 'PWA document should persist a name').not.toBe('');
     expect(String(pwa.shortName ?? ''), 'PWA document should persist a short name').not.toBe('');
-    expectCssColorVisible(String(pwa.themeColor ?? pwa.backgroundColor ?? ''), 'PWA document should persist a visible theme/background color');
+    expectCssColorVisible(themeColor, 'PWA document should persist a visible theme/background color');
   });
 
   await test.step('Reopen the PWA editor and verify persisted configuration fields', async () => {
@@ -252,17 +263,214 @@ export async function verifyPwaConfigurationReopenAndViewerMetadataThroughUi(pag
     await expect(modal, 'PWA editor should close after reopening checks').toBeHidden({ timeout: 60_000 });
   });
 
-  await test.step('Open the published viewer and verify visible PWA metadata and theme color', async () => {
+  await test.step('Open the published viewer and verify standalone PWA layout and branding', async () => {
     await openPublishedViewer(page, formId);
     await expect(page.locator(SEL.viewerPage), 'published viewer should open for PWA configuration checks').toBeVisible({
       timeout: 60_000,
     });
-    await expect(page.getByText(title, { exact: true }).first(), 'published viewer should expose the application title').toBeVisible({
+
+    await expect
+      .poll(() => page.title(), {
+        message: 'standalone PWA browser title should contain the complete application and page names',
+        timeout: 30_000,
+      })
+      .toBe(`${pwaName}: ${pageName}`);
+
+    const splitPane = page.locator('ion-split-pane').first();
+    await expect(splitPane, 'standalone PWA should render inside the application split-pane host').toBeAttached();
+    await expect(splitPane, 'standalone PWA split pane should not be open initially on desktop').not.toHaveClass(
+      /split-pane-visible/,
+    );
+    await expect(
+      page.locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible'),
+      'standalone PWA should not expose an initially open menu',
+    ).toHaveCount(0);
+
+    const toolbar = page.locator(SEL.publishedToolbar).first();
+    const applicationName = toolbar.getByText(pwaName, { exact: true }).filter({ visible: true }).first();
+    await expect(applicationName, 'published PWA header should expose its exact application name').toBeVisible({
       timeout: 60_000,
     });
+    await expect(applicationName, 'published PWA header should retain the complete application name').toHaveText(pwaName);
+    await expect(
+      toolbar.getByText(/^(?:Convertigo Forms|No Code Studio)$/).filter({ visible: true }),
+      'published PWA header should not fall back to Studio branding',
+    ).toHaveCount(0);
+
     const state = await publishedViewerToolbarThemeState(page);
     expectCssColorVisible(state.toolbarBackgroundColor, 'published viewer toolbar should expose the configured PWA theme color');
+    expectCssColorClose(
+      state.toolbarBackgroundColor,
+      themeColor,
+      'published viewer toolbar background should match the configured PWA theme color',
+    );
+
+    const expectedTextColor = contrastingTextColor(themeColor);
+    expectCssColorClose(
+      state.toolbarColor,
+      expectedTextColor,
+      'published viewer toolbar should compute contrasting text from the PWA theme color',
+    );
+    const applicationNameColor = await applicationName.evaluate((element) => getComputedStyle(element).color);
+    expectCssColorClose(
+      applicationNameColor,
+      expectedTextColor,
+      'published PWA application name should render with the computed contrasting text color',
+    );
   });
+}
+
+export async function verifyAnonymousPwaLanguagePersistenceWithGridThroughUi(
+  page: Page,
+  browser: Browser,
+): Promise<void> {
+  const title = `Functional anonymous language Grid ${Date.now()}`;
+  let formId = '';
+  let pwaUrl = '';
+
+  await test.step('Create a Grid-backed application and publish it anonymously', async () => {
+    formId = await createBlankForm(page, title);
+    await configureGridBaserowTableAndAssertViewerRowsThroughUi(page);
+    await openEditor(page, formId);
+    await publishCurrentFormWithPwa(page, 'anonymous');
+
+    const pwa = await expectPwaDocument(page, formId, 'anonymous language PWA document should exist after publication');
+    expect(pwa.notAnonymous, 'language persistence fixture should be published anonymously').toBe(false);
+    pwaUrl = standalonePwaUrl(page, publishedViewerTargetId(pwa, publishedApplicationId(formId)));
+  });
+
+  await test.step('Apply and persist a language without losing the Grid in an anonymous browser', async () => {
+    const context = await browser.newContext({ locale: 'en-US' });
+    try {
+      const anonymousPage = await context.newPage();
+      await anonymousPage.goto(pwaUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await acceptRgpdIfVisible(anonymousPage);
+      await expect(anonymousPage.locator(SEL.viewerPage), 'anonymous PWA viewer should open').toBeVisible({
+        timeout: 60_000,
+      });
+
+      const initialRows = await visiblePublishedGridRows(anonymousPage);
+      expect(initialRows.length, 'published Grid should expose both deterministic Baserow fixture rows').toBeGreaterThanOrEqual(2);
+
+      const languageSelect = await openPublishedLanguageSelect(anonymousPage);
+      await expect(languageSelect, 'fresh anonymous PWA should select the browser language').toHaveJSProperty('value', 'en');
+      await expect
+        .poll(() => anonymousPage.locator('html').getAttribute('lang'), {
+          message: 'fresh anonymous PWA metadata should use the browser language',
+          timeout: 15_000,
+        })
+        .toBe('en');
+
+      await selectPublishedLanguageThroughUi(anonymousPage, languageSelect, 'fr');
+      await expect(languageSelect, 'anonymous PWA language selection should update immediately').toHaveJSProperty('value', 'fr');
+      await expect
+        .poll(() => anonymousPage.evaluate(() => localStorage.getItem('lang')), {
+          message: 'anonymous PWA language selection should persist in localStorage',
+          timeout: 15_000,
+        })
+        .toBe('fr');
+      await expect
+        .poll(() => anonymousPage.locator('html').getAttribute('lang'), {
+          message: 'anonymous PWA metadata should follow the selected language',
+          timeout: 15_000,
+        })
+        .toBe('fr');
+
+      await closePublishedMenuIfOpen(anonymousPage);
+      expect(await visiblePublishedGridRows(anonymousPage), 'language change should preserve the published Grid rows').toEqual(
+        initialRows,
+      );
+
+      const applicationReloadButton = anonymousPage.locator(SEL.publishedToolbarReloadButton).first();
+      await expect(applicationReloadButton, 'anonymous PWA toolbar should expose its application reload action').toBeVisible({
+        timeout: 30_000,
+      });
+      await applicationReloadButton
+        .click({ timeout: 10_000 })
+        .catch(async () => applicationReloadButton.dispatchEvent('click'));
+      await expect(anonymousPage.locator(SEL.viewerPage), 'anonymous PWA should reopen after application reload').toBeVisible({
+        timeout: 60_000,
+      });
+      expect(
+        await visiblePublishedGridRows(anonymousPage),
+        'persisted language should not break Grid after application reload',
+      ).toEqual(initialRows);
+
+      const reloadedLanguageSelect = await openPublishedLanguageSelect(anonymousPage);
+      await expect(
+        reloadedLanguageSelect,
+        'anonymous PWA should restore the persisted language after application reload',
+      ).toHaveJSProperty('value', 'fr');
+      await expect
+        .poll(() => anonymousPage.locator('html').getAttribute('lang'), {
+          message: 'application-reloaded anonymous PWA metadata should retain the persisted language',
+          timeout: 15_000,
+        })
+        .toBe('fr');
+    } finally {
+      await context.close();
+    }
+  });
+}
+
+async function openPublishedLanguageSelect(page: Page): Promise<Locator> {
+  const menuButton = page.locator(SEL.publishedToolbarMenuButton).first();
+  await expect(menuButton, 'published viewer menu button should be visible').toBeVisible({ timeout: 30_000 });
+  await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
+
+  const menu = page.locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible').last();
+  await expect(menu, 'published viewer menu should open').toBeVisible({ timeout: 15_000 });
+  const languageSelect = menu.locator('ion-select#button_lang').first();
+  await expect(languageSelect, 'published viewer menu should expose its language selector').toBeVisible({ timeout: 15_000 });
+  return languageSelect;
+}
+
+async function selectPublishedLanguageThroughUi(page: Page, languageSelect: Locator, language: string): Promise<void> {
+  await languageSelect.click({ timeout: 10_000 }).catch(async () => languageSelect.dispatchEvent('click'));
+  const popover = page.locator('ion-popover.custom-popover:not(.overlay-hidden):visible, ion-popover.my-custom-interface:not(.overlay-hidden):visible').last();
+  await expect(popover, 'published language options should open in a popover').toBeVisible({ timeout: 15_000 });
+
+  const option = popover.locator(`ion-radio[value="${language}"], ion-item:has(ion-label[lang="${language}"])`).first();
+  await expect(option, `published language option ${language} should be visible`).toBeVisible({ timeout: 15_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  await expect(popover, 'published language options should close after selection').toBeHidden({ timeout: 15_000 });
+}
+
+async function closePublishedMenuIfOpen(page: Page): Promise<void> {
+  const menu = page.locator('ion-menu.show-menu:visible, ion-menu.menu-pane-visible:visible').last();
+  if (!(await menu.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    return;
+  }
+
+  const menuButton = page.locator(SEL.publishedToolbarMenuButton).first();
+  await menuButton.click({ timeout: 10_000 }).catch(async () => menuButton.dispatchEvent('click'));
+  await expect(menu, 'published viewer menu should close').toBeHidden({ timeout: 15_000 });
+}
+
+async function visiblePublishedGridRows(page: Page): Promise<string[]> {
+  const grid = page.locator(`${SEL.gridComponent}:visible`).first();
+  await expect(grid, 'published Data Grid should be visible').toBeVisible({ timeout: 60_000 });
+  const rows = grid.locator('.ag-center-cols-container .ag-row');
+  await expect
+    .poll(() => rows.count(), {
+      message: 'published Data Grid should finish rendering its fixture rows',
+      timeout: 60_000,
+    })
+    .toBeGreaterThanOrEqual(2);
+
+  return rows.evaluateAll((elements) =>
+    elements.map((element) => (element.textContent ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()),
+  );
+}
+
+function firstFormPageName(form: FormDocument): string {
+  if (!Array.isArray(form.pages)) {
+    return '';
+  }
+  const firstPage = form.pages[0];
+  return firstPage && typeof firstPage === 'object' && !Array.isArray(firstPage)
+    ? String((firstPage as Record<string, unknown>).name ?? '').trim()
+    : '';
 }
 
 async function expectConfiguredPwaIconContained(page: Page, modal: Locator, iconPicker: Locator): Promise<void> {
@@ -479,17 +687,17 @@ export async function verifyFrenchSingleResponseMessageThroughUi(page: Page): Pr
 }
 
 /**
- * #1302: a Text input named like the query parameter is a visible witness for
- * viewerPage navigation data. The completion-page button must decode forwardData
- * before rebuilding viewerPage, otherwise the raw special characters are lost.
+ * #1302: the completion-page button must decode forwardData before rebuilding
+ * viewerPage. Without the fix, JSON.parse receives the URL-encoded object and
+ * the manual return never reopens the form for a second response.
  */
 export async function verifyNonLoopingResponsePreservesEncodedNavigationDataThroughUi(page: Page): Promise<void> {
   const suffix = Date.now();
   const title = `Functional forward data ${suffix}`;
   const technicalId = `functional_forward_data_${suffix}`;
-  const navigationValue = `Élodie & 50% + a=b / ? # ${suffix}`;
+  const firstResponseValue = `Élodie & 50% + a=b / ? # ${suffix}`;
+  const secondResponseValue = `Maël = 75% & x+y # ${suffix}`;
   let formId = '';
-  let publicTargetId = '';
 
   await test.step('Create a non-looping form through Studio application Settings', async () => {
     formId = await createBlankForm(page, title);
@@ -503,40 +711,38 @@ export async function verifyNonLoopingResponsePreservesEncodedNavigationDataThro
       .toBe(false);
   });
 
-  await test.step('Publish the form and open it with special-character navigation data', async () => {
-    await publishCurrentFormWithPwa(page, 'anonymous');
-    const pwa = await expectPwaDocument(page, formId, 'anonymous non-looping PWA should exist before submission');
-    publicTargetId = publishedViewerTargetId(pwa, publishedApplicationId(formId));
-    expect(publicTargetId, 'anonymous PWA should expose a public target id').not.toBe('');
-
+  await test.step('Publish the form and submit a response containing special characters', async () => {
+    await publishCurrentFormWithPwa(page, 'authenticated');
+    await expectPwaDocument(page, formId, 'authenticated non-looping PWA should exist before submission');
     await openPublishedViewer(page, formId, `#${technicalId}`);
-    const navigationUrl = new URL(standalonePwaUrl(page, publicTargetId));
-    navigationUrl.searchParams.set(technicalId, navigationValue);
-    await page.goto(navigationUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    await expect(page.locator(SEL.viewerPage), 'query-prefilled published viewer should render').toBeAttached({ timeout: 60_000 });
-    await expect(viewerTextInput(page, technicalId), 'the initial navigation value should prefill the Text input').toHaveValue(
-      navigationValue,
-      { timeout: 60_000 },
-    );
+    await fillViewerTextInput(page, technicalId, firstResponseValue);
+    await submitViewerForm(page);
   });
 
-  await test.step('Submit and return manually from the response completion page', async () => {
-    await submitViewerForm(page);
+  await test.step('Return manually from the response completion page', async () => {
     const completion = page.locator(SEL.responseCompletedPage).first();
     await expect(completion, 'non-looping submission should stay on the response completion page').toBeVisible({
       timeout: 60_000,
     });
-    const sendAnother = completion.locator('ion-button:visible').filter({ hasText: SEND_ANOTHER_RESPONSE_RE }).first();
+    const sendAnother = completion.getByRole('button', { name: SEND_ANOTHER_RESPONSE_RE }).first();
     await expectActionableInsideViewport(page, sendAnother, 'send another response button');
     await sendAnother.click({ timeout: 10_000 }).catch(async () => sendAnother.dispatchEvent('click'));
     await expect(page.locator(SEL.viewerPage), 'manual response return should reopen viewerPage').toBeAttached({ timeout: 60_000 });
   });
 
-  await test.step('Assert the restored navigation value is decoded exactly once', async () => {
-    await expect(viewerTextInput(page, technicalId), 'special characters should survive the manual response return').toHaveValue(
-      navigationValue,
-      { timeout: 60_000 },
+  await test.step('Submit a second special-character response after the decoded return', async () => {
+    await expect(viewerTextInput(page, technicalId), 'the returned viewer should expose the original Text input').toBeVisible({
+      timeout: 60_000,
+    });
+    await fillViewerTextInput(page, technicalId, secondResponseValue);
+    await expect(viewerTextInput(page, technicalId), 'the second special-character value should remain exact before resubmission').toHaveValue(
+      secondResponseValue,
     );
+    await submitViewerForm(page);
+    await expect(
+      page.locator(SEL.responseCompletedPage).first(),
+      'the second response should complete after the manual decoded return',
+    ).toBeVisible({ timeout: 60_000 });
   });
 }
 
@@ -547,7 +753,10 @@ async function setBooleanApplicationSettingThroughUi(
   description: string,
 ): Promise<void> {
   await openApplicationSettingsFromSidebar(page);
-  const row = page.locator('ion-item:visible').filter({ hasText: label }).first();
+  const formCategory = page.locator('.app-settings-categories button.class1779358000042').filter({ visible: true }).first();
+  await expect(formCategory, 'application settings should expose the Form category').toBeVisible({ timeout: 15_000 });
+  await formCategory.click({ timeout: 10_000 }).catch(async () => formCategory.dispatchEvent('click'));
+  const row = page.locator('ion-item:visible, c8oforms-toggleswitch:visible').filter({ hasText: label }).first();
   await expect(row, `${description} application setting should be visible`).toBeVisible({ timeout: 15_000 });
 
   const checkbox = row.locator('ion-checkbox:visible').first();
@@ -562,9 +771,7 @@ async function setBooleanApplicationSettingThroughUi(
       })
       .toBe(enabled);
   } else {
-    const toggle = row.locator('c8oforms-toggleswitch:visible').first();
-    await expect(toggle, `${description} setting should expose a checkbox or ToggleSwitch`).toBeVisible({ timeout: 10_000 });
-    const target = toggle.locator('button.c8o-btn:visible').nth(enabled ? 0 : 1);
+    const target = row.locator('button.c8o-btn:visible').nth(enabled ? 0 : 1);
     await expect(target, `${description} ${enabled ? 'Yes' : 'No'} option should be visible`).toBeVisible({ timeout: 10_000 });
     if (!((await target.getAttribute('class')) ?? '').includes('c8o-btn-selected')) {
       await target.click({ timeout: 10_000 }).catch(async () => target.dispatchEvent('click'));
@@ -1605,14 +1812,21 @@ async function expectActionableInsideViewport(page: Page, locator: Locator, labe
   expect(box!.x + box!.width, `${label} should fit inside viewport width`).toBeLessThanOrEqual(viewport!.width + 1);
   expect(box!.y + box!.height, `${label} should fit inside viewport height`).toBeLessThanOrEqual(viewport!.height + 1);
 
-  const toast = page.locator('ion-toast:not(.overlay-hidden):visible').last();
-  if (await toast.isVisible({ timeout: 500 }).catch(() => false)) {
+  const visibleToasts = page.locator('ion-toast:not(.overlay-hidden):visible');
+  for (let attempt = 0; attempt < 5 && (await visibleToasts.count()) > 0; attempt++) {
+    const countBefore = await visibleToasts.count();
+    const toast = visibleToasts.last();
     const closeButton = toast
       .locator('button, ion-button, .toast-button')
       .filter({ hasText: /^(OK|Close|Fermer)$/i })
       .last();
     if (await closeButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
       await closeButton.click({ timeout: 5_000 });
+      await expect
+        .poll(() => visibleToasts.count(), { timeout: 5_000 })
+        .toBeLessThan(countBefore);
+    } else {
+      break;
     }
   }
   await expect(
@@ -1988,6 +2202,7 @@ export async function verifyPublishedShareNotificationFieldsThroughUi(page: Page
       body,
     });
     expect(recipient, 'a recipient should be selected before configuring share notification').not.toBe('');
+    expect(recipient, 'response-tracking coverage requires the selected share recipient to be a real user').toContain('@');
 
     const modal = page.locator(SEL.collaboratorsModal).last();
     await expect(modal, 'Share application modal should remain open after configuring notification').toBeVisible({
@@ -2020,6 +2235,138 @@ export async function verifyPublishedShareNotificationFieldsThroughUi(page: Page
     await expect(reopened, 'Share application modal should close after persistence verification').toBeHidden({
       timeout: 30_000,
     });
+  });
+
+  await test.step('Verify the saved invitee remains readable in response tracking', async () => {
+    const inviteeRow = await openPublishedInviteeResponseRowThroughUi(page, title, recipient);
+    const geometry = await inviteeResponseRowGeometry(inviteeRow);
+
+    expect(geometry.textLines.length, 'invitee response row should render separate name and metadata lines').toBeGreaterThanOrEqual(
+      2,
+    );
+    expect(geometry.rowHeight, 'invitee response row should no longer use the former fixed 31.5px height').toBeGreaterThan(
+      32.5,
+    );
+    expect(geometry.contentTop, 'invitee name should remain inside the top of its row').toBeGreaterThanOrEqual(
+      geometry.rowTop - 1,
+    );
+    expect(geometry.contentBottom, 'invitee metadata should remain inside the bottom of its row').toBeLessThanOrEqual(
+      geometry.rowBottom + 1,
+    );
+    expect(
+      geometry.scrollHeight,
+      'invitee row content should fit vertically without being clipped or overflowing its client box',
+    ).toBeLessThanOrEqual(geometry.clientHeight + 1);
+
+    const [nameLine, metadataLine] = geometry.textLines;
+    expect(metadataLine.top, 'invitee metadata should be laid out below the name without overlapping it').toBeGreaterThanOrEqual(
+      nameLine.bottom - 1,
+    );
+  });
+}
+
+async function openPublishedInviteeResponseRowThroughUi(
+  page: Page,
+  title: string,
+  recipient: string,
+): Promise<Locator> {
+  await openPublishedApplicationsTab(page);
+  const card = selectorCardByTitle(page, title);
+  await expect(card, `published application card ${title} should remain visible`).toBeVisible({ timeout: 30_000 });
+
+  const cardId = await card.getAttribute('id');
+  expect(cardId, 'published application card should expose its generated card id').toBeTruthy();
+  const overlayId = String(cardId).replace(/^idcard/, 'idcardO');
+  const responsesMenuItem = page
+    .locator(
+      'ion-popover:not(.overlay-hidden):visible page-popoverpageselector ion-item.class1580132441145, ' +
+        'ion-popover:not(.overlay-hidden):visible page-popoverpageselector ion-item:has(ion-icon[src*="chart-column.svg"])',
+    )
+    .first();
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await clickVisibleSelectorCardMenuByTitle(page, title)) {
+      if (await responsesMenuItem.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        break;
+      }
+    }
+
+    await card.hover({ timeout: 10_000 }).catch(() => undefined);
+    const overlayMenu = page.locator(`[id="${overlayId}"]:visible ${SEL.cardMenuButton}`).first();
+    const cardMenu = card.locator(SEL.cardMenuButton).first();
+    const menu = (await overlayMenu.isVisible({ timeout: 1_000 }).catch(() => false)) ? overlayMenu : cardMenu;
+    if (await menu.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await menu.click({ timeout: 10_000 }).catch(async () => menu.dispatchEvent('click'));
+    }
+    if (await responsesMenuItem.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      break;
+    }
+  }
+
+  await expect(responsesMenuItem, 'published application menu should expose View responses').toBeVisible({ timeout: 10_000 });
+  await responsesMenuItem.click({ timeout: 10_000 }).catch(async () => responsesMenuItem.dispatchEvent('click'));
+
+  const responsesPage = page.locator('page-datapage:visible').last();
+  await expect(responsesPage, 'View responses should open the response tracking page').toBeVisible({ timeout: 60_000 });
+  const inviteesTab = responsesPage.locator('ion-segment-button[value="Invitees"]:visible').first();
+  await expect(inviteesTab, 'response tracking should expose its Invitees segment').toBeVisible({ timeout: 30_000 });
+  await inviteesTab.click({ timeout: 10_000 }).catch(async () => inviteesTab.dispatchEvent('click'));
+
+  const row = responsesPage.locator('ion-list ion-item:visible').filter({ hasText: recipient }).first();
+  await expect(row, `response tracking should list saved invitee ${recipient}`).toBeVisible({ timeout: 60_000 });
+  await expect(row, `saved invitee row should retain ${recipient}`).toContainText(recipient);
+  return row;
+}
+
+async function inviteeResponseRowGeometry(row: Locator): Promise<{
+  rowTop: number;
+  rowBottom: number;
+  rowHeight: number;
+  clientHeight: number;
+  scrollHeight: number;
+  contentTop: number;
+  contentBottom: number;
+  textLines: Array<{ top: number; bottom: number; text: string }>;
+}> {
+  return row.evaluate((element) => {
+    const rowElement = element as HTMLElement;
+    const rowBox = rowElement.getBoundingClientRect();
+    const nameColumn = [...rowElement.querySelectorAll('ion-col')].find((candidate) => {
+      const visibleTextLines = [...candidate.querySelectorAll('ion-text')].filter((text) => {
+        const box = (text as HTMLElement).getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && (text.textContent ?? '').trim() !== '';
+      });
+      return visibleTextLines.length >= 2;
+    });
+    if (!(nameColumn instanceof HTMLElement)) {
+      throw new Error('Invitee response row should expose a two-line name and metadata column');
+    }
+
+    const textLines = [...nameColumn.querySelectorAll('ion-text')]
+      .map((text) => {
+        const box = (text as HTMLElement).getBoundingClientRect();
+        return {
+          top: box.top,
+          bottom: box.bottom,
+          width: box.width,
+          height: box.height,
+          text: (text.textContent ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim(),
+        };
+      })
+      .filter((line) => line.width > 0 && line.height > 0 && line.text !== '')
+      .sort((left, right) => left.top - right.top)
+      .map(({ top, bottom, text }) => ({ top, bottom, text }));
+
+    return {
+      rowTop: rowBox.top,
+      rowBottom: rowBox.bottom,
+      rowHeight: rowBox.height,
+      clientHeight: rowElement.clientHeight,
+      scrollHeight: rowElement.scrollHeight,
+      contentTop: Math.min(...textLines.map((line) => line.top)),
+      contentBottom: Math.max(...textLines.map((line) => line.bottom)),
+      textLines,
+    };
   });
 }
 
@@ -2275,6 +2622,16 @@ function expectCssColorClose(actual: string, expected: string, message: string):
     Math.abs(actualColor.blue - expectedColor.blue);
 
   expect(distance, `${message}; actual=${actual}; expected=${expected}`).toBeLessThanOrEqual(6);
+}
+
+function contrastingTextColor(background: string): string {
+  const color = parseCssColor(background);
+  const channels = [color.red, color.green, color.blue].map((value) => {
+    const channel = value / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  return luminance > 0.179 ? '#000000' : '#ffffff';
 }
 
 function parseCssColor(value: string): { red: number; green: number; blue: number; alpha: number } {

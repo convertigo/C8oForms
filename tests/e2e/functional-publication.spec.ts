@@ -9,6 +9,7 @@ import {
   verifySelectedOwnerCollaborationsOnlyThroughUi,
   verifyNonLoopingResponsePreservesEncodedNavigationDataThroughUi,
   verifyPwaConfigurationReopenAndViewerMetadataThroughUi,
+  verifyAnonymousPwaLanguagePersistenceWithGridThroughUi,
   verifyPublishedPwaCacheMetadataThroughUi,
   verifyPublishedViewerResponsiveLayoutThroughUi,
   verifyPublishedViewerToolbarThemeThroughUi,
@@ -54,8 +55,17 @@ test.describe('No-Code Studio functional publication contract', () => {
    * #1307: reported in beta118. The #1325 redesign commit 13f60641 bounded
    * the picker and its visual at 120px, first shipped in beta127 and was
    * historically QA-validated in beta127.
+   *
+   * #1316: reported while beta119 was the latest release. Commits 840720a4
+   * and eb74bc51 introduced the closed standalone-PWA menu, complete browser
+   * title, and application-branded contrasting header in beta122/beta123.
+   * Following the PWA UI changes, the complete behavior was historically
+   * QA-validated in beta133. Runtime validation on the current test-nocode
+   * release is pending.
    */
-  test('PUB-005 #1307 - PWA configuration reopens with a contained icon and viewer metadata', async ({ page }) => {
+  test('PUB-005 #1307 #1316 - PWA configuration reopens with a contained icon and branded viewer metadata', async ({
+    page,
+  }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);
     await verifyPwaConfigurationReopenAndViewerMetadataThroughUi(page);
@@ -102,7 +112,7 @@ test.describe('No-Code Studio functional publication contract', () => {
    * #1302: reported in beta115 (inferred from the release current at issue
    * creation). Commit 19e56a9e decoded forwardData before the manual return to
    * viewerPage, first shipped in beta116 and historically QA-validated in
-   * beta123. Runtime validation on the current test-nocode release is pending.
+   * beta123. This contract passed on test-nocode running beta371.
    */
   test('PUB-012 #1302 - manual resubmission preserves encoded navigation data', async ({ page }) => {
     test.setTimeout(360_000);
@@ -140,5 +150,18 @@ test.describe('No-Code Studio functional publication contract', () => {
     await ensureFunctionalUserIfPossible(ownerUser!);
     await loginWithUsernamePassword(page);
     await verifySelectedOwnerCollaborationsOnlyThroughUi(page, browser, adminUser!, ownerUser!);
+  });
+
+  /**
+   * #1452: reported in beta267. Commits 82b5adeb, df61c6eb, and d70036ae
+   * corrected the anonymous PWA language initialization, Grid refresh, and
+   * persisted language/navigation state in beta271-beta273. The complete fix
+   * was historically QA-validated in beta282. Runtime validation on the
+   * current test-nocode release is pending.
+   */
+  test('PUB-014 #1452 - anonymous PWA language selection persists without breaking Grid', async ({ page, browser }) => {
+    test.setTimeout(540_000);
+    await loginWithUsernamePassword(page);
+    await verifyAnonymousPwaLanguagePersistenceWithGridThroughUi(page, browser);
   });
 });

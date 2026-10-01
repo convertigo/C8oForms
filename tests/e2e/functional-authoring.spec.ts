@@ -15,6 +15,7 @@ import {
   renameApplicationAndAssertPersistenceThroughUi,
   reopenExistingApplicationFromSelectorThroughUi,
   searchApplicationsByNameVariantsThroughUi,
+  verifyDashboardStateSurvivesImportModalAndViewSwitchThroughUi,
   verifyLongApplicationNamePresentationThroughUi,
 } from './helpers/functional-studio';
 
@@ -88,8 +89,14 @@ test.describe('No-Code Studio functional authoring', () => {
     await moveApplicationIntoFolderAndAssertThroughUi(page);
   });
 
-  test('APP-008 - search applications by name variants', async ({ page }) => {
-    test.setTimeout(150_000);
+  /**
+   * #1442 introduced the direct-search UI in beta262. Its query-chip
+   * lifecycle was corrected through beta321, where QA historically validated
+   * the final behavior. Runtime validation of this functional owner on current
+   * test-nocode is pending.
+   */
+  test('APP-008 #1442 - search applications by name variants and preserve the committed query', async ({ page }) => {
+    test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await searchApplicationsByNameVariantsThroughUi(page);
   });
@@ -110,5 +117,18 @@ test.describe('No-Code Studio functional authoring', () => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await verifyLongApplicationNamePresentationThroughUi(page);
+  });
+
+  /**
+   * #1441 was reported in 2.2.0-beta256. Commit b73acff6 stopped the import
+   * modal from refreshing the selector (beta257), and commit 2daa686f made
+   * grid/list switches update in place (beta292). QA historically validated
+   * the complete behavior in beta294. Current test-nocode validation remains
+   * pending.
+   */
+  test('APP-013 #1441 - dashboard overlays and view switches preserve in-progress state', async ({ page }) => {
+    test.setTimeout(180_000);
+    await loginWithUsernamePassword(page);
+    await verifyDashboardStateSurvivesImportModalAndViewSwitchThroughUi(page);
   });
 });

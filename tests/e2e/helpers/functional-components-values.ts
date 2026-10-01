@@ -15,7 +15,7 @@ import {
   configureSelectBaserowSource,
   configureVisibleTinyMceSpacingThroughUi,
   createTextBusinessLogicFormula,
-  dragUserEmailPaletteToTinyMce,
+  dragSourcePaletteEntryToTinyMce,
   dropSourcePaletteEntryIntoVisibleMonaco,
   checkedSelectBaserowDisplayColumns,
   checkedSelectBaserowValueColumns,
@@ -31,8 +31,10 @@ import {
   fillViewerTextInput,
   mapHeight,
   openComponentConfig,
+  openComponentConfigByTechnicalId,
   openComponentConfigAt,
   openConfigTabById,
+  openEditor,
   openButtonFlowToastActionConfig,
   openComponentsPalette,
   openPreview,
@@ -66,6 +68,7 @@ import {
   setTextDefaultValueText,
   submitViewerForm,
   TEST_USER,
+  tinyMceEditorContent,
   type ChoiceViewerKind,
   viewerTextInput,
 } from './studio';
@@ -90,6 +93,7 @@ const DATE_VALUE_SEL = {
   minInput: 'c8oforms-textinputsetting.class1776351200013 input, .class1776351200013 input',
   maxInput: 'c8oforms-textinputsetting.class1776351200022 input, .class1776351200022 input',
   displayFormatToggle: 'c8oforms-toggleswitch.class1776501100004:visible, .class1776501100004:visible',
+  entryModeToggle: 'c8oforms-toggleswitch.class1789377621400:visible, .class1789377621400:visible',
 } as const;
 const TIME_COMPONENT = 'c8oforms-itemtimeviewver';
 const TIME_VALUE_SEL = {
@@ -217,12 +221,21 @@ export async function exerciseTextInputAdvancedDefaultValuesThroughUi(page: Page
 export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page: Page): Promise<void> {
   const suffix = Date.now();
   const descriptionTechnicalId = `functional_description_${suffix}`;
+  const chipSourceTechnicalId = `functional_description_chip_source_${suffix}`;
+  const chipSourceValue = `Functional chip source ${suffix}`;
   const textTechnicalId = `functional_text_rich_question_${suffix}`;
   const introText = `Functional description intro ${suffix}`;
   const boldText = `Functional bold ${suffix}`;
   const italicText = `Functional italic ${suffix}`;
   const questionText = `Functional rich question ${suffix}`;
   const spacing = { marginBottom: '16px', padding: '12px' };
+  let configuredChipPresentation: SourcePaletteChipPresentation | null = null;
+
+  await test.step('Create another component as the Description source-chip value', async () => {
+    await addConfiguredTextInput(page, 0, chipSourceTechnicalId, async () => {
+      await setTextDefaultValueText(page, chipSourceValue);
+    });
+  });
 
   await test.step('Create and configure a Description with rich text and a Source Palette value', async () => {
     await acceptRgpdIfVisible(page);
@@ -235,7 +248,10 @@ export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page:
     await openComponentConfig(page, SEL.descriptionComponent);
     await setTechnicalId(page, descriptionTechnicalId);
     await setDescriptionRichText(page, { introText, boldText, italicText });
-    await dragUserEmailPaletteToTinyMce(page);
+    await dragSourcePaletteEntryToTinyMce(page, 'form', chipSourceTechnicalId);
+    await moveExistingSourcePaletteChipWithinVisibleHugeRte(page);
+    configuredChipPresentation = await sourcePaletteChipPresentation(await visibleTinyMceBody(page));
+    await appendLargeDescriptionAndAssertInternalHugeRteScroll(page, suffix);
     await configureVisibleTinyMceSpacingThroughUi(page, spacing);
     await openConfigTabById(page, 'data_interactions');
     await expectDescriptionRichTextEditorHidden(page);
@@ -247,15 +263,20 @@ export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page:
     await expectDescriptionText(component, [introText, boldText, italicText], 'editor');
     await expectDescriptionRichMarkup(component, { boldText, italicText }, 'editor');
     await expectDescriptionSpacing(component, introText, spacing, 'editor');
+    expect(
+      await sourcePaletteChipPresentation(component),
+      'editor canvas should generate the same Source Palette chip presentation as the Aa configuration editor',
+    ).toEqual(configuredChipPresentation);
   });
 
   await test.step('Create a Text input with a persistent rich-text question', async () => {
     await openComponentsPalette(page, PALETTE_ICON.textInput);
+    const before = await page.locator(SEL.textComponent).count();
     await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
-    const textComponent = page.locator(`${SEL.textComponent}:visible`).first();
+    const textComponent = page.locator(SEL.textComponent).nth(before);
     await expect(textComponent, 'Text input component should be visible').toBeVisible({ timeout: 30_000 });
 
-    await openComponentConfig(page, SEL.textComponent);
+    await openComponentConfigAt(page, SEL.textComponent, before);
     await setTechnicalId(page, textTechnicalId);
     await openTextInputQuestionTab(page);
     await typeVisibleRichTextValueThroughUi(page, questionText, 'Text input question');
@@ -264,7 +285,7 @@ export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page:
       timeout: 30_000,
     });
 
-    await openComponentConfig(page, SEL.textComponent);
+    await openComponentConfigAt(page, SEL.textComponent, before);
     await openTextInputQuestionTab(page);
     await expect(await visibleTinyMceBody(page), 'Text input rich question should persist after reopening').toContainText(
       questionText,
@@ -276,13 +297,210 @@ export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page:
   await test.step('Open Preview and verify Description and Text input rich-text rendering', async () => {
     await openPreview(page, SEL.textComponent);
     const description = await visibleDescriptionComponent(page, descriptionTechnicalId);
-    await expectDescriptionText(description, [introText, boldText, italicText, TEST_USER], 'viewer');
+    await expectDescriptionText(description, [introText, boldText, italicText, chipSourceValue], 'viewer');
     await expectDescriptionRichMarkup(description, { boldText, italicText }, 'viewer');
     await expectDescriptionSpacing(description, introText, spacing, 'viewer');
+    expect(
+      countTextOccurrences(await description.innerText(), chipSourceValue),
+      'Preview should render exactly one source value after the chip was moved inside HugeRTE',
+    ).toBe(1);
     await expect(
       page.locator(`${SEL.textComponent}:visible`).first(),
       'Preview Text input should render the persisted rich question',
     ).toContainText(questionText, { timeout: 30_000 });
+  });
+}
+
+type SourceChipMoveState = {
+  count: number;
+  precedingTextLength: number;
+  chipLeft: number;
+  chipTop: number;
+};
+
+async function moveExistingSourcePaletteChipWithinVisibleHugeRte(page: Page): Promise<void> {
+  await test.step('Move the existing source chip inside HugeRTE without duplicating it', async () => {
+    const body = await visibleTinyMceBody(page);
+    const chip = body.locator('[c8otype="path"]').first();
+    await expect(chip, 'Description HugeRTE should contain one source chip before the internal move').toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(body.locator('[c8otype="path"]'), 'external Source Palette insertion should create exactly one chip').toHaveCount(1);
+
+    const before = await sourceChipMoveState(body);
+    expect(before.precedingTextLength, 'source chip should initially follow the configured Description text').toBeGreaterThan(10);
+
+    await chip.dragTo(body, {
+      targetPosition: { x: 8, y: 8 },
+      timeout: 15_000,
+    });
+
+    await expect
+      .poll(() => sourceChipMoveState(body), {
+        message: 'the existing source chip should move toward the start of HugeRTE without creating a copy',
+        timeout: 15_000,
+      })
+      .toMatchObject({ count: 1 });
+
+    const after = await sourceChipMoveState(body);
+    expect(after.count, 'internal source-chip drag must retain exactly one chip').toBe(1);
+    expect(
+      after.precedingTextLength,
+      'internal source-chip drag should move the existing node before its original text position',
+    ).toBeLessThan(before.precedingTextLength);
+    expect(
+      Math.abs(after.chipLeft - before.chipLeft) + Math.abs(after.chipTop - before.chipTop),
+      'source chip should have a measurably different editor position after the move',
+    ).toBeGreaterThan(2);
+
+    await fireActiveTinyMceChange(page, body);
+    await expect(body.locator('[c8otype="path"]'), 'moved source chip should persist as one editor node').toHaveCount(1);
+  });
+}
+
+async function sourceChipMoveState(body: Locator): Promise<SourceChipMoveState> {
+  return body.evaluate((root) => {
+    const chips = [...root.querySelectorAll<HTMLElement>('[c8otype="path"]')];
+    const chip = chips[0];
+    if (!chip) {
+      return { count: 0, precedingTextLength: -1, chipLeft: -1, chipTop: -1 };
+    }
+    const range = root.ownerDocument.createRange();
+    range.selectNodeContents(root);
+    range.setEndBefore(chip);
+    const rect = chip.getBoundingClientRect();
+    return {
+      count: chips.length,
+      precedingTextLength: range.toString().length,
+      chipLeft: Math.round(rect.left),
+      chipTop: Math.round(rect.top),
+    };
+  });
+}
+
+async function appendLargeDescriptionAndAssertInternalHugeRteScroll(page: Page, suffix: number): Promise<void> {
+  await test.step('Keep large Description content editable through HugeRTE internal scrolling', async () => {
+    const body = await visibleTinyMceBody(page);
+    await body.click();
+    await page.keyboard.press('ControlOrMeta+End');
+    for (let index = 1; index <= 48; index++) {
+      await page.keyboard.insertText(`Functional large Description ${suffix} line ${index}`);
+      await page.keyboard.press('Enter');
+    }
+    await fireActiveTinyMceChange(page, body);
+    await expect(body, 'large Description should retain its final edited line').toContainText(
+      `Functional large Description ${suffix} line 48`,
+      { timeout: 15_000 },
+    );
+
+    const editorShell = page.locator('.tox.tox-hugerte:visible').last();
+    const sidebarWrap = editorShell.locator('.tox-sidebar-wrap:visible').last();
+    const editArea = editorShell.locator('.tox-edit-area:visible').last();
+    await expect(editorShell, 'Description should expose the bounded non-inline HugeRTE shell').toBeVisible({ timeout: 15_000 });
+    await expect(sidebarWrap, 'Description HugeRTE should expose its bounded sidebar wrapper').toBeVisible({ timeout: 15_000 });
+    await expect(editArea, 'Description HugeRTE should keep a visible editing area').toBeVisible({ timeout: 15_000 });
+
+    const layout = await editorShell.evaluate((shell) => {
+      const shellBox = (shell as HTMLElement).getBoundingClientRect();
+      const host = shell.closest('.c8o-description-hugerte-host') as HTMLElement | null;
+      const sidebar = shell.querySelector('.tox-sidebar-wrap') as HTMLElement | null;
+      const area = shell.querySelector('.tox-edit-area') as HTMLElement | null;
+      const hostBox = host?.getBoundingClientRect();
+      const sidebarBox = sidebar?.getBoundingClientRect();
+      const areaBox = area?.getBoundingClientRect();
+      return {
+        hostFound: host != null,
+        hostHeight: hostBox?.height ?? 0,
+        hostBottom: hostBox?.bottom ?? 0,
+        shellHeight: shellBox.height,
+        shellBottom: shellBox.bottom,
+        sidebarHeight: sidebarBox?.height ?? 0,
+        editAreaHeight: areaBox?.height ?? 0,
+        sidebarBottom: sidebarBox?.bottom ?? 0,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    expect(layout.hostFound, 'Description HugeRTE should use the bounded flex host introduced for large content').toBe(true);
+    expect(layout.shellHeight, 'large Description HugeRTE should retain a useful bounded height').toBeGreaterThanOrEqual(300);
+    expect(layout.shellHeight, 'Description HugeRTE shell should fit its flex host').toBeLessThanOrEqual(layout.hostHeight + 1);
+    expect(layout.shellBottom, 'Description HugeRTE shell should remain inside its flex host').toBeLessThanOrEqual(
+      layout.hostBottom + 1,
+    );
+    expect(layout.hostBottom, 'Description HugeRTE host should remain inside the Studio viewport').toBeLessThanOrEqual(
+      layout.viewportHeight + 1,
+    );
+    expect(layout.sidebarHeight, 'HugeRTE sidebar wrapper should retain usable editing height').toBeGreaterThan(100);
+    expect(layout.editAreaHeight, 'HugeRTE edit area should retain usable editing height').toBeGreaterThan(100);
+    expect(layout.sidebarBottom, 'HugeRTE sidebar wrapper should remain inside the editor shell').toBeLessThanOrEqual(
+      layout.shellBottom + 1,
+    );
+
+    const scroll = await body.evaluate((root) => {
+      const document = root.ownerDocument;
+      const candidates = [root, document.documentElement, document.scrollingElement].filter(
+        (candidate, index, all): candidate is HTMLElement =>
+          candidate instanceof HTMLElement && all.indexOf(candidate) === index,
+      );
+      const scroller = candidates.sort(
+        (left, right) => right.scrollHeight - right.clientHeight - (left.scrollHeight - left.clientHeight),
+      )[0];
+      const before = scroller.scrollTop;
+      scroller.scrollTop = scroller.scrollHeight;
+      scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+      return {
+        frameBacked: document.defaultView?.frameElement?.tagName === 'IFRAME',
+        clientHeight: scroller.clientHeight,
+        scrollHeight: scroller.scrollHeight,
+        before,
+        after: scroller.scrollTop,
+      };
+    });
+    expect(scroll.frameBacked, 'Description HugeRTE should keep content in its dedicated editable iframe').toBe(true);
+    expect(scroll.scrollHeight - scroll.clientHeight, 'large Description should overflow the HugeRTE document').toBeGreaterThan(100);
+    expect(scroll.after, 'large Description editing document should scroll independently').toBeGreaterThan(scroll.before);
+  });
+}
+
+function countTextOccurrences(value: string, expected: string): number {
+  return value.split(expected).length - 1;
+}
+
+type SourcePaletteChipPresentation = {
+  badge: Record<string, string>;
+  icon: Record<string, string> | null;
+};
+
+async function sourcePaletteChipPresentation(root: Locator): Promise<SourcePaletteChipPresentation> {
+  const chip = root.locator('[c8otype="path"]:visible').last();
+  await expect(chip, 'Source Palette chip should be visible').toBeVisible({ timeout: 15_000 });
+  return chip.evaluate((element) => {
+    const properties = [
+      'display',
+      'paddingTop',
+      'paddingRight',
+      'paddingBottom',
+      'paddingLeft',
+      'textAlign',
+      'minWidth',
+      'fontSize',
+      'fontWeight',
+      'lineHeight',
+      'whiteSpace',
+      'verticalAlign',
+      'borderRadius',
+      'color',
+      'backgroundColor',
+    ] as const;
+    const iconProperties = ['cursor', 'height', 'stroke', 'fill', 'display', 'color'] as const;
+    const badgeStyle = (element as HTMLElement).style;
+    const icon = element.querySelector('svg') as SVGElement | null;
+    const iconStyle = icon?.style;
+    return {
+      badge: Object.fromEntries(properties.map((property) => [property, badgeStyle[property]])),
+      icon: iconStyle
+        ? Object.fromEntries(iconProperties.map((property) => [property, iconStyle[property]]))
+        : null,
+    };
   });
 }
 
@@ -779,7 +997,26 @@ export async function exerciseSelectLocalOptionsSearchAndDropdownThroughUi(page:
       .toBe(defaultOption);
   });
 
+  await test.step('Return to Edit and verify the Select default value persists', async () => {
+    const formId = page.url().match(/\/viewer\/([^/?#]+)/)?.[1] ?? '';
+    expect(formId, 'Preview URL should expose the application id').not.toBe('');
+    await openEditor(page, formId);
+    await expect(page.locator(`${SEL.selectComponent}:visible`).first(), 'Select should reappear in Edit').toBeVisible({
+      timeout: 30_000,
+    });
+    await openComponentConfig(page, SEL.selectComponent);
+    await openConfigTabById(page, 'defaultvalue');
+    await expect
+      .poll(() => tinyMceEditorContent(page).then((content) => content.text), {
+        message: `Select default value should remain ${defaultOption} after Preview`,
+        timeout: 15_000,
+      })
+      .toContain(defaultOption);
+    await closeComponentConfig(page);
+  });
+
   await test.step('Open the Select dropdown and verify the list remains well sized', async () => {
+    await openPreview(page, SEL.selectComponent);
     const component = await visibleChoiceComponent(page, technicalId, SEL.selectComponent);
     let dropdown = await openSelectDropdown(page, component, defaultOption);
     await expectSelectDropdownContains(dropdown, defaultOption);
@@ -1100,8 +1337,8 @@ export async function exerciseBusinessLogicFormulaDropIntoJavascriptThroughUi(pa
   });
 
   await test.step('Drop the formula from Source Palette into a Text JavaScript default value', async () => {
-    await openComponentsPalette(page, PALETTE_ICON.text);
-    await addComponent(page, PALETTE_ICON.text, { allowEditorApiFallback: false });
+    await openComponentsPalette(page, PALETTE_ICON.textInput);
+    await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
     await openComponentConfig(page, SEL.textComponent);
     await setTechnicalId(page, textTechnicalId);
     await openTextDefaultValueJavascriptModeThroughUi(page);
@@ -1353,6 +1590,66 @@ export async function exerciseDateAlternateDisplayFormatThroughUi(page: Page): P
 
     await submitViewerForm(page);
     await expect(page.locator(SEL.responseCompletedPage), 'Date response completion page should render').toBeAttached({
+      timeout: 60_000,
+    });
+  });
+}
+
+/** #1490: manual Date input is explicit, persistent, strictly validated, and accessible. */
+export async function exerciseDateManualInputValidationThroughUi(page: Page): Promise<void> {
+  const technicalId = `functional_date_manual_${Date.now()}`;
+
+  await test.step('Create a Date with calendar and manual input enabled', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.date);
+    await addComponent(page, PALETTE_ICON.date, { allowEditorApiFallback: false });
+    await openComponentConfig(page, DATE_COMPONENT);
+    await setTechnicalId(page, technicalId);
+    await setDateEntryMode(page, 'both');
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Reopen Date configuration and retain the entry mode', async () => {
+    await openComponentConfig(page, DATE_COMPONENT);
+    await expectDateEntryMode(page, 'both');
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Reject an impossible manual date with accessible feedback', async () => {
+    await openPreview(page, DATE_COMPONENT);
+    const component = await visibleDateComponent(page, technicalId);
+    const manualHost = component.locator('ion-input:visible').first();
+    const manualInput = manualHost.locator('input:visible').first();
+    await expect(manualInput, 'manual Date input should be visible without browser accessibility mode').toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(manualInput, 'manual Date input should advertise the configured date format').toHaveAttribute(
+      'placeholder',
+      'DD/MM/YYYY',
+    );
+    await expect(component.locator('ion-button:visible').first(), 'both mode should retain a calendar trigger').toBeVisible({
+      timeout: 15_000,
+    });
+
+    await commitManualDate(manualHost, manualInput, '31/02/2026');
+    await expect(manualHost, 'an impossible manual Date should be marked invalid').toHaveAttribute('aria-invalid', 'true', {
+      timeout: 15_000,
+    });
+    const error = component.locator('[role="alert"][aria-live="polite"]');
+    await expect(error, 'invalid Date feedback should be exposed as a live alert').toBeVisible({ timeout: 15_000 });
+    await expect(manualHost, 'invalid Date input should reference its error').toHaveAttribute('aria-describedby', /date_error_/);
+
+    await commitManualDate(manualHost, manualInput, '29/02/2024');
+    await expect(manualHost, 'a valid leap-day manual Date should clear invalid state').toHaveAttribute('aria-invalid', 'false', {
+      timeout: 15_000,
+    });
+    await expect(error, 'valid manual Date should clear the live error').toHaveCount(0, { timeout: 15_000 });
+    await expect(manualInput, 'valid manual Date text should remain visible').toHaveValue('29/02/2024');
+  });
+
+  await test.step('Submit the valid manually entered Date', async () => {
+    await submitViewerForm(page);
+    await expect(page.locator(SEL.responseCompletedPage), 'valid manual Date should allow form submission').toBeAttached({
       timeout: 60_000,
     });
   });
@@ -1828,10 +2125,11 @@ async function expectRadioGroupRowsAndColumnsAligned(
 
   expect(metrics.headers, `${surface}: every Radio Group option should have a table-cell header`).not.toContain(null);
   expect(metrics.rows.length, `${surface}: Radio Group should render more than one row`).toBeGreaterThan(1);
-  expect(metrics.wrappers, `${surface}: Ionic Radio Group wrappers should preserve the table layout`).not.toContain(null);
-  expect(metrics.wrappers, `${surface}: Ionic Radio Group wrappers should not introduce an extra layout box`).toEqual(
-    metrics.wrappers.map(() => 'contents'),
-  );
+  const renderedWrappers = metrics.wrappers.filter((display): display is string => display != null);
+  expect(
+    renderedWrappers,
+    `${surface}: any Ionic Radio Group wrapper should not introduce an extra layout box`,
+  ).toEqual(renderedWrappers.map(() => 'contents'));
 
   for (const [rowIndex, row] of metrics.rows.entries()) {
     expect(row, `${surface}: Radio Group row ${rowIndex + 1} should expose one cell per option`).toHaveLength(optionLabels.length);
@@ -2179,6 +2477,27 @@ async function setDateBounds(page: Page, values: { min: string; max: string }): 
   await page.waitForTimeout(750);
 }
 
+async function setDateEntryMode(page: Page, mode: 'calendar' | 'manual' | 'both'): Promise<void> {
+  await openConfigTabById(page, 'data_interactions');
+  const buttons = page.locator(DATE_VALUE_SEL.entryModeToggle).first().locator('button.c8o-btn:visible');
+  await expect(buttons, 'Date entry mode should expose calendar, manual, and combined choices').toHaveCount(3, {
+    timeout: 15_000,
+  });
+  const index = mode === 'calendar' ? 0 : mode === 'manual' ? 1 : 2;
+  const button = buttons.nth(index);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await expectDateEntryMode(page, mode);
+}
+
+async function expectDateEntryMode(page: Page, mode: 'calendar' | 'manual' | 'both'): Promise<void> {
+  await openConfigTabById(page, 'data_interactions');
+  const index = mode === 'calendar' ? 0 : mode === 'manual' ? 1 : 2;
+  await expect(
+    page.locator(DATE_VALUE_SEL.entryModeToggle).first().locator('button.c8o-btn:visible').nth(index),
+    `Date entry mode ${mode} should be selected`,
+  ).toHaveClass(/c8o-btn-selected/, { timeout: 15_000 });
+}
+
 async function expectDateBounds(page: Page, values: { min: string; max: string }): Promise<void> {
   await openConfigTabById(page, 'data_interactions');
   await expect(page.locator(DATE_VALUE_SEL.minInput).first(), 'Date Min value should persist').toHaveValue(values.min, {
@@ -2235,6 +2554,13 @@ async function visibleDateComponent(page: Page, technicalId: string): Promise<Lo
 
 function visibleDateInput(component: Locator): Locator {
   return component.locator('ion-input:visible input:visible, input:visible').first();
+}
+
+async function commitManualDate(host: Locator, input: Locator, value: string): Promise<void> {
+  await input.fill(value);
+  await host.dispatchEvent('ionChange', { detail: { value } });
+  await input.blur();
+  await expect(input, `manual Date should display ${value}`).toHaveValue(value, { timeout: 15_000 });
 }
 
 async function setViewerDateValue(page: Page, component: Locator, technicalId: string, value: string): Promise<void> {
@@ -2730,7 +3056,19 @@ async function visibleDescriptionComponent(page: Page, technicalId: string): Pro
 
 async function expectDescriptionText(component: Locator, expectedFragments: string[], surface: 'editor' | 'viewer'): Promise<void> {
   for (const fragment of expectedFragments) {
-    await expect(component, `${surface}: Description should render ${fragment}`).toContainText(fragment, { timeout: 30_000 });
+    await expect
+      .poll(
+        () =>
+          component.evaluate((root, expected) => {
+            const rendered = root.textContent ?? '';
+            if (rendered.includes(expected)) return rendered;
+            const clone = root.cloneNode(true) as HTMLElement;
+            clone.querySelectorAll('[c8otype="path"]').forEach((chip) => chip.remove());
+            return clone.textContent ?? '';
+          }, fragment),
+        { message: `${surface}: Description should render ${fragment}`, timeout: 30_000 },
+      )
+      .toContain(fragment);
   }
 }
 
@@ -2778,9 +3116,12 @@ async function expectDescriptionSpacing(
     .poll(
       () =>
         component.evaluate((root, text) => {
-          const paragraph = [...root.querySelectorAll<HTMLElement>('p')].find((element) =>
-            (element.textContent ?? '').includes(text),
-          );
+          const paragraph = [...root.querySelectorAll<HTMLElement>('p')].find((element) => {
+            if ((element.textContent ?? '').includes(text)) return true;
+            const clone = element.cloneNode(true) as HTMLElement;
+            clone.querySelectorAll('[c8otype="path"]').forEach((chip) => chip.remove());
+            return (clone.textContent ?? '').includes(text);
+          });
           return paragraph
             ? {
                 marginBottom: paragraph.style.marginBottom,

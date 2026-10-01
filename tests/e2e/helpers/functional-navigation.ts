@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   PALETTE_ICON,
   SEL,
+  acceptRgpdIfVisible,
   addComponent,
   addPageThroughPagesPanel,
   checkViewerCheckboxOption,
@@ -9,11 +10,17 @@ import {
   configureComponentNavigationFilter,
   closePageSettings,
   expectComponentNavigationFilter,
+  expectViewerPageTitleHidden,
+  openApplicationSettingsFromSidebar,
   openComponentConfig,
   openComponentsPalette,
   openConfigTabById,
   openPagesPanel,
+  openPageSettingsForPage,
+  openPublishedViewer,
   openPreview,
+  publishCurrentFormWithPwa,
+  publishedViewerToolbarThemeState,
   selectViewerRadioOption,
   setPageTabsThroughAppSettings,
   setChoiceLocalOptions,
@@ -28,6 +35,47 @@ const VIEWER_NEXT_BUTTON = [
   'page-viewerpage ion-tab-button:has(ion-icon[ng-reflect-name="arrow-forward-outline"])',
   'page-viewerpage ion-tab-button.class1664274551545',
 ].join(', ');
+
+const APPLICATION_STANDARD_BUTTONS_TOGGLE = 'c8oforms-toggleswitch.class1781084751323';
+const APPLICATION_BUTTONS_ORIENTATION_TOGGLE = 'c8oforms-toggleswitch.class1787576886492';
+const APPLICATION_BUTTONS_BEHAVIOR_TOGGLE = 'c8oforms-toggleswitch.class1786367183326';
+const APPLICATION_FORM_SETTINGS_BUTTON = 'button.class1779358000042';
+const APPLICATION_PROGRESS_INDICATOR_TOGGLE = 'c8oforms-toggleswitch.class1779358500021';
+const PAGE_FOLLOWS_GLOBAL_NAVIGATION_TOGGLE = 'c8oforms-toggleswitch.class1781188989133';
+const PAGE_BUTTONS_TOGGLE = 'c8oforms-toggleswitch.class1779359000054';
+const EDITOR_STANDARD_NEXT_BUTTON = 'ion-button.class1664197353976:visible';
+const VIEWER_STANDARD_NEXT_BUTTON = [
+  'page-viewerpage ion-button.class1592514320843:visible',
+  'page-viewerpage ion-button.class1543865084771:visible',
+].join(', ');
+const SHARED_TABS_LAYOUT = 'page-viewerpage .class1727885021647';
+const VIEWER_PROGRESS_INDICATOR = 'page-viewerpage ion-progress-bar.class1733481000437';
+const VIEWER_TAB_ACTION_BUTTON = 'page-viewerpage ion-tab-button.class1664292958806';
+
+async function selectToggleOption(page: Page, selector: string, index: number, description: string): Promise<void> {
+  const toggle = page.locator(`${selector}:visible`).first();
+  await expect(toggle, `${description} toggle should be visible`).toBeVisible({ timeout: 15_000 });
+  const option = toggle.locator('button.c8o-btn:visible').nth(index);
+  await expect(option, `${description} option #${index + 1} should be visible`).toBeVisible({ timeout: 10_000 });
+  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  await expect(option, `${description} option #${index + 1} should be selected`).toHaveClass(/c8o-btn-selected/, {
+    timeout: 10_000,
+  });
+}
+
+interface IonicButtonVisualState {
+  backgroundColor: string;
+  borderRadius: string;
+  boxShadow: string;
+  color: string;
+  fontSize: string;
+  fontWeight: string;
+  height: number;
+  letterSpacing: string;
+  paddingLeft: string;
+  paddingRight: string;
+  textTransform: string;
+}
 
 interface SharedTabVisualState {
   cursor: string;
@@ -45,6 +93,135 @@ interface SharedTabSelectedIndicator {
   pseudoDisplay: string;
   pseudoHeight: string;
   pseudoWidth: string;
+}
+
+/**
+ * #1320: configure the application-level standard ("Following the
+ * application") navigation through Studio, then compare the actual Ionic
+ * native button shape on the editor canvas and in Preview. Reading computed
+ * styles from the shadow button protects the rendered contract without a
+ * screenshot or a hard-coded theme color.
+ */
+export async function assertStandardNavigationStylesMatchEditorAndPreviewThroughUi(page: Page): Promise<void> {
+  let secondPageName = '';
+  await test.step('Create a second page and select standard application navigation', async () => {
+    secondPageName = await addPageThroughPagesPanel(page);
+    await openApplicationSettingsFromSidebar(page);
+
+    const category = page.locator(SEL.appSettingsNavigationCategory).first();
+    await expect(category, 'application Navigation settings should be visible').toBeVisible({ timeout: 15_000 });
+    await category.click({ timeout: 10_000 }).catch(async () => category.dispatchEvent('click'));
+
+    const toggle = page.locator(`${APPLICATION_STANDARD_BUTTONS_TOGGLE}:visible`).first();
+    await expect(toggle, 'application navigation should expose the three button modes').toBeVisible({ timeout: 15_000 });
+    const modes = toggle.locator('button.c8o-btn:visible');
+    await expect(modes, 'application navigation should offer Disabled, standard, and tab modes').toHaveCount(3, {
+      timeout: 10_000,
+    });
+    const standard = modes.nth(1);
+    await standard.click({ timeout: 10_000 }).catch(async () => standard.dispatchEvent('click'));
+    await expect(standard, 'standard navigation mode should be selected').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+
+    await openPagesPanel(page);
+  });
+
+  let editorStyle: IonicButtonVisualState;
+  await test.step('Capture the rendered Editor navigation-button style', async () => {
+    const editorButton = page.locator(EDITOR_STANDARD_NEXT_BUTTON).first();
+    await expect(editorButton, 'Editor should render its standard Next navigation button').toBeVisible({ timeout: 15_000 });
+    editorStyle = await ionicButtonVisualState(editorButton);
+    expectIonicButtonHasVisibleShape(editorStyle, 'Editor standard navigation button');
+  });
+
+  await test.step('Verify the global mode reaches every page and one page can override it', async () => {
+    await selectEditorPageByName(page, secondPageName);
+    const inheritedButton = page.locator(EDITOR_STANDARD_NEXT_BUTTON).first();
+    await expect(inheritedButton, 'the second page should inherit the global standard navigation').toBeVisible({
+      timeout: 15_000,
+    });
+    expect(
+      await ionicButtonVisualState(inheritedButton),
+      'global navigation should render the same standard button on the second page',
+    ).toEqual(editorStyle!);
+
+    await openPageSettingsForPage(page, secondPageName);
+    const navigationSection = page.locator(SEL.pageSettingsNavigationTab).first();
+    await expect(navigationSection, 'page settings should expose the Navigation section').toBeVisible({ timeout: 15_000 });
+    await navigationSection.click({ timeout: 10_000 }).catch(async () => navigationSection.dispatchEvent('click'));
+
+    const followsGlobal = page.locator(`${PAGE_FOLLOWS_GLOBAL_NAVIGATION_TOGGLE}:visible`).first();
+    await expect(followsGlobal, 'page Navigation should expose the global-navigation inheritance switch').toBeVisible({
+      timeout: 15_000,
+    });
+    const pageSpecific = followsGlobal.locator('button.c8o-btn:visible').nth(0);
+    await pageSpecific.click({ timeout: 10_000 }).catch(async () => pageSpecific.dispatchEvent('click'));
+    await expect(pageSpecific, 'the second page should ignore the global navigation').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+
+    const pageButtons = page.locator(`${PAGE_BUTTONS_TOGGLE}:visible`).first();
+    await expect(pageButtons, 'page-specific Navigation should expose its button modes').toBeVisible({ timeout: 15_000 });
+    const disabled = pageButtons.locator('button.c8o-btn:visible').nth(0);
+    await disabled.click({ timeout: 10_000 }).catch(async () => disabled.dispatchEvent('click'));
+    await expect(disabled, 'the page-specific Disabled mode should be selected').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+    await closePageSettings(page);
+
+    await selectEditorPageByName(page, secondPageName);
+    await expect(
+      page.locator(EDITOR_STANDARD_NEXT_BUTTON),
+      'the page-specific exception should remove the inherited standard button only from the second page',
+    ).toHaveCount(0, { timeout: 15_000 });
+    await selectEditorPageByName(page, 'Page 1');
+    await expect(
+      page.locator(EDITOR_STANDARD_NEXT_BUTTON).first(),
+      'the first page should keep the application-level standard navigation after the exception',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  await test.step('Open Preview and compare the rendered navigation-button style', async () => {
+    await openPreview(page, VIEWER_STANDARD_NEXT_BUTTON);
+    const viewerButton = page.locator(VIEWER_STANDARD_NEXT_BUTTON).first();
+    await expect(viewerButton, 'Preview should render its standard Next navigation button').toBeVisible({ timeout: 30_000 });
+    const viewerStyle = await ionicButtonVisualState(viewerButton);
+    expectIonicButtonHasVisibleShape(viewerStyle, 'Preview standard navigation button');
+    expect(viewerStyle, 'Preview should keep the Editor navigation button shape, typography, and colors').toEqual(editorStyle!);
+  });
+}
+
+async function ionicButtonVisualState(button: Locator): Promise<IonicButtonVisualState> {
+  return button.evaluate((host) => {
+    const native = host.shadowRoot?.querySelector('button');
+    if (!(native instanceof HTMLElement)) {
+      throw new Error('Ionic navigation button should expose its native shadow button');
+    }
+    const style = getComputedStyle(native);
+    const rect = native.getBoundingClientRect();
+    return {
+      backgroundColor: style.backgroundColor,
+      borderRadius: style.borderRadius,
+      boxShadow: style.boxShadow,
+      color: style.color,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      height: Math.round(rect.height * 100) / 100,
+      letterSpacing: style.letterSpacing,
+      paddingLeft: style.paddingLeft,
+      paddingRight: style.paddingRight,
+      textTransform: style.textTransform,
+    };
+  });
+}
+
+function expectIonicButtonHasVisibleShape(state: IonicButtonVisualState, description: string): void {
+  expect(state.height, `${description} should have a measurable height`).toBeGreaterThan(0);
+  expect(state.backgroundColor, `${description} should have a visible background`).not.toMatch(
+    /^(?:rgba\(0, 0, 0, 0\)|transparent)$/,
+  );
+  expect(state.borderRadius, `${description} should keep the rounded navigation-button shape`).not.toBe('0px');
 }
 
 /**
@@ -110,6 +287,136 @@ export async function assertSharedTabsHoverAndSelectedStylesThroughUi(page: Page
     expect(selectedVisual.iconColor, 'new current-page icon should keep selected feedback').toBe(selectedVisual.tabColor);
     expect(selectedVisual.labelColor, 'new current-page label should keep selected feedback').toBe(selectedVisual.tabColor);
     await expectSharedTabSelectedIndicator(hoverTarget, selectedVisual.tabColor, browserName);
+  });
+}
+
+/**
+ * #1449: the published SharedTabs selected state must inherit the published
+ * toolbar policy color instead of falling back to Ionic primary blue. The
+ * toolbar icon is the rendered policy-color reference, so this stays neutral
+ * to whichever PWA theme the environment serves.
+ */
+export async function assertPublishedFooterTabsUseThemeColorThroughUi(
+  page: Page,
+  formId: string,
+  browserName: string,
+): Promise<void> {
+  await test.step('Create two footer tabs and publish the form anonymously', async () => {
+    await addPageThroughPagesPanel(page);
+    await setPageTabsThroughAppSettings(page, 'footer');
+    await publishCurrentFormWithPwa(page, 'anonymous');
+    await openPublishedViewer(page, formId, SEL.viewerPageTab);
+    await acceptRgpdIfVisible(page);
+    await expect(page.locator(SEL.viewerPageTab), 'published SharedTabs should expose both pages').toHaveCount(2, {
+      timeout: 30_000,
+    });
+  });
+
+  const tabs = page.locator(SEL.viewerPageTab);
+  const initialIndex = await selectedSharedTabIndex(tabs);
+  expect(initialIndex, 'published SharedTabs should identify the current page').toBeGreaterThanOrEqual(0);
+  const initialTab = tabs.nth(initialIndex);
+  const nextIndex = initialIndex === 0 ? 1 : 0;
+  const nextTab = tabs.nth(nextIndex);
+
+  await test.step('Compare selected tab feedback with the published theme policy color', async () => {
+    const theme = await publishedViewerToolbarThemeState(page);
+    const policyColor = theme.menu.iconColor || theme.menu.nativeColor || theme.menu.color;
+    expect(policyColor, 'published toolbar should expose a computed policy color').toMatch(/^rgba?\(/);
+
+    const selected = await sharedTabVisualState(initialTab);
+    expect(selected.tabColor, 'selected published tab should use the toolbar policy color').toBe(policyColor);
+    expect(selected.iconColor, 'selected published tab icon should use the toolbar policy color').toBe(policyColor);
+    expect(selected.labelColor, 'selected published tab label should use the toolbar policy color').toBe(policyColor);
+    await expectSharedTabSelectedIndicator(initialTab, policyColor, browserName);
+  });
+
+  await test.step('Switch pages and verify theme-colored selection follows the current page', async () => {
+    await nextTab.click({ timeout: 10_000 });
+    await expect(nextTab, 'clicked published tab should become selected').toHaveClass(/tab-selected/, {
+      timeout: 15_000,
+    });
+    await expect(initialTab, 'previous published tab should lose selection').not.toHaveClass(/tab-selected/, {
+      timeout: 15_000,
+    });
+
+    const theme = await publishedViewerToolbarThemeState(page);
+    const policyColor = theme.menu.iconColor || theme.menu.nativeColor || theme.menu.color;
+    const selected = await sharedTabVisualState(nextTab);
+    expect(selected.tabColor, 'new selected published tab should keep the toolbar policy color').toBe(policyColor);
+    expect(selected.iconColor, 'new selected published tab icon should keep the toolbar policy color').toBe(policyColor);
+    expect(selected.labelColor, 'new selected published tab label should keep the toolbar policy color').toBe(policyColor);
+    await expectSharedTabSelectedIndicator(nextTab, policyColor, browserName);
+  });
+}
+
+/** #1390: prove both configurable horizontal wrapping and right-side vertical tabs. */
+export async function assertConfigurableTabLayoutsThroughUi(page: Page): Promise<void> {
+  await test.step('Create enough pages to exercise a multi-page tab layout', async () => {
+    for (let index = 0; index < 4; index += 1) {
+      await addPageThroughPagesPanel(page);
+    }
+  });
+
+  await test.step('Select horizontal Wrap behavior through application Navigation settings', async () => {
+    await openApplicationSettingsFromSidebar(page);
+    const category = page.locator(SEL.appSettingsNavigationCategory).first();
+    await category.click({ timeout: 10_000 }).catch(async () => category.dispatchEvent('click'));
+    await selectToggleOption(page, APPLICATION_STANDARD_BUTTONS_TOGGLE, 2, 'application tab-button mode');
+    await selectToggleOption(page, APPLICATION_BUTTONS_ORIENTATION_TOGGLE, 0, 'horizontal tab orientation');
+    await selectToggleOption(page, APPLICATION_BUTTONS_BEHAVIOR_TOGGLE, 1, 'Wrap tab behavior');
+    await setPageTabsThroughAppSettings(page, 'footer');
+  });
+
+  await test.step('Verify Preview renders the configured wrapping contract', async () => {
+    await openPreview(page, SEL.viewerPageTab);
+    const layout = page.locator(SHARED_TABS_LAYOUT).first();
+    await expect(layout, 'Preview should render the SharedTabs layout').toHaveClass(/c8o-tabs-buttons-wrap/, {
+      timeout: 30_000,
+    });
+    const style = await layout.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      return { flexWrap: computed.flexWrap, overflowX: computed.overflowX, flexDirection: computed.flexDirection };
+    });
+    expect(style.flexWrap, 'Wrap behavior should allow page buttons onto additional rows').toBe('wrap');
+    expect(style.overflowX, 'Wrap behavior should not force a horizontal scrollbar').toBe('visible');
+    expect(style.flexDirection, 'Wrap behavior should retain the horizontal tab axis').toBe('row');
+  });
+
+  await test.step('Return to Studio and configure a right-side vertical tab rail', async () => {
+    await page.goBack({ waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await expect(page.locator(SEL.previewButton).first(), 'Studio should be ready after leaving Preview').toBeVisible({
+      timeout: 60_000,
+    });
+    await openApplicationSettingsFromSidebar(page);
+    const category = page.locator(SEL.appSettingsNavigationCategory).first();
+    await category.click({ timeout: 10_000 }).catch(async () => category.dispatchEvent('click'));
+    await selectToggleOption(page, APPLICATION_BUTTONS_ORIENTATION_TOGGLE, 1, 'vertical tab orientation');
+    await selectToggleOption(page, 'c8oforms-toggleswitch.class1787576909645', 2, 'right vertical placement');
+  });
+
+  await test.step('Verify Preview renders a right-side vertical tab rail', async () => {
+    await openPreview(page, SEL.viewerPageTab);
+    const layout = page.locator(SHARED_TABS_LAYOUT).first();
+    await expect(layout, 'vertical Preview SharedTabs should expose its orientation class').toHaveClass(
+      /c8o-tabs-orientation-vertical/,
+      { timeout: 30_000 },
+    );
+    await expect(layout, 'vertical Preview SharedTabs should expose its right-placement class').toHaveClass(
+      /c8o-tabs-vertical-right/,
+      { timeout: 15_000 },
+    );
+    await expect(
+      page.locator('page-viewerpage ion-content.c8o-tabs-vertical-runtime-right').first(),
+      'viewer content should place the vertical navigation rail on the right',
+    ).toBeVisible({ timeout: 15_000 });
+    const style = await layout.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      return { flexDirection: computed.flexDirection, overflowX: computed.overflowX, overflowY: computed.overflowY };
+    });
+    expect(style.flexDirection, 'vertical tabs should stack along the block axis').toBe('column');
+    expect(style.overflowX, 'vertical tabs should not horizontally overflow their rail').toBe('hidden');
+    expect(style.overflowY, 'vertical tabs should remain scrollable when the rail overflows').toBe('auto');
   });
 }
 
@@ -242,6 +549,7 @@ export async function navigateConditionallyByRadioValueThroughUi(page: Page): Pr
       pageName: targetPageName,
     });
     await closeComponentConfig(page);
+    await setPageTabsThroughAppSettings(page, 'footer');
   });
 
   await test.step('Open Preview and verify the non-matching value does not navigate', async () => {
@@ -252,6 +560,11 @@ export async function navigateConditionallyByRadioValueThroughUi(page: Page): Pr
     await expect(page.getByText(targetMarker, { exact: true }).first(), 'target marker should start hidden').toBeHidden({
       timeout: 30_000,
     });
+    await expect(
+      page.locator(SEL.viewerPageTab),
+      'a GoTo condition must not hide its target page from footer navigation before it fires',
+    ).toHaveCount(2, { timeout: 30_000 });
+    await expectTabActionIcon(page, 'arrow-forward-outline', 'a non-final accessible page should expose Next, not Send');
     await selectViewerRadioOption(page, radioTechnicalId, blockedOption);
     await expect(page.locator(`#${radioTechnicalId}`).first(), 'blocked value should keep the source page visible').toBeVisible({
       timeout: 30_000,
@@ -269,7 +582,191 @@ export async function navigateConditionallyByRadioValueThroughUi(page: Page): Pr
     await expect(page.locator(`#${radioTechnicalId}`).first(), 'accepted value should leave the source page').toBeHidden({
       timeout: 30_000,
     });
+    await expectTabActionIcon(page, 'send-outline', 'only the last accessible page should expose Send');
   });
+}
+
+async function expectTabActionIcon(page: Page, expected: string, description: string): Promise<void> {
+  const action = page.locator(VIEWER_TAB_ACTION_BUTTON).first();
+  await expect(action, description).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(
+      () =>
+        action.locator('ion-icon').first().evaluate((icon) => {
+          const ionic = icon as HTMLElement & { name?: string };
+          return ionic.name ?? ionic.getAttribute('name') ?? ionic.getAttribute('ng-reflect-name') ?? '';
+        }),
+      { message: description, timeout: 15_000 },
+    )
+    .toBe(expected);
+}
+
+/**
+ * #1446: unlike GoTo targets, an Authorize target stays absent from SharedTabs
+ * until its condition is satisfied, then becomes a reachable page tab.
+ */
+export async function assertAuthorizedFooterTabAppearsOnlyAfterConditionThroughUi(page: Page): Promise<void> {
+  const suffix = Date.now();
+  const radioTechnicalId = `functional_authorize_radio_${suffix}`;
+  const blockedOption = `Functional authorize blocked ${suffix}`;
+  const acceptedOption = `Functional authorize accepted ${suffix}`;
+  let targetPageName = '';
+
+  await test.step('Create a target page and an Authorize-page Radio condition', async () => {
+    targetPageName = await addPageThroughPagesPanel(page);
+    await selectEditorPageByName(page, 'Page 1');
+    await openComponentsPalette(page, PALETTE_ICON.radio);
+    await addComponent(page, PALETTE_ICON.radio, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.radioComponent);
+    await setTechnicalId(page, radioTechnicalId);
+    await setChoiceLocalOptions(page, [blockedOption, acceptedOption]);
+    await openConfigTabById(page, 'navigation_tab_selector');
+    await configureComponentNavigationFilter(page, {
+      field: radioTechnicalId,
+      operator: 'equals',
+      value: acceptedOption,
+      action: 'authorize',
+      pageName: targetPageName,
+    });
+    await closeComponentConfig(page);
+    await setPageTabsThroughAppSettings(page, 'footer');
+  });
+
+  await test.step('Verify the unauthorized page tab is hidden', async () => {
+    await openPreview(page, SEL.radioComponent);
+    await expect(page.locator(`#${radioTechnicalId}`).first(), 'Authorize Radio should render on the source page').toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(
+      page.locator(SEL.viewerPageTab),
+      'SharedTabs should expose only the source page before authorization',
+    ).toHaveCount(1, { timeout: 30_000 });
+    await selectViewerRadioOption(page, radioTechnicalId, blockedOption);
+    await expect(
+      page.locator(SEL.viewerPageTab),
+      'a non-matching value should keep the target page unauthorized',
+    ).toHaveCount(1, { timeout: 15_000 });
+  });
+
+  await test.step('Verify satisfying the condition reveals the authorized page tab', async () => {
+    await selectViewerRadioOption(page, radioTechnicalId, acceptedOption);
+    await expect(
+      page.locator(SEL.viewerPageTab),
+      `SharedTabs should reveal ${targetPageName} once the Authorize condition is satisfied`,
+    ).toHaveCount(2, { timeout: 30_000 });
+  });
+}
+
+/** #1481: a newly created page defaults to a hidden title in settings and Preview. */
+export async function assertNewPageKeepsApplicationTitleHiddenThroughUi(page: Page): Promise<void> {
+  let newPageName = '';
+  await test.step('Create a page and verify its Display title default is No', async () => {
+    newPageName = await addPageThroughPagesPanel(page);
+    await openPageSettingsForPage(page, newPageName);
+    const displayTitle = page.locator(`${SEL.pageDisplayTitleToggle}:visible`).first();
+    await expect(displayTitle, 'new page settings should expose the Display page title switch').toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      displayTitle.locator('button.c8o-btn:visible').nth(1),
+      'a newly created page should default Display page title to No',
+    ).toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
+    await closePageSettings(page);
+    await selectEditorPageByName(page, newPageName);
+  });
+
+  await test.step('Verify Preview respects the new page hidden-title default', async () => {
+    await openPreview(page, SEL.viewerPage);
+    await expectViewerPageTitleHidden(page, newPageName);
+  });
+}
+
+/** #1488/#1503: footer tabs keep a visible, theme-derived progress indicator. */
+export async function assertFooterTabsProgressIndicatorThroughUi(page: Page): Promise<void> {
+  await test.step('Create footer navigation and enable the application progress indicator', async () => {
+    await addPageThroughPagesPanel(page);
+    await setPageTabsThroughAppSettings(page, 'footer');
+    await openApplicationSettingsFromSidebar(page);
+    const formSettings = page.locator(APPLICATION_FORM_SETTINGS_BUTTON).first();
+    await expect(formSettings, 'application settings should expose the Form category').toBeVisible({ timeout: 15_000 });
+    await formSettings.click({ timeout: 10_000 }).catch(async () => formSettings.dispatchEvent('click'));
+    await selectToggleOption(page, APPLICATION_PROGRESS_INDICATOR_TOGGLE, 0, 'progress indicator');
+  });
+
+  await test.step('Verify the progress indicator is rendered with footer tabs', async () => {
+    await openPreview(page, VIEWER_PROGRESS_INDICATOR);
+    await expect(page.locator(SEL.viewerPageTab), 'footer navigation should render both page tabs').toHaveCount(2, {
+      timeout: 30_000,
+    });
+    const progress = page.locator(VIEWER_PROGRESS_INDICATOR).first();
+    await expect(progress, 'footer navigation must not suppress the enabled progress indicator').toBeVisible({
+      timeout: 30_000,
+    });
+
+    const tabs = page.locator(SEL.viewerPageTab);
+    const currentIndex = await selectedSharedTabIndex(tabs);
+    const targetIndex = currentIndex === 0 ? 1 : 0;
+    await tabs.nth(targetIndex).click({ timeout: 10_000 });
+    await expect(tabs.nth(targetIndex), 'page selection should advance the progress indicator state').toHaveClass(
+      /tab-selected/,
+      { timeout: 15_000 },
+    );
+
+    const state = await progressIndicatorVisualState(progress);
+    expect(state.height, 'progress indicator should have visible geometry').toBeGreaterThan(0);
+    expect(state.progressVariable, 'progress fill should be supplied through the theme-aware CSS variable').toMatch(
+      /^rgba?\(/,
+    );
+    expect(state.trackVariable, 'progress track should be supplied through its theme-aware CSS variable').toMatch(/^rgba?\(/);
+    expect(state.progressColor, 'shadow progress fill should resolve the configured progress variable').toBe(
+      state.progressVariable,
+    );
+    expect(state.progressColor, 'progress fill should remain distinguishable from its track').not.toBe(state.trackColor);
+    expect(rgbContrastRatio(state.progressColor, state.trackColor), 'progress fill should keep accessible track contrast').toBeGreaterThanOrEqual(
+      4.5,
+    );
+    expect(state.progressColor, 'the theme-derived progress fill should not regress to fixed black').not.toBe('rgb(0, 0, 0)');
+  });
+}
+
+async function progressIndicatorVisualState(progress: Locator): Promise<{
+  height: number;
+  progressColor: string;
+  progressVariable: string;
+  trackColor: string;
+  trackVariable: string;
+}> {
+  return progress.evaluate((host) => {
+    const style = getComputedStyle(host);
+    const progressPart = host.shadowRoot?.querySelector('.progress, .progress-bar') as HTMLElement | null;
+    if (!progressPart) {
+      throw new Error('Ionic progress indicator should expose its progress shadow element');
+    }
+    return {
+      height: host.getBoundingClientRect().height,
+      progressColor: getComputedStyle(progressPart).backgroundColor,
+      progressVariable: style.getPropertyValue('--progress-background').trim(),
+      trackColor: style.getPropertyValue('--background').trim(),
+      trackVariable: style.getPropertyValue('--background').trim(),
+    };
+  });
+}
+
+function rgbContrastRatio(first: string, second: string): number {
+  const luminance = (color: string): number => {
+    const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+    if (!channels || channels.length !== 3) {
+      throw new Error(`Expected an rgb color, received ${color}`);
+    }
+    const [red, green, blue] = channels.map((channel) => {
+      const normalized = channel / 255;
+      return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  };
+  const lighter = Math.max(luminance(first), luminance(second));
+  const darker = Math.min(luminance(first), luminance(second));
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 export async function navigateConditionallyBySelectValueThroughUi(page: Page): Promise<void> {
@@ -528,7 +1025,7 @@ async function selectEditorPageByName(page: Page, pageName: string): Promise<voi
   const pageRow = page.locator(SEL.pageRow).filter({ hasText: pageName }).first();
   await expect(pageRow, `page row ${pageName} should be visible`).toBeVisible({ timeout: 15_000 });
   await pageRow.click({ timeout: 10_000 }).catch(async () => pageRow.dispatchEvent('click'));
-  await expect(page.locator(SEL.pageButtonsBlock).first(), `page ${pageName} canvas should be visible`).toBeVisible({
+  await expect(page.locator('page-editorpage .class1650357059930').first(), `page ${pageName} canvas should be visible`).toBeVisible({
     timeout: 15_000,
   });
 }

@@ -2586,7 +2586,7 @@ async function clickVisibleSelectorCardMenuById(page: Page, cardId: string): Pro
   }, cardId);
 }
 
-async function clickVisibleSelectorCardMenuByTitle(page: Page, title: string): Promise<boolean> {
+export async function clickVisibleSelectorCardMenuByTitle(page: Page, title: string): Promise<boolean> {
   const menuPoint = await hoverVisibleSelectorCardByTitle(page, title);
   if (!menuPoint) {
     return false;
@@ -10393,7 +10393,7 @@ export async function configureVisibleTinyMceSpacingThroughUi(
     const paragraph = body.locator('p').first();
     await expect(paragraph, 'rich-text paragraph should exist before formatting').toBeVisible({ timeout: 10_000 });
 
-    const editor = page.locator('.tox-tinymce:visible').last();
+    const editor = page.locator('.tox-hugerte:visible, .tox-tinymce:visible').last();
     await expect(editor, 'visible rich-text editor shell should exist').toBeVisible({ timeout: 10_000 });
     const formatMenu = editor.locator('.tox-menubar .tox-mbtn:visible').nth(4);
     await expect(formatMenu, 'rich-text Format menu should be visible').toBeVisible({ timeout: 10_000 });
@@ -11724,11 +11724,120 @@ export async function dragPaletteComponentInto(
   ).toHaveCount(before + 1, { timeout: 3_000 });
 }
 
+/** Move an existing top-level component into a Group with its native pointer drag. */
+export async function dragExistingComponentIntoGroup(
+  page: Page,
+  sourceSelector: string,
+  groupSelector = 'c8oforms-itemcardeditorviewer',
+): Promise<void> {
+  await enableNativeDropDeliveryForC8oDropZones(page);
+  const source = page.locator(`${sourceSelector}:visible`).first();
+  const group = page.locator(`${groupSelector}:visible`).first();
+  await expect(source, 'existing component to move into Group should be visible').toBeVisible({ timeout: 15_000 });
+  await expect(group, 'destination Group should be visible').toBeVisible({ timeout: 15_000 });
+  const sourceBox = await source.boundingBox();
+  const groupBox = await group.boundingBox();
+  if (!sourceBox || !groupBox) {
+    throw new Error('Existing component or destination Group has no drag coordinates');
+  }
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + Math.min(24, sourceBox.height / 2));
+  await page.mouse.down();
+  try {
+    await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 12, sourceBox.y + Math.min(36, sourceBox.height / 2 + 12), {
+      steps: 8,
+    });
+    await page.mouse.move(groupBox.x + groupBox.width / 2, groupBox.y + groupBox.height / 2, { steps: 30 });
+
+    const zones = group.locator(`c8oforms-shareddropindicator ${SEL.containerInitialDropZone}:visible`);
+    await expect
+      .poll(() => zones.count(), {
+        message: 'destination Group should expose a child insertion zone for the existing component',
+        timeout: 10_000,
+      })
+      .toBeGreaterThan(0);
+    const zone = zones.last();
+    const zoneBox = await zone.boundingBox();
+    if (!zoneBox) throw new Error('Destination Group child insertion zone has no drag coordinates');
+    await page.mouse.move(zoneBox.x + zoneBox.width / 2, zoneBox.y + zoneBox.height / 2, { steps: 12 });
+    await page.mouse.up();
+  } catch (error) {
+    await page.mouse.up().catch(() => undefined);
+    throw error;
+  }
+
+  await expect
+    .poll(
+      () =>
+        page
+          .locator(`${groupSelector}:visible ${sourceSelector}`)
+          .count()
+          .then((count) => count > 0),
+      { message: 'existing component should become a child of the destination Group', timeout: 15_000 },
+    )
+    .toBe(true);
+}
+
 export type ComponentDropZoneHeights = {
   visibleZoneCount: number;
   idle: number;
   hovered: number;
 };
+
+export type ContainerChildDropZoneCounts = {
+  validComponent: number;
+  group: number;
+  horizontalLayout: number;
+};
+
+/**
+ * Probe a Group or Horizontal layout with genuine palette pointer drags.
+ * Ordinary components must expose child insertion feedback. The caller owns
+ * the container policy assertions because Layout accepts nested Layouts while
+ * Group still rejects container children.
+ */
+export async function containerChildDropZoneCountsDuringPaletteDrags(
+  page: Page,
+  containerSelector: string,
+): Promise<ContainerChildDropZoneCounts> {
+  return {
+    validComponent: await containerChildDropZoneCountDuringPaletteDrag(page, PALETTE_ICON.textInput, containerSelector),
+    group: await containerChildDropZoneCountDuringPaletteDrag(page, PALETTE_ICON.group, containerSelector),
+    horizontalLayout: await containerChildDropZoneCountDuringPaletteDrag(page, PALETTE_ICON.layout, containerSelector),
+  };
+}
+
+async function containerChildDropZoneCountDuringPaletteDrag(
+  page: Page,
+  paletteIcon: string,
+  containerSelector: string,
+): Promise<number> {
+  await openComponentsPalette(page, paletteIcon);
+  const tile = await draggablePaletteTileForIcon(page, paletteIcon, `palette tile ${paletteIcon}`);
+  const container = page.locator(`${containerSelector}:visible`).first();
+  await expect(container, `container ${containerSelector} should be visible before drag`).toBeVisible({ timeout: 15_000 });
+  const tileBox = await tile.boundingBox();
+  const containerBox = await container.boundingBox();
+  if (!tileBox || !containerBox) {
+    throw new Error(`Palette tile ${paletteIcon} or container ${containerSelector} has no drag coordinates`);
+  }
+
+  const zones = container.locator(`c8oforms-shareddropindicator ${SEL.containerInitialDropZone}:visible`);
+  await page.mouse.move(tileBox.x + tileBox.width / 2, tileBox.y + tileBox.height / 2);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(tileBox.x + tileBox.width / 2 + 12, tileBox.y + tileBox.height / 2 + 12, { steps: 6 });
+    await page.mouse.move(containerBox.x + containerBox.width / 2, containerBox.y + containerBox.height / 2, {
+      steps: 25,
+    });
+    await page.waitForTimeout(350);
+    return zones.count();
+  } finally {
+    await page.mouse.move(5, 5, { steps: 8 }).catch(() => undefined);
+    await page.mouse.up().catch(() => undefined);
+    await page.waitForTimeout(300);
+  }
+}
 
 /**
  * Start a genuine palette drag and measure a page-component drop indicator

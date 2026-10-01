@@ -9,6 +9,7 @@ import {
   addVisibilityCondition,
   createTextBusinessLogicFormula,
   configureComponentNavigationFilter,
+  containerChildDropZoneCountsDuringPaletteDrags,
   deleteLayoutChild,
   dragPaletteComponentInto,
   filterComponentPaletteByIcon,
@@ -506,6 +507,70 @@ async function expectRecentlyDuplicatedComponentFeedback(page: Page, component: 
     .toBe(true);
 }
 
+export async function disableTextInputAndAssertViewerExclusionThroughUi(
+  page: Page,
+  applicationId: string,
+): Promise<void> {
+  const technicalId = `functional_disabled_text_${Date.now()}`;
+  const componentWrapper = page.locator(
+    `[id="@prefixc8oitem${technicalId}@prefixc8otypetext"]`,
+  );
+
+  await test.step('Create a Text input and disable it from the component action rail', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.textInput);
+    await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.textComponent);
+    await setTechnicalId(page, technicalId);
+
+    const disableButton = page.locator('button.c8o-btn-disable:visible').first();
+    await expect(disableButton, 'component action rail should expose the enable/disable control').toBeVisible({
+      timeout: 15_000,
+    });
+    await disableButton.click({ timeout: 10_000 }).catch(async () => disableButton.dispatchEvent('click'));
+    await expect(disableButton, 'disable control should expose its active state').toHaveClass(/c8o-btn-disable-active/, {
+      timeout: 15_000,
+    });
+    await closeComponentConfiguration(page);
+    await expect(
+      componentWrapper.locator('.c8o-editor-component-disabled').first(),
+      'disabled Text input should remain in the Studio canvas with its disabled marker',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  await test.step('Verify the disabled component is omitted from Preview', async () => {
+    await openPreview(page, SEL.viewerPage);
+    await expect(page.locator(`#${technicalId}`), 'disabled Text input should not render in Preview').toHaveCount(0, {
+      timeout: 15_000,
+    });
+  });
+
+  await test.step('Reload Studio, re-enable the retained component, and verify it renders again', async () => {
+    await openEditor(page, applicationId);
+    await expect(componentWrapper, 'disabled Text input configuration should persist after reopening Studio').toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(componentWrapper.locator('.c8o-editor-component-disabled').first()).toBeVisible({ timeout: 15_000 });
+    await openComponentConfig(page, SEL.textComponent);
+    const disableButton = page.locator('button.c8o-btn-disable:visible').first();
+    await expect(disableButton, 'persisted component should keep its disabled action state').toHaveClass(
+      /c8o-btn-disable-active/,
+      { timeout: 15_000 },
+    );
+    await disableButton.click({ timeout: 10_000 }).catch(async () => disableButton.dispatchEvent('click'));
+    await expect(disableButton, 're-enabled component should clear the disabled action state').not.toHaveClass(
+      /c8o-btn-disable-active/,
+      { timeout: 15_000 },
+    );
+    await closeComponentConfiguration(page);
+
+    await openPreview(page, `#${technicalId}`);
+    await expect(page.locator(`#${technicalId}`).first(), 're-enabled Text input should render in Preview').toBeVisible({
+      timeout: 30_000,
+    });
+  });
+}
+
 export async function reorderButtonsAndAssertPersistenceThroughUi(page: Page): Promise<void> {
   const suffix = Date.now();
   const formId = page.url().match(/\/editor\/([^/?#]+)/)?.[1] ?? '';
@@ -980,6 +1045,21 @@ export async function configureHorizontalLayoutChildrenThroughUi(page: Page): Pr
       })
       .toHaveLength(2);
   });
+
+  await test.step('Show only valid child drop zones while dragging over the Horizontal layout', async () => {
+    const counts = await containerChildDropZoneCountsDuringPaletteDrags(page, SEL.layoutViewer);
+    expect(counts.validComponent, 'a Text input drag should expose Horizontal layout child insertion zones').toBeGreaterThan(0);
+    expect(counts.group, 'a Group drag must not expose forbidden Horizontal layout child zones').toBe(0);
+    expect(counts.horizontalLayout, 'a nested Horizontal layout drag should expose valid child insertion zones').toBeGreaterThan(0);
+  });
+
+  await test.step('Nest a Horizontal layout in the existing Horizontal layout', async () => {
+    await dragPaletteComponentInto(page, PALETTE_ICON.layout, SEL.layoutViewer);
+    await expect(
+      page.locator(`${SEL.layoutViewer} ${SEL.layoutViewer}`),
+      'the editor should render the nested Horizontal layout inside its parent',
+    ).toHaveCount(1, { timeout: 30_000 });
+  });
 }
 
 export async function assertHorizontalLayoutConfigurationRendersImmediatelyThroughUi(
@@ -1007,21 +1087,21 @@ export async function assertHorizontalLayoutConfigurationRendersImmediatelyThrou
     });
 
     const editorLayout = page.locator(`${SEL.layoutViewer}:visible`).first();
-    await expectLayoutColumnsRatio(editorLayout.locator(LAYOUT_SEL.editorColumns), 3, 'editor');
+    await expectLayoutColumnsRatio(editorLayout, 3, 'editor');
     await closeComponentConfiguration(page);
   });
 
   await test.step('Verify Preview renders the same 9/3 proportions', async () => {
     await openPreview(page, LAYOUT_SEL.viewer);
     const viewerLayout = page.locator(`${LAYOUT_SEL.viewer}:visible`).first();
-    await expectLayoutColumnsRatio(viewerLayout.locator(LAYOUT_SEL.editorColumns), 3, 'Preview');
+    await expectLayoutColumnsRatio(viewerLayout, 3, 'Preview');
   });
 
   await test.step('Return to the editor and verify the 9/3 layout remains correct', async () => {
     await openEditor(page, applicationId);
     const editorLayout = page.locator(`${SEL.layoutViewer}:visible`).first();
     await expect(editorLayout, 'Horizontal layout should render again after returning from Preview').toBeVisible({ timeout: 30_000 });
-    await expectLayoutColumnsRatio(editorLayout.locator(LAYOUT_SEL.editorColumns), 3, 'editor');
+    await expectLayoutColumnsRatio(editorLayout, 3, 'editor');
   });
 }
 
@@ -1079,6 +1159,13 @@ export async function configureGroupChildrenVisibilityReorderAndDeleteThroughUi(
         timeout: 30_000,
       })
       .toBe(2);
+  });
+
+  await test.step('Show only valid child drop zones while dragging over the Group', async () => {
+    const counts = await containerChildDropZoneCountsDuringPaletteDrags(page, GROUP_SEL.editor);
+    expect(counts.validComponent, 'a Text input drag should expose Group child insertion zones').toBeGreaterThan(0);
+    expect(counts.group, 'a Group drag must not expose forbidden Group child zones').toBe(0);
+    expect(counts.horizontalLayout, 'a Horizontal layout drag must not expose forbidden Group child zones').toBe(0);
   });
 
   await test.step('Set Group visibility to never and verify the viewer hides it with its children', async () => {
@@ -1899,19 +1986,19 @@ async function expectInvalidTechnicalIdentifierRestoresPreviousValue(
 }
 
 async function expectLayoutColumnsRatio(
-  columns: Locator,
+  layout: Locator,
   expectedRatio: number,
   surface: 'editor' | 'Preview',
 ): Promise<void> {
-  await expect(columns, `${surface} should render exactly two Layout columns`).toHaveCount(2, { timeout: 30_000 });
   await expect
     .poll(
       async () => {
-        const boxes = await columns.evaluateAll((elements) =>
-          elements.map((element) => {
-            const box = (element as HTMLElement).getBoundingClientRect();
+        const boxes = await layout.evaluate((element, columnSelector) =>
+          [...element.querySelectorAll(columnSelector)].map((column) => {
+            const box = (column as HTMLElement).getBoundingClientRect();
             return { width: box.width, top: box.top, height: box.height };
           }),
+          LAYOUT_SEL.editorColumns,
         );
         if (boxes.length !== 2 || boxes.some((box) => box.width <= 0 || box.height <= 0)) {
           return false;

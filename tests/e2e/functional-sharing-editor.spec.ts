@@ -44,8 +44,16 @@ test.describe('No-Code Studio functional sharing editor contract', () => {
     await verifyEditorCollaboratorCanBeRemovedThroughUi(page);
   });
 
-  test('SHARE-006 - published application share notification fields are configurable', async ({ page }) => {
-    test.setTimeout(300_000);
+  /**
+   * #1445: reported in beta257. Commit 2821b1a5 removed the fixed invitee-row
+   * height in beta259; selector/data-page follow-ups shipped in beta261 and
+   * the complete fix was historically QA-validated in beta262. Automated E2E
+   * coverage was runtime-validated against test-nocode 2.2.0-beta371.
+   */
+  test('SHARE-006 #1445 - published sharing keeps notification fields and invitee response rows readable', async ({
+    page,
+  }) => {
+    test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await verifyPublishedShareNotificationFieldsThroughUi(page);
   });

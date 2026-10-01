@@ -3,6 +3,7 @@ import {
   assertBaserowSourcePickerIsolationThroughUi,
   assertSelectSourceFilterControlLayoutThroughUi,
   configureSelectBaserowTableAndAssertPersistenceThroughUi,
+  assertSourcedSelectMultipleDropdownStaysOpenThroughUi,
   configureSelectSourceFilterJavaScriptPaletteValueThroughUi,
   exerciseSourcePaletteSectionsCollapseAndDragThroughUi,
   filterSelectBaserowSourceByHiddenTextColumnThroughUi,
@@ -36,6 +37,17 @@ test.describe('No-Code Studio functional sources contract - Select and palette',
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await configureSelectBaserowTableAndAssertPersistenceThroughUi(page);
+  });
+
+  /**
+   * #1496: reported from CONV-1571. Fixes f8788178 and d7e5647f shipped before
+   * QA validated sourced multiple Select behavior in beta321.
+   */
+  test('SRC-003 #1496 - sourced multiple Select stays open while choosing options', async ({ page }) => {
+    test.setTimeout(420_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertSourcedSelectMultipleDropdownStaysOpenThroughUi(page);
   });
 
   test('SRC-006 - filter Select source by hidden text column', async ({ page }) => {
@@ -72,7 +84,7 @@ test.describe('No-Code Studio functional sources contract - Select and palette',
     // Requires a product contract: current exploration persisted the JS value but viewer rows stayed unfiltered.
   });
 
-  test('SRC-007 - sort Select source by hidden column', async ({ page }) => {
+  test('SRC-007 #1082 - sort Select source by hidden column', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);

@@ -1,6 +1,7 @@
 import { test } from './fixtures';
 import {
   addPageAndNavigateThroughPagesPanel,
+  assertPageAndApplicationSettingsIconsAreDisabledThroughUi,
   autosaveComponentConfigurationAfterCloseAndReload,
   configurePageButtonsThroughUi,
   deletePageCancelThenConfirmThroughUi,
@@ -12,6 +13,7 @@ import {
   renamePageWithValidationThroughUi,
   reorderPagesAndAssertPersistenceThroughUi,
   returnHomeAndReopenSameApplicationThroughUi,
+  verifyEditableWorkflowAffordancesThroughUi,
 } from './helpers/functional-editor';
 import { createBlankApplicationThroughUi, loginWithUsernamePassword } from './helpers/functional-studio';
 
@@ -119,5 +121,35 @@ test.describe('No-Code Studio functional editor shell', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await keepLastWorkflowFullyVisibleAfterScrollThroughUi(page);
+  });
+
+  /**
+   * #1321 was reported in 2.2.0-beta124. Commit 9e7b3600 disabled the Page
+   * settings icon and capitalized the English/Spanish Disabled labels, first
+   * released in beta150. After the application icon was reported in beta153,
+   * 7c7af6a8 disabled it too; QA validated the complete fix in beta155.
+   * Current runtime validation remains pending.
+   */
+  test('EDT-015 #1321 - Page and Application settings icons are decorative disabled controls', async ({ page }) => {
+    test.setTimeout(180_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertPageAndApplicationSettingsIconsAreDisabledThroughUi(page);
+  });
+
+  /**
+   * #1372/#1373 were reported in 2.2.0-beta158. The workflow-list edit
+   * controls were introduced by a8045bdf and made hover-driven by a596827c;
+   * 0a8dc450 then closed stale rename settings when changing workflows.
+   * 30596546/4ea3057b added editable-header hover feedback while excluding
+   * Formula and Triggered on submission. The fixes first shipped across
+   * beta164-beta169; QA historically validated #1373 in beta167 and the full
+   * #1372 journey in beta186. Current runtime validation remains pending.
+   */
+  test('EDT-016 #1372 #1373 - only user workflows expose edit and hover affordances', async ({ page }) => {
+    test.setTimeout(240_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await verifyEditableWorkflowAffordancesThroughUi(page);
   });
 });

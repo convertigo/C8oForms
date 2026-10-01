@@ -10,6 +10,7 @@ import {
   configureHorizontalLayoutChildrenThroughUi,
   deleteTextInputCancelThenConfirmThroughUi,
   duplicateConfiguredButtonAndAssertCopyThroughUi,
+  disableTextInputAndAssertViewerExclusionThroughUi,
   renameTextInputTechnicalIdentifierThroughUi,
   reorderButtonsAndAssertPersistenceThroughUi,
   validateTextInputTechnicalIdentifierErrorsThroughUi,
@@ -84,7 +85,7 @@ test.describe('No-Code Studio functional common component contract', () => {
     await configureSelectDefaultValuesInAllModesThroughUi(page);
   });
 
-  test('CMP-COM-010 - component navigation with a condition', async ({ page }) => {
+  test('CMP-COM-010 #505 - component navigation with a condition', async ({ page }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -99,7 +100,18 @@ test.describe('No-Code Studio functional common component contract', () => {
     await assertFilteredComponentPaletteHoverHasNo404sThroughUi(page);
   });
 
-  test('CMP-LAYOUT-001 - Horizontal layout children add reorder and delete', async ({ page }) => {
+  /**
+   * #1436: disabled components stay configured and visibly marked in Studio,
+   * but are omitted from Preview until explicitly re-enabled.
+   */
+  test('CMP-COM-012 #1436 - disable a component without removing its configuration', async ({ page }) => {
+    test.setTimeout(300_000);
+    await loginWithUsernamePassword(page);
+    const applicationId = await createBlankApplicationThroughUi(page);
+    await disableTextInputAndAssertViewerExclusionThroughUi(page, applicationId);
+  });
+
+  test('CMP-LAYOUT-001 #1379 #1463 - Horizontal layout children, nesting, and valid drop-zone feedback', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -118,7 +130,7 @@ test.describe('No-Code Studio functional common component contract', () => {
     await assertHorizontalLayoutConfigurationRendersImmediatelyThroughUi(page, applicationId);
   });
 
-  test('CMP-GROUP-001 - Group children visibility reorder and delete', async ({ page }) => {
+  test('CMP-GROUP-001 #1379 - Group children visibility reorder delete and valid drop-zone feedback', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);

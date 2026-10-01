@@ -8,6 +8,7 @@ import {
   checkedSelectBaserowDisplayColumns,
   checkedSelectBaserowValueColumns,
   configureChartBaserowSource,
+  dataSourceFilterFieldOptions,
   configureDataSourceFilterMonacoPaletteValue,
   configureDataSourceFilterTextValue,
   configureDataSourceSort,
@@ -17,6 +18,7 @@ import {
   configureSelectBaserowSource,
   createBlankForm,
   expectChartBaserowSourceRoles,
+  expectGridBaserowColumnsOnReopen,
   expectChartHeightModeSelected,
   expectChartPersonalizedHeightInput,
   expectGridFooterAndPaginationSettings,
@@ -29,6 +31,8 @@ import {
   openComponentsPalette,
   openConfigTabById,
   openDataSourceSortPanel,
+  dragExistingComponentIntoGroup,
+  openDataSourceFilterPanel,
   openGridFormattingTab,
   openPreview,
   openSelectBaserowSourceConfiguration,
@@ -42,6 +46,8 @@ import {
   sourceSelectVisibleOptions,
   tinyMceEditorContent,
   selectGridBaserowSourceWithoutTable,
+  setSelectSelectionMode,
+  setTechnicalId,
   setGridReturnedValueToRowSelected,
   setGridFooterEnabled,
   setGridPaginationMode,
@@ -62,6 +68,17 @@ const GRID_SOURCE_COLUMNS = ['Name', 'Status', 'Marker'];
 const GRID_SOURCE_ROWS = [
   { Name: 'functional_source_grid_alpha', Status: 'Active', Marker: 'visible_grid_alpha' },
   { Name: 'functional_source_grid_bravo', Status: 'Pending', Marker: 'visible_grid_bravo' },
+];
+const GRID_EDITOR_PREVIEW_TABLE = 'Functional Grid Editor Preview 1409';
+const GRID_EDITOR_PREVIEW_COLUMNS = [
+  'Configured customer reference',
+  'Configured delivery destination',
+  'Configured fulfillment status',
+  'Configured account representative',
+  'Configured purchase order number',
+  'Configured shipment tracking reference',
+  'Configured invoice approval state',
+  'Configured archival classification',
 ];
 const GRID_LONG_TABLE_NAME =
   'Functional Source Table With A Deliberately Very Long Name That Must Stay Truncated And Selectable 1277';
@@ -363,12 +380,143 @@ export async function configureGridBaserowTableAndAssertViewerRowsThroughUi(page
       await expectGridHeaderVisible(page, column);
     }
 
+    for (const sampleColumn of ['Make', 'Model', 'Price']) {
+      await expectGridHeaderHidden(page, sampleColumn);
+    }
+
     for (const row of GRID_SOURCE_ROWS) {
       const gridRow = await visibleGridRow(page, row.Name);
       const text = await normalizedText(gridRow);
       expect(text, `Grid row ${row.Name} should contain its Status`).toContain(row.Status);
       expect(text, `Grid row ${row.Name} should contain its Marker`).toContain(row.Marker);
     }
+  });
+}
+
+/**
+ * #1255: a configured Grid must keep both source editors usable after the
+ * existing component is moved from the page root into a Group.
+ */
+export async function assertConfiguredGridSourceSurvivesMoveIntoGroupThroughUi(page: Page): Promise<void> {
+  const source = {
+    workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+    database: FUNCTIONAL_SOURCE_DATABASE,
+    table: GRID_SOURCE_TABLE,
+    expectedColumns: GRID_SOURCE_COLUMNS,
+  } as const;
+
+  await test.step('Ensure the functional Grid Baserow table exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: source.workspace,
+      database: source.database,
+      table: source.table,
+      primaryField: 'Name',
+      columns: GRID_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
+      rows: GRID_SOURCE_ROWS,
+      upsertKey: 'Name',
+    });
+    assertGridSourceFixture(catalog);
+  });
+
+  await test.step('Configure a Grid at the page root, then move that existing Grid into a Group', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, source);
+    await closeComponentConfig(page);
+
+    await openComponentsPalette(page, PALETTE_ICON.group);
+    await addComponent(page, PALETTE_ICON.group, { allowEditorApiFallback: false });
+    const group = page.locator('c8oforms-itemcardeditorviewer:visible').first();
+    await expect(group, 'destination Group should be present').toBeVisible({ timeout: 30_000 });
+
+    await dragExistingComponentIntoGroup(page, SEL.gridComponent);
+    await expect(
+      group.locator(`${SEL.gridComponent}:visible`),
+      'the already configured Grid should render as a child of the Group',
+    ).toHaveCount(1, { timeout: 30_000 });
+  });
+
+  await test.step('Reopen the moved Grid Source selection dialog', async () => {
+    await openComponentConfig(page, `c8oforms-itemcardeditorviewer ${SEL.gridComponent}`);
+    await openConfigTabById(page, 'tab_selector_choice_source');
+    const selectButton = page.locator(`${SEL.dataSourceSelectButton}:visible`).first();
+    await expect(selectButton, 'moved Grid Source selection button should remain visible').toBeVisible({ timeout: 15_000 });
+    await selectButton.click({ timeout: 10_000 }).catch(async () => selectButton.dispatchEvent('click'));
+
+    const sourcePicker = page.locator('ion-modal:visible').last();
+    await expect(sourcePicker, 'moved Grid Source selection dialog should open').toBeVisible({ timeout: 30_000 });
+    await expect(
+      sourcePicker.locator(SEL.dataSourceSelectButton).first(),
+      'moved Grid Source selection dialog should expose its configured source choice',
+    ).toBeVisible({ timeout: 30_000 });
+    await closeSourceSelectionModal(sourcePicker);
+  });
+
+  await test.step('Reopen the moved Grid Source configuration and retain its Baserow columns', async () => {
+    await expectGridBaserowColumnsOnReopen(page, source);
+    await closeComponentConfig(page);
+  });
+}
+
+/** #1409: editor preview columns and width behavior come from stored Grid configuration. */
+export async function assertConfiguredGridEditorPreviewColumnsAndWidthThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the wide Grid editor-preview fixture exists', async () => {
+    await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_EDITOR_PREVIEW_TABLE,
+      primaryField: GRID_EDITOR_PREVIEW_COLUMNS[0],
+      columns: GRID_EDITOR_PREVIEW_COLUMNS.map((name) => ({ name, type: 'text' })),
+      rows: [
+        Object.fromEntries(GRID_EDITOR_PREVIEW_COLUMNS.map((column, index) => [column, `editor-preview-${index + 1}`])),
+      ],
+      upsertKey: GRID_EDITOR_PREVIEW_COLUMNS[0],
+    });
+  });
+
+  await test.step('Configure the Grid source and verify its stored columns in the editor preview', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_EDITOR_PREVIEW_TABLE,
+      expectedColumns: GRID_EDITOR_PREVIEW_COLUMNS,
+    });
+    await closeComponentConfig(page);
+
+    for (const column of GRID_EDITOR_PREVIEW_COLUMNS) {
+      await expectGridHeaderVisible(page, column);
+    }
+    for (const fallback of ['Make', 'Model', 'Price']) {
+      await expectGridHeaderHidden(page, fallback);
+    }
+  });
+
+  await test.step('Fit configured editor-preview columns without horizontal scrolling', async () => {
+    await openComponentConfig(page, SEL.gridComponent);
+    await setGridEditorColumnWidthMode(page, 'fit');
+    await closeComponentConfig(page);
+    const geometry = await gridEditorHorizontalGeometry(page);
+    expect(
+      geometry.scrollWidth,
+      `fit mode should not horizontally overflow the editor Grid (${geometry.scrollWidth}/${geometry.clientWidth})`,
+    ).toBeLessThanOrEqual(geometry.clientWidth + 2);
+  });
+
+  await test.step('Keep configured editor-preview column widths with horizontal scrolling', async () => {
+    await openComponentConfig(page, SEL.gridComponent);
+    await setGridEditorColumnWidthMode(page, 'scroll');
+    await closeComponentConfig(page);
+    const geometry = await gridEditorHorizontalGeometry(page);
+    expect(
+      geometry.scrollWidth,
+      `scroll mode should overflow the editor Grid viewport (${geometry.scrollWidth}/${geometry.clientWidth})`,
+    ).toBeGreaterThan(geometry.clientWidth + 2);
   });
 }
 
@@ -947,6 +1095,18 @@ export async function exerciseGridSourceFooterAndPaginationThroughUi(page: Page)
       await expectGridHeaderVisible(page, column);
     }
 
+    const headerMenus = page.locator(`${SEL.gridComponent}:visible .ag-header-cell .ag-header-cell-menu-button .ag-icon-filter`);
+    await expect(
+      headerMenus,
+      'No-Code Grid should expose the configured filter menu icon on every source column without hover',
+    ).toHaveCount(GRID_SOURCE_COLUMNS.length, { timeout: 30_000 });
+    for (let index = 0; index < GRID_SOURCE_COLUMNS.length; index++) {
+      await expect(
+        headerMenus.nth(index),
+        `Grid header ${GRID_SOURCE_COLUMNS[index]} filter menu icon should remain visible without hover`,
+      ).toBeVisible({ timeout: 15_000 });
+    }
+
     const firstRow = await visibleGridRowAcrossPages(page, GRID_SOURCE_ROWS[0].Name);
     const firstRowText = await normalizedText(firstRow);
     expect(firstRowText, `Grid row ${GRID_SOURCE_ROWS[0].Name} should contain its Status`).toContain(GRID_SOURCE_ROWS[0].Status);
@@ -1001,6 +1161,7 @@ export async function exerciseGridFilterSortSelectionAndReloadThroughUi(page: Pa
       value: GRID_INTERACTION_VISIBLE_STATUS,
     });
     await configureDataSourceSort(page, { column: GRID_INTERACTION_RANK, order: 'asc' });
+    await assertDataSourceFilterAndSortRemainUsableAfterSecondOpen(page);
     await setGridReturnedValueToRowSelected(page);
     await closeComponentConfig(page);
   });
@@ -1047,6 +1208,93 @@ export async function exerciseGridFilterSortSelectionAndReloadThroughUi(page: Pa
       }),
       'filtered-out Grid row should remain hidden after reload',
     ).toHaveCount(0, { timeout: 10_000 });
+  });
+}
+
+/** #1403: an intentionally empty text expression remains an empty runtime filter value. */
+export async function assertGridEmptyStringFilterThroughUi(page: Page): Promise<void> {
+  await test.step('Ensure the nullable Grid interactions fixture exists', async () => {
+    const catalog = await ensureBaserowTable({
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_INTERACTION_TABLE,
+      primaryField: GRID_INTERACTION_NAME,
+      columns: [
+        { name: GRID_INTERACTION_NAME, type: 'text' },
+        { name: GRID_INTERACTION_STATUS, type: 'text' },
+        { name: GRID_INTERACTION_RANK, type: 'number' },
+        { name: GRID_INTERACTION_NOTES, type: 'text' },
+      ],
+      rows: GRID_INTERACTION_ROWS,
+      upsertKey: GRID_INTERACTION_NAME,
+    });
+    assertGridInteractionFixture(catalog);
+  });
+
+  await test.step('Configure an equality filter with an intentionally empty text expression', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.grid);
+    await addComponent(page, PALETTE_ICON.grid, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.gridComponent);
+    await configureGridBaserowSource(page, {
+      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+      database: FUNCTIONAL_SOURCE_DATABASE,
+      table: GRID_INTERACTION_TABLE,
+      expectedColumns: GRID_INTERACTION_COLUMNS,
+    });
+    await configureDataSourceFilterTextValue(page, {
+      column: GRID_INTERACTION_NOTES,
+      operator: 'equal',
+      value: '',
+    });
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Render only the row whose filtered value is empty', async () => {
+    await openPreview(page, SEL.gridComponent);
+    await expectGridVisibleRowsInOrder(page, ['functional_grid_002_visible_bravo']);
+    for (const excluded of ['functional_grid_002_hidden_alpha', 'functional_grid_002_visible_charlie']) {
+      await expect(
+        page.locator(`${SEL.gridComponent}:visible .ag-center-cols-container .ag-row`).filter({ hasText: excluded }),
+        `empty-string filter should exclude non-empty row ${excluded}`,
+      ).toHaveCount(0, { timeout: 15_000 });
+    }
+  });
+}
+
+async function assertDataSourceFilterAndSortRemainUsableAfterSecondOpen(page: Page): Promise<void> {
+  const editor = page.locator('c8oforms-datasourceeditor');
+  const visibleInputValues = () =>
+    editor
+      .locator('input:visible')
+      .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value).filter(Boolean));
+
+  await test.step('Open Filter twice and retain its configured field without an endless loader', async () => {
+    await openDataSourceFilterPanel(page);
+    await openDataSourceFilterPanel(page);
+    await expect(editor.locator('ion-progress-bar:visible'), 'Filter should not enter an endless loading state').toHaveCount(0, {
+      timeout: 10_000,
+    });
+    await expect
+      .poll(visibleInputValues, {
+        message: `Filter should retain configured field ${GRID_INTERACTION_STATUS} after a second open`,
+        timeout: 15_000,
+      })
+      .toContain(GRID_INTERACTION_STATUS);
+  });
+
+  await test.step('Open Sort twice and retain its configured field', async () => {
+    await openDataSourceSortPanel(page);
+    await openDataSourceSortPanel(page);
+    await expect(editor.locator('ion-progress-bar:visible'), 'Sort should not enter an endless loading state').toHaveCount(0, {
+      timeout: 10_000,
+    });
+    await expect
+      .poll(visibleInputValues, {
+        message: `Sort should retain configured field ${GRID_INTERACTION_RANK} after a second open`,
+        timeout: 15_000,
+      })
+      .toContain(GRID_INTERACTION_RANK);
   });
 }
 
@@ -1289,6 +1537,17 @@ export async function configureChartBaserowTableAndAssertPersistenceThroughUi(pa
     await configureChartBaserowSource(page, chartSourceConfig());
   });
 
+  await test.step('Verify Chart filters expose columns outside the configured category/value roles', async () => {
+    const filterFields = await dataSourceFilterFieldOptions(page);
+    expect(filterFields, 'Chart filters should expose the unrendered category column').toContain(
+      CHART_SOURCE_IGNORED_CATEGORY,
+    );
+    expect(filterFields, 'Chart filters should expose the unrendered value column').toContain(
+      CHART_SOURCE_IGNORED_VALUE,
+    );
+    await page.keyboard.press('Escape');
+  });
+
   await test.step('Reopen Chart source configuration and verify persisted roles', async () => {
     await expectChartBaserowSourceRoles(page, chartSourceConfig());
     await closeComponentConfig(page);
@@ -1362,6 +1621,49 @@ export async function exerciseChartSourceTypeAndHeightThroughUi(page: Page): Pro
       .locator(`${SEL.chartComponent}:visible .apexcharts-canvas, ${SEL.chartComponent}:visible apx-chart, ${SEL.chartComponent}:visible svg`)
       .first();
     await expect(renderedChart, 'viewer Chart should render a chart surface').toBeVisible({ timeout: 45_000 });
+  });
+}
+
+/** #1450: sourced Charts show an explicit loading state instead of demo labels. */
+export async function assertChartLoadingStateThroughUi(page: Page): Promise<void> {
+  await configureChartBaserowTableAndAssertPersistenceThroughUi(page);
+  const sourceRequests = await holdSourceRequests(page);
+
+  try {
+    await test.step('Open Preview while the Chart source request is held', async () => {
+      await openPreview(page, SEL.chartComponent);
+      await expect
+        .poll(() => sourceRequests.count(), {
+          message: 'Chart Preview should issue a held formssource request',
+          timeout: 30_000,
+        })
+        .toBeGreaterThan(0);
+    });
+
+    await test.step('Show loading feedback without demo labels or a premature chart', async () => {
+      const chart = page.locator(`${SEL.chartComponent}:visible`).first();
+      const loading = chart.locator('div:has(> ion-spinner[name="dots"])').first();
+      await expect(loading, 'sourced Chart should display its loading indicator').toBeVisible({ timeout: 30_000 });
+      await expect(loading.locator('span'), 'Chart loading indicator should include localized feedback').not.toHaveText(/^\s*$/);
+      await expect(chart, 'runtime Chart must not expose editor demo labels while loading').not.toContainText('Label1');
+      await expect(
+        chart.locator('.apexcharts-canvas, apx-chart, svg'),
+        'Chart surface should stay hidden until sourced data is available',
+      ).toHaveCount(0);
+    });
+  } finally {
+    await sourceRequests.release();
+  }
+
+  await test.step('Replace loading feedback with the sourced Chart after release', async () => {
+    const chart = page.locator(`${SEL.chartComponent}:visible`).first();
+    await expect(chart.locator('div:has(> ion-spinner[name="dots"])'), 'Chart loading indicator should disappear').toHaveCount(0, {
+      timeout: 45_000,
+    });
+    await expect(
+      chart.locator('.apexcharts-canvas, apx-chart, svg').first(),
+      'Chart surface should render after the source resolves',
+    ).toBeVisible({ timeout: 45_000 });
   });
 }
 
@@ -1461,16 +1763,7 @@ export async function exerciseMapBaserowMarkersThroughUi(page: Page): Promise<vo
 
 export async function configureSelectBaserowTableAndAssertPersistenceThroughUi(page: Page): Promise<void> {
   await test.step('Ensure the functional Select Baserow table exists', async () => {
-    const catalog = await ensureBaserowTable({
-      workspace: FUNCTIONAL_SOURCE_WORKSPACE,
-      database: FUNCTIONAL_SOURCE_DATABASE,
-      table: SELECT_SOURCE_TABLE,
-      primaryField: 'Name',
-      columns: SELECT_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
-      rows: SELECT_SOURCE_ROWS,
-      upsertKey: 'Name',
-    });
-    assertSelectSourceFixture(catalog);
+    await ensureFunctionalSelectSourceTable();
   });
 
   await test.step('Create a Select and configure its Baserow display/value columns', async () => {
@@ -1510,6 +1803,76 @@ export async function configureSelectBaserowTableAndAssertPersistenceThroughUi(p
     const labels = SELECT_SOURCE_ROWS.map((row) => row[SELECT_SOURCE_DISPLAY_COLUMN]);
     const visibleOptions = await sourceSelectVisibleOptions(page, labels);
     expect(visibleOptions, 'viewer Select should expose Baserow display labels').toEqual(labels);
+  });
+}
+
+export async function assertSourcedSelectMultipleDropdownStaysOpenThroughUi(page: Page): Promise<void> {
+  const technicalId = `functional_sourced_select_multiple_${Date.now()}`;
+  const labels = SELECT_SOURCE_ROWS.map((row) => row[SELECT_SOURCE_DISPLAY_COLUMN]);
+
+  await test.step('Ensure the functional Select Baserow table exists', async () => {
+    await ensureFunctionalSelectSourceTable();
+  });
+
+  await test.step('Create a sourced Select in multiple-selection mode', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.select);
+    await addComponent(page, PALETTE_ICON.select, { allowEditorApiFallback: false });
+    await expect(page.locator(`${SEL.selectComponent}:visible`).first(), 'Select component should be present').toBeVisible({
+      timeout: 30_000,
+    });
+
+    await openComponentConfig(page, SEL.selectComponent);
+    await setTechnicalId(page, technicalId);
+    await configureFunctionalSelectBaserowSource(page);
+    await setSelectSelectionMode(page, 'multiple');
+    await closeComponentConfig(page);
+  });
+
+  await test.step('Choose two sourced values without closing the multiple dropdown', async () => {
+    await openPreview(page, SEL.selectComponent);
+    const select = page.locator(`#${technicalId}, ${SEL.selectComponent}:visible`).first();
+    await expect(select, 'sourced multiple Select should render in Preview').toBeVisible({ timeout: 30_000 });
+    const trigger = select.locator('ion-item.class1648542300891, button').first();
+    await expect(trigger, 'sourced multiple Select trigger should be visible').toBeVisible({ timeout: 15_000 });
+    await trigger.click({ timeout: 10_000 }).catch(async () => trigger.dispatchEvent('click'));
+
+    const dropdown = page
+      .locator('.class1599133954837:visible, cdk-virtual-scroll-viewport:visible')
+      .filter({ hasText: labels[0] })
+      .last();
+    await expect(dropdown, 'sourced multiple Select dropdown should open').toBeVisible({ timeout: 30_000 });
+
+    for (const label of labels.slice(0, 2)) {
+      const option = dropdown.locator('ion-item').filter({ hasText: label }).first();
+      await expect(option, `sourced Select option ${label} should be visible`).toBeVisible({ timeout: 15_000 });
+      const checkbox = option.locator('ion-checkbox').first();
+      await checkbox.click({ timeout: 10_000 }).catch(async () => checkbox.dispatchEvent('click'));
+      await expect(dropdown, `dropdown should remain open after choosing ${label}`).toBeVisible({ timeout: 10_000 });
+      await expect
+        .poll(
+          () =>
+            checkbox.evaluate(
+              (element) =>
+                (element as HTMLElement & { checked?: boolean }).checked === true ||
+                element.getAttribute('aria-checked') === 'true',
+            ),
+          { message: `sourced Select option ${label} should become checked`, timeout: 10_000 },
+        )
+        .toBe(true);
+    }
+
+    await page.mouse.click(5, 5);
+    await expect(dropdown, 'sourced multiple Select dropdown should close only after an outside click').toBeHidden({
+      timeout: 15_000,
+    });
+    for (const label of labels.slice(0, 2)) {
+      await expect(trigger, `closed sourced Select should retain ${label}`).toContainText(label, { timeout: 15_000 });
+    }
+    expect(
+      (await trigger.innerText()).replace(/\s+/g, ' ').trim(),
+      'closed sourced Select should render the chosen labels without carriage-return whitespace',
+    ).toContain(`${labels[0]}, ${labels[1]}`);
   });
 }
 
@@ -2114,6 +2477,19 @@ function assertSelectSourceFixture(catalog: BaserowCatalog): void {
   }
 }
 
+async function ensureFunctionalSelectSourceTable(): Promise<void> {
+  const catalog = await ensureBaserowTable({
+    workspace: FUNCTIONAL_SOURCE_WORKSPACE,
+    database: FUNCTIONAL_SOURCE_DATABASE,
+    table: SELECT_SOURCE_TABLE,
+    primaryField: 'Name',
+    columns: SELECT_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
+    rows: SELECT_SOURCE_ROWS,
+    upsertKey: 'Name',
+  });
+  assertSelectSourceFixture(catalog);
+}
+
 function assertFilterSourceFixture(catalog: BaserowCatalog): void {
   const table = catalog.tables.find((candidate) => candidate.name === FILTER_SOURCE_TABLE);
   expect(table, `Baserow table ${FILTER_SOURCE_TABLE} should exist`).toBeTruthy();
@@ -2519,6 +2895,25 @@ async function visibleLeafletMarkerTitles(page: Page): Promise<string[]> {
 
 async function normalizedText(locator: Locator): Promise<string> {
   return ((await locator.textContent()) ?? '').replace(/\s+/g, ' ').trim();
+}
+
+async function setGridEditorColumnWidthMode(page: Page, mode: 'fit' | 'scroll'): Promise<void> {
+  await openGridFormattingTab(page);
+  const buttons = page.locator('.class1775754035469:visible button.c8o-btn:visible');
+  await expect(buttons, 'Grid Column width should expose fit and horizontal-scroll modes').toHaveCount(2, {
+    timeout: 15_000,
+  });
+  const selected = buttons.nth(mode === 'fit' ? 0 : 1);
+  await selected.click({ timeout: 10_000 }).catch(async () => selected.dispatchEvent('click'));
+  await expect(selected, `Grid Column width ${mode} mode should be selected`).toHaveClass(/c8o-btn-selected/, {
+    timeout: 15_000,
+  });
+}
+
+async function gridEditorHorizontalGeometry(page: Page): Promise<{ clientWidth: number; scrollWidth: number }> {
+  const viewport = page.locator(`${SEL.gridComponent}:visible .ag-center-cols-viewport`).first();
+  await expect(viewport, 'Grid editor preview column viewport should be visible').toBeVisible({ timeout: 30_000 });
+  return viewport.evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
 }
 
 async function expectVisibleTinyMceBody(page: Page): Promise<void> {

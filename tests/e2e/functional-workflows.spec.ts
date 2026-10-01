@@ -5,9 +5,12 @@ import {
   configureIfActionModesWithTextSourceThroughUi,
   configureLoopActionIteratorThroughUi,
   configureMailActionAndVerifyPersistenceThroughUi,
+  configureResetFieldsActionAndVerifyComponentScopeThroughUi,
   configureSubmitActionAndVerifyRequiredValidationThroughUi,
   configureToastActionAndVerifyViewerToastThroughUi,
+  verifyButtonFlowNamesRemainUniqueAfterComponentRecreationThroughUi,
   verifyBaserowAddRowMappingCanBeDeletedThroughUi,
+  verifyNavigateToPageGoBackUsesViewerHistoryThroughUi,
   verifyConfiguredActionReplacementWarningThroughUi,
   verifyWorkflowPersistenceAfterReloadThroughUi,
 } from './helpers/functional-workflows';
@@ -32,14 +35,27 @@ test.describe('No-Code Studio functional workflow contract', () => {
     await configureSubmitActionAndVerifyRequiredValidationThroughUi(page);
   });
 
-  test('WF-003 - If action modes and visible configuration tabs', async ({ page }) => {
+  /**
+   * #1428 (reported on 2.2.0-beta238) asked for the modern Fields/Aa/JS
+   * selector used by the If action. Fix e49725f9 first shipped in beta241;
+   * after an intentional Fields-mode information-panel difference was reviewed,
+   * QA validated the complete behavior in beta247. WF-003 exercises all three
+   * modes and now distinguishes the modern Aa/JS guidance from the intentionally
+   * guidance-free Fields mode.
+   */
+  test('WF-003 #1428 - If action modes and visible configuration tabs', async ({ page }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await configureIfActionModesWithTextSourceThroughUi(page);
   });
 
-  test('WF-004 - Loop action iterator and Source Palette button', async ({ page }) => {
+  /**
+   * #1427 (reported on 2.2.0-beta238) lacked guidance about the iterable accepted
+   * by Loop. Fix 482d7f90 first shipped and was QA validated in beta241. WF-004
+   * now protects both the array guidance/examples and the usable iterator modes.
+   */
+  test('WF-004 #1427 - Loop action documents its array iterator input', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -71,8 +87,14 @@ test.describe('No-Code Studio functional workflow contract', () => {
     await configureMailActionAndVerifyPersistenceThroughUi(page);
   });
 
-  // #1328: the functional Add Row journey owns the redesigned no-code database action UI.
-  test('WF-007 - No-Code Database Add Row action creates a row', async ({ page }) => {
+  /**
+   * #1328: this journey owns the redesigned no-code database action UI.
+   * #1515 (reported after beta317) was caused by the shared variable button
+   * becoming selected after one click and suppressing subsequent clicks. Fix
+   * 39f666df first shipped in beta326 and QA validated beta333. The two mappings
+   * below require two successive Add a variable clicks and both reach Preview.
+   */
+  test('WF-007 #1515 - No-Code Database Add Row action creates a row with successive variables', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -99,5 +121,45 @@ test.describe('No-Code Studio functional workflow contract', () => {
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await verifyWorkflowPersistenceAfterReloadThroughUi(page);
+  });
+
+  /**
+   * #1378 introduced the configurable Reset fields action. Fix dbd10db8 first
+   * shipped in 2.2.0-beta185 and was historically validated in beta309.
+   * WF-011 is authoring-only until its first runtime validation: it protects
+   * the three scopes and the component-scope default/outside-scope semantics.
+   */
+  test('WF-011 #1378 - Reset fields restores defaults within the configured scope', async ({ page }) => {
+    test.setTimeout(360_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await configureResetFieldsActionAndVerifyComponentScopeThroughUi(page);
+  });
+
+  /**
+   * #1482 was reported on 2.2.0-beta304. Deleted Buttons intentionally retain
+   * their flows, but the old name allocator ignored those retained flow names
+   * and could reuse one. Fix 68d0e6fb first shipped in beta318 and was
+   * historically validated in beta320. Runtime validation of this authored
+   * functional owner is pending.
+   */
+  test('WF-012 #1482 - recreated Buttons receive unique workflow names', async ({ page }) => {
+    test.setTimeout(360_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await verifyButtonFlowNamesRemainUniqueAfterComponentRecreationThroughUi(page);
+  });
+
+  /**
+   * #1484 was requested on 2.2.0-beta304. Fix d2b92722 added a distinct Go back
+   * target and viewer page history in beta328; QA validated it in beta333. The
+   * scenario jumps Page 1 -> Page 3, then proves Go back returns to the visited
+   * Page 1 rather than the index-adjacent Page 2. Runtime validation is pending.
+   */
+  test('WF-013 #1484 - Navigate to Page Go back follows viewer history', async ({ page }) => {
+    test.setTimeout(420_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await verifyNavigateToPageGoBackUsesViewerHistoryThroughUi(page);
   });
 });

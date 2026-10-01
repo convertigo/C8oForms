@@ -3,6 +3,9 @@ import {
   assertExcludedGridColumnLeavesDisplayedCountThroughUi,
   assertFilteredGridSourceItemsSelectOnFirstClickThroughUi,
   assertGridJavaScriptFilterAwaitsAsyncValueThroughUi,
+  assertConfiguredGridSourceSurvivesMoveIntoGroupThroughUi,
+  assertConfiguredGridEditorPreviewColumnsAndWidthThroughUi,
+  assertGridEmptyStringFilterThroughUi,
   assertGridLongTableNameLayoutThroughUi,
   assertGridMultipleRowSelectionCheckboxesThroughUi,
   assertGridSourceSearchPlaceholdersThroughUi,
@@ -24,7 +27,11 @@ test.describe('No-Code Studio functional sources contract - Grid', () => {
     viewport: { width: 1920, height: 1080 },
   });
 
-  test('SRC-002 - configure a Baserow table for Grid', async ({ page }) => {
+  /**
+   * #1491: reported in beta309. Fixes 2cc1eb0d, 3d0575a6 and d7e5647f
+   * restored sourced Grid columns; QA validated beta321.
+   */
+  test('SRC-002 #1491 - configure a Baserow table without sample Grid columns', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -77,6 +84,22 @@ test.describe('No-Code Studio functional sources contract - Grid', () => {
     await assertFilteredGridSourceItemsSelectOnFirstClickThroughUi(page);
   });
 
+  /** #1255: reported in beta94, fixed and historically QA-validated in beta95. */
+  test('SRC-017 #1255 - configured Grid source remains usable after moving into a Group', async ({ page }) => {
+    test.setTimeout(420_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertConfiguredGridSourceSurvivesMoveIntoGroupThroughUi(page);
+  });
+
+  /** #1409: fixed by a7a362c7 in beta249 and historically QA-validated in beta294. */
+  test('CMP-GRID-004 #1409 - configured columns and width mode render in the editor preview', async ({ page }) => {
+    test.setTimeout(420_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertConfiguredGridEditorPreviewColumnsAndWidthThroughUi(page);
+  });
+
   // #1268 recognizes URL metadata; #1261 renders only typed URL fields as safe links.
   test('CMP-GRID-003 #1261 #1268 - URL source type and viewer links', async ({ page }) => {
     test.setTimeout(420_000);
@@ -85,7 +108,8 @@ test.describe('No-Code Studio functional sources contract - Grid', () => {
     await assertGridUrlColumnTypeAndRenderingThroughUi(page);
   });
 
-  test('CMP-GRID-001 - Grid source footer and pagination', async ({ page }) => {
+  // #1486: No-Code Grid imports suppressMenuHide and the configured filter menu icon.
+  test('CMP-GRID-001 #1486 - Grid source footer, persistent menu icons, and pagination', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -93,11 +117,20 @@ test.describe('No-Code Studio functional sources contract - Grid', () => {
   });
 
   // #1269/#1304: individual hidden-column state persists, including when a row contains null.
-  test('CMP-GRID-002 - Grid filter sort row selection and reload', async ({ page }) => {
+  // #1498: repeatedly opening Filter or Sort must retain usable configuration; QA validated beta320.
+  test('CMP-GRID-002 #1498 - Grid filter sort remain usable on reopen, selection and reload', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await exerciseGridFilterSortSelectionAndReloadThroughUi(page);
+  });
+
+  /** #1403: finalized in beta320 and historically QA-validated in beta320. */
+  test('CMP-GRID-002 #1403 - empty text expression filters empty source values', async ({ page }) => {
+    test.setTimeout(420_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertGridEmptyStringFilterThroughUi(page);
   });
 
   /**
@@ -119,7 +152,7 @@ test.describe('No-Code Studio functional sources contract - Grid', () => {
     await assertGridMultipleRowSelectionCheckboxesThroughUi(page);
   });
 
-  test('CMP-GRID-001 - Grid typed Baserow formatting', async ({ page }) => {
+  test('CMP-GRID-001 #1414 - Grid typed Baserow formatting', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);

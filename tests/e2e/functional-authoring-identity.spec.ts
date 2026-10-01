@@ -3,7 +3,7 @@ import {
   assertSelectorFiltersThroughUi,
   expectInvalidUsernamePasswordLoginRejected,
   expectForgottenPasswordModalOpensAndCloses,
-  expectLoginIdentifierSymbolsThroughUi,
+  expectLoginSymbolsThroughUi,
   expectNoCodeDashboardReady,
   expectProtectedRouteRedirectsToLogin,
   expectSelectorUserSearchFilterVisibilityThroughUi,
@@ -50,11 +50,17 @@ test.describe('No-Code Studio functional authoring - sign-in and identity', () =
    * the discovered symbol value with its translation as fallback; it first
    * shipped in 2.2.0-beta177 and was historically validated in 2.2.0-beta178.
    *
+   * #1391 was reported in 2.2.0-beta178. Commit 59e76b4d exposed the
+   * customHeaderDescription, customContentTitle, and customContentDescription
+   * server symbols in 2.2.0-beta200; QA historically validated all three in
+   * 2.2.0-beta205.
+   *
    * This is a latest-only characterization. Its test-nocode runtime validation
    * remains pending; no historical red phase or deployment is part of this spec.
    */
-  test('AUTH-007 #1259 - login identifier label and placeholder honor server symbols', async ({ page }) => {
-    await expectLoginIdentifierSymbolsThroughUi(page);
+  test('AUTH-007 #1259 #1391 - login labels, placeholder, and brand text honor server symbols', async ({ page }) => {
+    test.setTimeout(360_000);
+    await expectLoginSymbolsThroughUi(page);
   });
 
   test('APP-009 - selector filters', async ({ page }) => {

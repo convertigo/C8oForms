@@ -17,9 +17,12 @@ import {
   expectMailActionBodyContainsUserName,
   expectMailActionSubjectJavaScriptContains,
   expectMailActionSummaryChecked,
+  expectPagesPanelDefaultAfterWorkflowNavigation,
   expectMailActionTextVariableContains,
   fillViewerTextInput,
   fillToastMessageText,
+  deleteOpenComponent,
+  addPageThroughPagesPanel,
   openButtonFlowConditionActionConfig,
   openButtonFlowBaserowAddRowConfiguration,
   openButtonFlowLoopActionConfig,
@@ -27,8 +30,10 @@ import {
   openButtonFlowToastActionConfig,
   openComponentConfig,
   openComponentConfigAt,
+  openComponentsPalette,
   openConfigTabById,
   openPreview,
+  openPagesPanel,
   openToastActionMessageEditor,
   openWorkflowsPanel,
   recordedToasts,
@@ -36,10 +41,12 @@ import {
   reselectMailActionFromActionSelection,
   selectFlowConditionField,
   setButtonLabel,
+  setDescriptionText,
   setMailActionBodyTextWithUserName,
   setMailActionSubjectJavaScriptReturn,
   setMailActionTextVariable,
   setTechnicalId,
+  setTextDefaultValueText,
   submitViewerForm,
   tinyMceEditorContent,
 } from './studio';
@@ -54,6 +61,21 @@ const TEXT_INPUT_WORKFLOW_SEL = {
 } as const;
 
 const MAIL_ACTION_PICKER_BUTTON = `c8oforms-datasourcebutton:has(img[src*="${PALETTE_ICON.mailAction}"])`;
+const RESET_FIELDS_ACTION_CARD = 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypereset_fields"]';
+const RESET_FIELDS_ACTION_EDITOR = 'c8oforms-itemresetfieldsactioneditor';
+const RESET_FIELDS_ACTION_NAME = /^\s*(?:Reset fields|Réinitialiser les champs|Restablecer campos|Reimposta campi|重置字段)\s*$/i;
+const RESET_FIELDS_SCOPE_LABELS = {
+  application: /^\s*(?:Application|Aplicación|Applicazione|应用)\s*$/i,
+  page: /^\s*(?:Page|Página|Pagina|页面)\s*$/i,
+  component: /^\s*(?:Component|Composant|Componente|组件)\s*$/i,
+} as const;
+const LOOP_EXPECTED_INPUT_TITLE = /^\s*(?:Expected input|Entrée attendue|Entrada esperada|Input atteso|预期输入)\s*$/i;
+const CONDITION_EXPECTED_TITLE = /^\s*(?:Expected condition|Condition attendue|Condición esperada|Condizione attesa|预期条件)\s*$/i;
+const GO_BACK_LABEL = /^\s*(?:Go back|Retour|Volver|Indietro|返回)\s*$/i;
+const PREVIOUS_PAGE_LABEL = /^\s*(?:Previous page|Page précédente|Página anterior|Pagina precedente|上一页)\s*$/i;
+const NAVIGATE_PAGE_ACTION_CARD = 'ion-row[id*="@prefixc8oitem"][id*="@prefixc8otypepush_page"]';
+const NAVIGATE_PAGE_ACTION_EDITOR = 'c8oforms-itemnavigatepageactioneditor';
+const NAVIGATE_PAGE_ACTION_ICON = 'icn_push_page.svg';
 
 export async function addToastActionToButtonWorkflowThroughUi(page: Page): Promise<void> {
   const suffix = Date.now();
@@ -166,9 +188,52 @@ export async function configureIfActionModesWithTextSourceThroughUi(page: Page):
   await test.step('Configure the If action with the Text source and verify available modes', async () => {
     await selectFlowConditionField(page, sourceTechnicalId);
     await expectConditionActionModesSwitchable(page, sourceTechnicalId);
+    await expectModernConditionModeGuidance(page);
     await expectFlowConditionOperatorSelectForField(page, sourceTechnicalId);
     await expectConditionActionConfigurationTabsOnlyIf(page);
   });
+}
+
+async function expectModernConditionModeGuidance(page: Page): Promise<void> {
+  const conditionEditor = page.locator(`${SEL.flowConditionEditor}:visible`).last();
+  const guidance = conditionEditor.locator('.condition-help:visible');
+
+  await test.step('Verify modern If guidance in Aa and JavaScript modes', async () => {
+    await expect(guidance, 'Fields mode intentionally should not display expression guidance').toHaveCount(0);
+
+    await clickConditionModeAndConfirmWarning(page, SEL.flowConditionTextModeButton);
+    await expect(guidance, 'Aa mode should display modern condition guidance').toBeVisible({ timeout: 15_000 });
+    await expect(guidance.locator('.condition-help-title'), 'condition guidance should expose a localized title').toHaveText(
+      CONDITION_EXPECTED_TITLE,
+    );
+    await expect(guidance.locator('.condition-help-text'), 'condition guidance should describe a boolean result').toContainText(
+      /(?:true.*false|false.*true|vrai.*faux|faux.*vrai|verdadero.*falso|falso.*verdadero|vero.*falso|falso.*vero)/i,
+    );
+    await expect(guidance.locator('ion-icon[name="information-circle-outline"]'), 'condition guidance should be visibly identified').toBeVisible();
+
+    await clickConditionModeAndConfirmWarning(page, SEL.flowConditionJavaScriptModeButton);
+    await expect(guidance, 'JavaScript mode should preserve modern condition guidance').toBeVisible({ timeout: 15_000 });
+
+    await clickConditionModeAndConfirmWarning(page, SEL.flowConditionVisualModeButton);
+    await expect(guidance, 'Fields mode should intentionally omit expression guidance').toHaveCount(0);
+    await expect(page.locator(SEL.flowConditionBuilder).first(), 'Fields mode should restore the condition builder').toBeVisible({
+      timeout: 15_000,
+    });
+  });
+}
+
+async function clickConditionModeAndConfirmWarning(page: Page, selector: string): Promise<void> {
+  const button = await firstVisibleLocator(page, selector, `condition mode button ${selector}`, 15_000);
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+  if (await alert.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    const confirm = alert
+      .locator('button.btn--primary, button.alert-button-role-confirm, button.alert-button')
+      .last();
+    await expect(confirm, 'condition mode warning should expose a confirm action').toBeVisible({ timeout: 5_000 });
+    await confirm.click({ timeout: 5_000 }).catch(async () => confirm.dispatchEvent('click'));
+    await expect(alert, 'condition mode warning should close after confirmation').toBeHidden({ timeout: 10_000 });
+  }
 }
 
 export async function configureLoopActionIteratorThroughUi(page: Page): Promise<void> {
@@ -186,6 +251,17 @@ export async function configureLoopActionIteratorThroughUi(page: Page): Promise<
   });
 
   await test.step('Verify the Loop Source Palette button and iterator modes', async () => {
+    const loopEditor = page.locator(`${SEL.flowLoopActionEditor}:visible`).last();
+    const guidance = loopEditor.locator('.for-loop-help:visible').last();
+    await expect(guidance, 'Loop should document the input expected by its iterator').toBeVisible({ timeout: 15_000 });
+    await expect(guidance.locator('.for-loop-help-title'), 'Loop guidance should expose a localized Expected input title').toHaveText(
+      LOOP_EXPECTED_INPUT_TITLE,
+    );
+    const hint = guidance.locator('.for-loop-help-text');
+    await expect(hint, 'Loop guidance should state that the source returns an array').toContainText(/(?:array|tableau|数组)/i);
+    await expect(hint, 'Loop guidance should cite Baserow records as an iterable example').toContainText(/Baserow/i);
+    await expect(hint, 'Loop guidance should cite JSON arrays as an iterable example').toContainText(/JSON/i);
+    await expect(guidance.locator('ion-icon[name="information-circle-outline"]'), 'Loop guidance should be visibly identified').toBeVisible();
     await expectLoopActionPaletteButtonFullyVisible(page);
     await expectLoopActionIteratorModesConfigurable(page, '["Functional Alpha", "Functional Beta"]');
   });
@@ -344,9 +420,7 @@ async function expectMailActionTextEditorWithoutToolbar(page: Page): Promise<voi
 
 async function expectMailActionHtmlEditorUsable(page: Page): Promise<void> {
   await test.step('Verify the Send Mail HTML editor keeps useful editing space', async () => {
-    const htmlEditor = page
-      .locator('c8oforms-datasourceeditor:visible .tox.tox-tinymce:not(.tox-tinymce-inline):visible')
-      .last();
+    const htmlEditor = page.locator('c8oforms-datasourceeditor:visible .tox.tox-hugerte:visible').last();
     const editArea = htmlEditor.locator('.tox-edit-area:visible').last();
     await expect(htmlEditor, 'Send Mail HTML editor should be visible').toBeVisible({ timeout: 15_000 });
     await expect(editArea, 'Send Mail HTML editor should expose its edit area').toBeVisible({ timeout: 15_000 });
@@ -505,6 +579,365 @@ export async function verifyWorkflowPersistenceAfterReloadThroughUi(page: Page):
   });
 }
 
+export async function configureResetFieldsActionAndVerifyComponentScopeThroughUi(page: Page): Promise<void> {
+  const suffix = Date.now();
+  const targetTechnicalId = `functional_wf_reset_target_${suffix}`;
+  const outsideTechnicalId = `functional_wf_reset_outside_${suffix}`;
+  const buttonTechnicalId = `functional_wf_reset_button_${suffix}`;
+  const buttonLabel = `Functional reset button ${suffix}`;
+  const targetDefault = `Functional target default ${suffix}`;
+  const outsideDefault = `Functional outside default ${suffix}`;
+  const targetChanged = `Functional target changed ${suffix}`;
+  const outsideChanged = `Functional outside changed ${suffix}`;
+
+  await createTextSource(page, targetTechnicalId, { defaultValue: targetDefault });
+  await createTextSource(page, outsideTechnicalId, { defaultValue: outsideDefault });
+  await createWorkflowButton(page, buttonTechnicalId, buttonLabel);
+
+  await test.step('Add Reset fields and verify its application, page, and component scopes', async () => {
+    await openButtonWorkflowByText(page, buttonTechnicalId);
+    await addResetFieldsActionFromPalette(page);
+
+    const action = page.locator(RESET_FIELDS_ACTION_CARD).last();
+    await expect(action, 'Reset fields action should be present on the Button workflow').toBeVisible({ timeout: 15_000 });
+    await action.click({ timeout: 10_000 }).catch(async () => action.dispatchEvent('click'));
+
+    const editor = page.locator(`${RESET_FIELDS_ACTION_EDITOR}:visible`).last();
+    await expect(editor, 'Reset fields action editor should open').toBeVisible({ timeout: 15_000 });
+
+    const configurationTabs = page.locator(
+      '.toast-action-tabs-configuration-buttons:visible button.toast-action-tab-button:visible',
+    );
+    await expect(configurationTabs, 'Reset fields should expose Scope and Target configuration tabs').toHaveCount(2);
+
+    const scopeButtons = editor.locator('.reset-fields-scope-toggle button.c8o-btn:visible');
+    await expect(scopeButtons, 'Reset fields should expose all three scope choices').toHaveCount(3);
+    await expect(scopeButtons.nth(0), 'first Reset fields scope should be Application').toHaveText(
+      RESET_FIELDS_SCOPE_LABELS.application,
+    );
+    await expect(scopeButtons.nth(1), 'second Reset fields scope should be Page').toHaveText(RESET_FIELDS_SCOPE_LABELS.page);
+    await expect(scopeButtons.nth(2), 'third Reset fields scope should be Component').toHaveText(
+      RESET_FIELDS_SCOPE_LABELS.component,
+    );
+    await expect(scopeButtons.nth(0), 'Application should be the default Reset fields scope').toHaveClass(/c8o-btn-selected/);
+
+    await scopeButtons.nth(1).click({ timeout: 10_000 });
+    await expect(scopeButtons.nth(1), 'Page scope should be selectable').toHaveClass(/c8o-btn-selected/, { timeout: 10_000 });
+    await configurationTabs.nth(1).click({ timeout: 10_000 });
+    const pageTarget = editor.locator('.reset-fields-select-row ion-select:visible');
+    await expect(pageTarget, 'Page scope should expose a page target selector').toBeVisible({ timeout: 10_000 });
+    await expect(pageTarget.locator('ion-select-option').first(), 'Page target selector should contain the current page').toBeAttached();
+
+    await configurationTabs.nth(0).click({ timeout: 10_000 });
+    await scopeButtons.nth(2).click({ timeout: 10_000 });
+    await expect(scopeButtons.nth(2), 'Component scope should be selectable').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+    await configurationTabs.nth(1).click({ timeout: 10_000 });
+    await selectResetFieldsComponentTarget(page, editor, targetTechnicalId);
+  });
+
+  await test.step('Execute Reset fields and verify default and outside-scope values', async () => {
+    await openPreview(page, SEL.textComponent);
+    await expect(viewerTextInput(page, targetTechnicalId), 'target Text input should start with its configured default').toHaveValue(
+      targetDefault,
+      { timeout: 30_000 },
+    );
+    await expect(viewerTextInput(page, outsideTechnicalId), 'outside Text input should start with its configured default').toHaveValue(
+      outsideDefault,
+      { timeout: 30_000 },
+    );
+
+    await fillViewerTextInput(page, targetTechnicalId, targetChanged);
+    await fillViewerTextInput(page, outsideTechnicalId, outsideChanged);
+    await expect(viewerTextInput(page, targetTechnicalId), 'target Text input should contain the changed value before reset').toHaveValue(
+      targetChanged,
+    );
+    await expect(
+      viewerTextInput(page, outsideTechnicalId),
+      'outside Text input should contain the changed value before reset',
+    ).toHaveValue(outsideChanged);
+
+    await clickViewerButton(page, buttonTechnicalId, buttonLabel);
+    await expect(viewerTextInput(page, targetTechnicalId), 'target Text input should return to its configured default').toHaveValue(
+      targetDefault,
+      { timeout: 15_000 },
+    );
+    await expect(viewerTextInput(page, outsideTechnicalId), 'field outside component scope should remain unchanged').toHaveValue(
+      outsideChanged,
+      { timeout: 15_000 },
+    );
+  });
+}
+
+async function addResetFieldsActionFromPalette(page: Page): Promise<void> {
+  const existingPaletteTile = page.locator('ion-col[draggable="true"]').filter({ hasText: RESET_FIELDS_ACTION_NAME }).first();
+  if (!(await existingPaletteTile.isVisible({ timeout: 1_000 }).catch(() => false))) {
+    const paletteButton = await firstVisibleLocator(page, SEL.componentPanelButton, 'action palette panel', 15_000);
+    await paletteButton.click({ timeout: 10_000 }).catch(async () => paletteButton.dispatchEvent('click'));
+  }
+
+  const actionTile = page.locator('ion-col[draggable="true"]').filter({ hasText: RESET_FIELDS_ACTION_NAME }).first();
+  await expect(actionTile, 'Reset fields should be available from the flow action palette').toBeVisible({ timeout: 30_000 });
+
+  const before = await page.locator(RESET_FIELDS_ACTION_CARD).count();
+  await actionTile.dblclick({ force: true, delay: 75 });
+  await expect
+    .poll(() => page.locator(RESET_FIELDS_ACTION_CARD).count(), {
+      message: 'Reset fields action should be added to the Button workflow through the palette',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(before);
+}
+
+async function selectResetFieldsComponentTarget(page: Page, editor: Locator, technicalId: string): Promise<void> {
+  const select = editor.locator('.reset-fields-select-row ion-select:visible');
+  await expect(select, 'Component scope should expose a component target selector').toBeVisible({ timeout: 10_000 });
+
+  const targetOption = select.locator('ion-select-option').filter({ hasText: technicalId }).first();
+  await expect(targetOption, `component target ${technicalId} should be present in the selector`).toBeAttached();
+  const expectedValue = await targetOption.evaluate((option) =>
+    String((option as HTMLElement & { value?: unknown }).value ?? option.getAttribute('value') ?? ''),
+  );
+  expect(expectedValue, `component target ${technicalId} should expose a stable option value`).not.toBe('');
+
+  await select.click({ timeout: 10_000 });
+  const popoverOption = page
+    .locator('ion-select-popover ion-item, ion-popover ion-item')
+    .filter({ hasText: technicalId })
+    .first();
+  await expect(popoverOption, `component target ${technicalId} should be selectable`).toBeVisible({ timeout: 10_000 });
+  await popoverOption.click({ timeout: 10_000 }).catch(async () => popoverOption.dispatchEvent('click'));
+
+  await expect
+    .poll(
+      () => select.evaluate((element) => String((element as HTMLElement & { value?: unknown }).value ?? '')),
+      {
+        message: `Reset fields should persist component target ${technicalId}`,
+        timeout: 10_000,
+      },
+    )
+    .toBe(expectedValue);
+}
+
+export async function verifyButtonFlowNamesRemainUniqueAfterComponentRecreationThroughUi(page: Page): Promise<void> {
+  const suffix = Date.now();
+  const baselineNames = await visibleButtonWorkflowNames(page);
+
+  await test.step('Create three Buttons and capture their generated workflow names', async () => {
+    await openComponentsPaletteForWorkflowFixture(page);
+    for (let index = 1; index <= 3; index++) {
+      await createWorkflowButton(
+        page,
+        `functional_wf_unique_${suffix}_${index}`,
+        `Functional unique flow button ${suffix} ${index}`,
+      );
+    }
+  });
+
+  const originalGeneratedNames = await test.step('Verify the three generated workflow names are distinct', async () => {
+    const names = await visibleButtonWorkflowNames(page);
+    const generated = names.filter((name) => !baselineNames.includes(name));
+    expect(generated, 'three Buttons should generate three workflow entries').toHaveLength(3);
+    expect(new Set(generated).size, 'initial generated workflow names should be unique').toBe(generated.length);
+    return generated;
+  });
+
+  await test.step('Delete the middle Button while retaining its workflow', async () => {
+    await openComponentsPaletteForWorkflowFixture(page);
+    const buttons = page.locator(SEL.buttonComponent);
+    await expect(buttons, 'three Button components should exist before deletion').toHaveCount(3);
+    await openComponentConfigAt(page, SEL.buttonComponent, 1);
+    await deleteOpenComponent(page);
+    await expect(buttons, 'deleting one Button should leave two Button components').toHaveCount(2, { timeout: 15_000 });
+
+    const namesAfterDeletion = await visibleButtonWorkflowNames(page);
+    for (const retainedName of originalGeneratedNames) {
+      expect(namesAfterDeletion, `deleted Button workflow ${retainedName} should intentionally remain`).toContain(retainedName);
+    }
+  });
+
+  await test.step('Create a replacement Button and verify its workflow name does not collide', async () => {
+    await openComponentsPaletteForWorkflowFixture(page);
+    await createWorkflowButton(
+      page,
+      `functional_wf_unique_${suffix}_replacement`,
+      `Functional replacement flow button ${suffix}`,
+    );
+
+    const names = await visibleButtonWorkflowNames(page);
+    const generated = names.filter((name) => !baselineNames.includes(name));
+    expect(generated, 'the retained workflows plus the replacement workflow should all remain listed').toHaveLength(4);
+    expect(new Set(generated).size, 'replacement workflow must not reuse any retained workflow name').toBe(generated.length);
+    for (const retainedName of originalGeneratedNames) {
+      expect(generated, `original workflow ${retainedName} should remain after replacement creation`).toContain(retainedName);
+    }
+  });
+}
+
+export async function verifyNavigateToPageGoBackUsesViewerHistoryThroughUi(page: Page): Promise<void> {
+  const suffix = Date.now();
+  const pageOneMarker = `Functional history origin ${suffix}`;
+  const pageThreeMarker = `Functional history destination ${suffix}`;
+  const forwardTechnicalId = `functional_wf_history_forward_${suffix}`;
+  const backTechnicalId = `functional_wf_history_back_${suffix}`;
+  const forwardLabel = `Functional history forward ${suffix}`;
+  const backLabel = `Functional history back ${suffix}`;
+  const baselineFlowNames = await visibleButtonWorkflowNames(page);
+
+  let forwardFlowName = '';
+  let backFlowName = '';
+  let pageThreeName = '';
+
+  await test.step('Create the Page 1 marker and forward Button', async () => {
+    await openComponentsPaletteForWorkflowFixture(page);
+    await addDescriptionMarkerThroughUi(page, `functional_wf_history_origin_marker_${suffix}`, pageOneMarker);
+    await createWorkflowButton(page, forwardTechnicalId, forwardLabel);
+    const names = await visibleButtonWorkflowNames(page);
+    const generated = names.filter((name) => !baselineFlowNames.includes(name));
+    expect(generated, 'the Page 1 Button should generate one workflow').toHaveLength(1);
+    forwardFlowName = generated[0];
+  });
+
+  await test.step('Create Page 2 and Page 3, then add the Page 3 marker and Back Button', async () => {
+    await addPageThroughPagesPanel(page);
+    pageThreeName = await addPageThroughPagesPanel(page);
+    await selectEditorPageByName(page, pageThreeName);
+    await openComponentsPaletteForWorkflowFixture(page);
+    await addDescriptionMarkerThroughUi(page, `functional_wf_history_destination_marker_${suffix}`, pageThreeMarker);
+    await createWorkflowButton(page, backTechnicalId, backLabel);
+
+    const names = await visibleButtonWorkflowNames(page);
+    const generated = names.filter((name) => !baselineFlowNames.includes(name) && name !== forwardFlowName);
+    expect(generated, 'the Page 3 Button should generate one additional workflow').toHaveLength(1);
+    backFlowName = generated[0];
+  });
+
+  await test.step('Configure Page 1 to jump directly to Page 3', async () => {
+    await configureNavigatePageActionTarget(page, forwardFlowName, pageThreeName);
+  });
+
+  await test.step('Configure Page 3 with the distinct Go back history target', async () => {
+    await configureNavigatePageActionTarget(page, backFlowName, GO_BACK_LABEL);
+  });
+
+  await test.step('Jump Page 1 to Page 3, then return to the visited Page 1 through Go back', async () => {
+    await selectEditorPageByName(page, 'Page 1');
+    await openPreview(page, SEL.descriptionComponent);
+    await expect(page.getByText(pageOneMarker, { exact: true }).first(), 'viewer should start on Page 1').toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText(pageThreeMarker, { exact: true }).first(), 'Page 3 marker should start hidden').toBeHidden();
+
+    await clickViewerButton(page, forwardTechnicalId, forwardLabel);
+    await expect(page.getByText(pageThreeMarker, { exact: true }).first(), 'forward action should jump directly to Page 3').toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText(pageOneMarker, { exact: true }).first(), 'Page 1 marker should be hidden on Page 3').toBeHidden();
+
+    await clickViewerButton(page, backTechnicalId, backLabel);
+    await expect(
+      page.getByText(pageOneMarker, { exact: true }).first(),
+      'Go back should return to visited Page 1 rather than index-adjacent Page 2',
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(pageThreeMarker, { exact: true }).first(), 'Page 3 marker should be hidden after Go back').toBeHidden();
+  });
+}
+
+async function configureNavigatePageActionTarget(page: Page, flowName: string, target: string | RegExp): Promise<void> {
+  await openButtonWorkflowByText(page, flowName);
+
+  await test.step(`Add Navigate to Page to ${flowName}`, async () => {
+    const paletteButton = await firstVisibleLocator(page, SEL.componentPanelButton, 'action palette panel', 15_000);
+    await paletteButton.click({ timeout: 10_000 }).catch(async () => paletteButton.dispatchEvent('click'));
+    const tile = page
+      .locator('#bloc-palette [draggable="true"]')
+      .filter({ has: page.locator(`img[src*="${NAVIGATE_PAGE_ACTION_ICON}"]`) })
+      .first();
+    await expect(tile, 'Navigate to Page should be available from the action palette').toBeVisible({ timeout: 30_000 });
+
+    const actions = page.locator(NAVIGATE_PAGE_ACTION_CARD);
+    const before = await actions.count();
+    await tile.dblclick({ force: true, delay: 75 });
+    await expect
+      .poll(() => actions.count(), {
+        message: 'Navigate to Page action should be added to the Button workflow',
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(before);
+    await actions.last().click({ timeout: 10_000 }).catch(async () => actions.last().dispatchEvent('click'));
+  });
+
+  await test.step(`Select the Navigate to Page target for ${flowName}`, async () => {
+    const editor = page.locator(`${NAVIGATE_PAGE_ACTION_EDITOR}:visible`).last();
+    await expect(editor, 'Navigate to Page action editor should open').toBeVisible({ timeout: 15_000 });
+    const options = editor.locator('.navigate-page-toggle button.c8o-btn:visible');
+    await expect
+      .poll(() => options.count(), {
+        message: 'Navigate to Page should expose Next, Previous, Go back, and page targets',
+        timeout: 15_000,
+      })
+      .toBeGreaterThanOrEqual(3);
+    const goBack = options.filter({ hasText: GO_BACK_LABEL }).first();
+    const previous = options.filter({ hasText: PREVIOUS_PAGE_LABEL }).first();
+    await expect(goBack, 'Navigate to Page should expose the localized Go back target').toBeVisible({ timeout: 15_000 });
+    await expect(previous, 'Navigate to Page should retain a distinct Previous page target').toBeVisible({ timeout: 15_000 });
+
+    const targetButton = options.filter({ hasText: target }).first();
+    await expect(targetButton, `Navigate to Page target ${String(target)} should be available`).toBeVisible({ timeout: 15_000 });
+    await targetButton.click({ timeout: 10_000 }).catch(async () => targetButton.dispatchEvent('click'));
+    await expect(targetButton, `Navigate to Page target ${String(target)} should be selected`).toHaveClass(/c8o-btn-selected/, {
+      timeout: 15_000,
+    });
+    if (target instanceof RegExp) {
+      await expect(previous, 'Go back must remain distinct from Previous page').not.toHaveClass(/c8o-btn-selected/);
+    }
+    await closeComponentConfig(page);
+  });
+}
+
+async function visibleButtonWorkflowNames(page: Page): Promise<string[]> {
+  await ensureWorkflowsPanelOpen(page);
+  return page.locator(`${SEL.buttonWorkflowEntry}:visible`).evaluateAll((entries) => {
+    const names = entries
+      .map((entry) => ((entry as HTMLElement).innerText || entry.textContent || '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+    return [...new Set(names)];
+  });
+}
+
+async function openComponentsPaletteForWorkflowFixture(page: Page): Promise<void> {
+  if (!(await page.locator(SEL.pageButtonsBlock).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
+    await expectPagesPanelDefaultAfterWorkflowNavigation(page);
+  }
+  await openComponentsPalette(page, PALETTE_ICON.button);
+}
+
+async function addDescriptionMarkerThroughUi(page: Page, technicalId: string, text: string): Promise<void> {
+  const before = await page.locator(SEL.descriptionComponent).count();
+  await addComponent(page, PALETTE_ICON.description, { allowEditorApiFallback: false });
+  await expect
+    .poll(() => page.locator(SEL.descriptionComponent).count(), {
+      message: `Description marker ${technicalId} should be added`,
+      timeout: 30_000,
+    })
+    .toBeGreaterThan(before);
+  await openComponentConfigAt(page, SEL.descriptionComponent, before);
+  await setTechnicalId(page, technicalId);
+  await setDescriptionText(page, text);
+  await closeComponentConfig(page);
+}
+
+async function selectEditorPageByName(page: Page, pageName: string): Promise<void> {
+  await openPagesPanel(page);
+  const pageRow = page.locator(SEL.pageRow).filter({ hasText: pageName }).first();
+  await expect(pageRow, `page row ${pageName} should be visible`).toBeVisible({ timeout: 15_000 });
+  await pageRow.click({ timeout: 10_000 }).catch(async () => pageRow.dispatchEvent('click'));
+  await expect(page.locator(SEL.pageButtonsBlock).first(), `page ${pageName} canvas should be visible`).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
 async function ensureFunctionalAddRowTable(): Promise<void> {
   await test.step('Ensure the functional Add Row Baserow table exists', async () => {
     const catalog = await ensureBaserowTable({
@@ -534,7 +967,11 @@ async function createWorkflowButton(page: Page, technicalId: string, label: stri
   });
 }
 
-async function createTextSource(page: Page, technicalId: string, options: { required?: boolean } = {}): Promise<void> {
+async function createTextSource(
+  page: Page,
+  technicalId: string,
+  options: { required?: boolean; defaultValue?: string } = {},
+): Promise<void> {
   await test.step('Create a Text source for workflow conditions', async () => {
     const before = await page.locator(SEL.textComponent).count();
     await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
@@ -546,9 +983,14 @@ async function createTextSource(page: Page, technicalId: string, options: { requ
       .toBeGreaterThan(before);
     await openComponentConfigAt(page, SEL.textComponent, before);
     await setTechnicalId(page, technicalId);
-    if (options.required) {
+    if (options.required || options.defaultValue !== undefined) {
       await openConfigTabById(page, 'data_interactions');
+    }
+    if (options.required) {
       await setTextInputRequired(page, true);
+    }
+    if (options.defaultValue !== undefined) {
+      await setTextDefaultValueText(page, options.defaultValue);
     }
     await closeComponentConfig(page);
   });
