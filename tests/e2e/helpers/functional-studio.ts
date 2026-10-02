@@ -41,7 +41,7 @@ const FUNCTIONAL_SEL = {
   selectorImportModalCloseButton: 'ion-button.close-button',
   selectorImportModalConfirmButton: 'ion-button.class1658764714718',
   selectorTemplateCard: '.class1645547241674',
-  selectorTemplateList: '.class1645547166673',
+  selectorTemplateList: '.class1645547241638',
   selectorTemplateMoreButton: 'ion-button.class1761563584596',
   selectorAdvancedSearchButton: 'ion-button.class1783947965453',
   selectorAdvancedSearchPanel: '.class1645545984242',
@@ -1098,7 +1098,7 @@ async function expectTemplateCardsRemainContainedThroughUi(page: Page): Promise<
       const cardCount = await cards.count();
       expect(cardCount, `${viewport.name} selector should expose at least one template`).toBeGreaterThan(0);
 
-      const layout = await page.evaluate(
+      const layoutBeforeExpansion = await page.evaluate(
         ({ cardSelector, listSelector, moreSelector }) => {
           const visible = (element: Element): element is HTMLElement => {
             const rect = (element as HTMLElement).getBoundingClientRect();
@@ -1112,18 +1112,19 @@ async function expectTemplateCardsRemainContainedThroughUi(page: Page): Promise<
 
           const listRect = list.getBoundingClientRect();
           const cardRects = cardElements.map((element) => element.getBoundingClientRect());
-          const edgeCards = [cardRects[0], cardRects[cardRects.length - 1]];
+          const firstRowTop = Math.min(...cardRects.map((rect) => rect.top));
+          const firstRowCards = cardRects.filter((rect) => Math.abs(rect.top - firstRowTop) <= 1);
           const moreRect = more.getBoundingClientRect();
           const tolerance = 1;
           return {
-            edgeCardsContained: edgeCards.every(
+            firstRowContained: firstRowCards.every(
               (rect) =>
                 rect.left >= listRect.left - tolerance &&
                 rect.right <= listRect.right + tolerance &&
                 rect.top >= listRect.top - tolerance &&
                 rect.bottom <= listRect.bottom + tolerance,
             ),
-            edgeCardsInsideViewport: edgeCards.every(
+            firstRowInsideViewport: firstRowCards.every(
               (rect) =>
                 rect.left >= -tolerance &&
                 rect.right <= window.innerWidth + tolerance &&
@@ -1143,16 +1144,60 @@ async function expectTemplateCardsRemainContainedThroughUi(page: Page): Promise<
         },
       );
 
-      expect(layout, `${viewport.name} template cards and See more control should share the selector layout`).not.toBeNull();
-      expect(layout!.edgeCardsContained, `${viewport.name} first and last template cards should fit their list`).toBe(true);
-      expect(layout!.edgeCardsInsideViewport, `${viewport.name} first and last template cards should not be clipped`).toBe(true);
-      expect(layout!.listBottom, `${viewport.name} template list should extend below every card`).toBeGreaterThanOrEqual(
-        layout!.maxCardBottom - 1,
+      expect(layoutBeforeExpansion, `${viewport.name} should expose the template grid and See more control`).not.toBeNull();
+      expect(layoutBeforeExpansion!.firstRowContained, `${viewport.name} first-row template cards should fit their grid`).toBe(true);
+      expect(layoutBeforeExpansion!.firstRowInsideViewport, `${viewport.name} first-row template cards should not be clipped`).toBe(
+        true,
       );
-      expect(layout!.moreTop, `${viewport.name} See more control should start after the template cards`).toBeGreaterThanOrEqual(
-        layout!.maxCardBottom - 1,
+      expect(
+        layoutBeforeExpansion!.moreTop,
+        `${viewport.name} See more control should follow the collapsed template grid in normal flow`,
+      ).toBeGreaterThanOrEqual(layoutBeforeExpansion!.listBottom - 1);
+      expect(layoutBeforeExpansion!.firstPointerEvents, `${viewport.name} first template card should remain actionable`).not.toBe(
+        'none',
       );
-      expect(layout!.firstPointerEvents, `${viewport.name} first template card should remain actionable`).not.toBe('none');
+
+      if (layoutBeforeExpansion!.maxCardBottom > layoutBeforeExpansion!.listBottom + 1) {
+        const more = page.locator(FUNCTIONAL_SEL.selectorTemplateMoreButton).filter({ visible: true }).first();
+        await more.click({ timeout: 10_000 }).catch(async () => more.dispatchEvent('click'));
+      }
+
+      await expect
+        .poll(
+          () =>
+            page.evaluate(
+              ({ cardSelector, listSelector, moreSelector }) => {
+                const cardRects = [...document.querySelectorAll<HTMLElement>(cardSelector)].map((element) =>
+                  element.getBoundingClientRect(),
+                );
+                const list = document.querySelector<HTMLElement>(listSelector);
+                const more = document.querySelector<HTMLElement>(moreSelector);
+                if (cardRects.length === 0 || !list || !more) return false;
+                const listRect = list.getBoundingClientRect();
+                const moreRect = more.getBoundingClientRect();
+                const tolerance = 1;
+                const cardsContained = cardRects.every(
+                  (rect) =>
+                    rect.left >= listRect.left - tolerance &&
+                    rect.right <= listRect.right + tolerance &&
+                    rect.top >= listRect.top - tolerance &&
+                    rect.bottom <= listRect.bottom + tolerance,
+                );
+                const maxCardBottom = Math.max(...cardRects.map((rect) => rect.bottom));
+                return cardsContained && moreRect.top >= maxCardBottom - tolerance;
+              },
+              {
+                cardSelector: FUNCTIONAL_SEL.selectorTemplateCard,
+                listSelector: FUNCTIONAL_SEL.selectorTemplateList,
+                moreSelector: FUNCTIONAL_SEL.selectorTemplateMoreButton,
+              },
+            ),
+          {
+            message: `${viewport.name} expanded template grid should contain every card before See more`,
+            timeout: 10_000,
+          },
+        )
+        .toBe(true);
     }
   } finally {
     if (originalViewport) await page.setViewportSize(originalViewport);

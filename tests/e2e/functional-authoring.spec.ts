@@ -57,7 +57,7 @@ test.describe('No-Code Studio functional authoring', () => {
   });
 
   /**
-   * #1444 was reported in 2.2.0-beta271. The selector template region still
+   * #1444 was reported in 2.2.0-beta256. The selector template region still
    * imposed a fixed 165px height and absolutely positioned its See more
    * control, clipping the lower edge of template cards and overlapping the
    * following content. Fix 194cc8bd disables the fixed height and restores the
