@@ -2684,10 +2684,13 @@ async function replaceVisibleFilterMonacoCode(page: Page, code: string): Promise
   await page.keyboard.insertText(code);
   await page.keyboard.press('Tab');
   await expect
-    .poll(() => editor.locator('.view-lines').innerText().then(normalizedText), {
-      message: 'data source Filter JavaScript editor should keep the asynchronous return value',
-      timeout: 15_000,
-    })
+    .poll(
+      async () => (await editor.locator('.view-lines').innerText()).replace(/\s+/g, ' ').trim(),
+      {
+        message: 'data source Filter JavaScript editor should keep the asynchronous return value',
+        timeout: 15_000,
+      },
+    )
     .toContain(`return ${JSON.stringify(GRID_INTERACTION_VISIBLE_STATUS)};`);
   await page.waitForTimeout(1_000);
 }

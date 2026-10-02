@@ -36,7 +36,7 @@ const RESPONSES_SEL = {
   cameraComponent: 'c8oforms-itemimgviewer',
   timeComponent: 'c8oforms-itemtimeviewver',
   dataPage: 'page-datapage:visible',
-  exportModal: 'ion-modal:not(.overlay-hidden):visible',
+  exportModal: 'page-exportcsvpage:visible',
   responseMenuItem:
     'ion-popover:not(.overlay-hidden):visible page-popoverpageselector ion-item.class1580132441145, ' +
     'ion-popover:not(.overlay-hidden):visible page-popoverpageselector ion-item:has(ion-icon[src*="chart-column.svg"])',
@@ -189,14 +189,14 @@ export async function verifyDefaultCsvUtf8RoundTripThroughUi(page: Page, browser
       Buffer.from([0xef, 0xbb, 0xbf]),
     );
     expect(() => new TextDecoder('utf-8', { fatal: true }).decode(csv.bytes), 'CSV should decode strictly as UTF-8').not.toThrow();
-    expect(csv.text, 'Unicode response should round-trip without replacement').toContain(unicodeValue);
-    expect(csv.text, 'Unicode response should not be degraded to question-mark replacements').not.toContain(
-      unicodeValue.replace(/[œ’—€中文]/g, '?'),
-    );
     expect(csv.suggestedFilename, 'CSV download should retain a .csv filename').toMatch(/\.csv$/i);
 
     const parsed = parseCsv(csv.text);
-    expect(parsed.flat(), 'CSV parsing should retain the quoted/semicolon response as one cell').toContain(unicodeValue);
+    const cells = parsed.flat();
+    expect(cells, 'CSV parsing should retain the quoted/semicolon response as one exact Unicode cell').toContain(unicodeValue);
+    expect(cells, 'Unicode response should not be degraded to question-mark replacements').not.toContain(
+      unicodeValue.replace(/[œ’—€中文]/g, '?'),
+    );
   });
 }
 
@@ -420,11 +420,20 @@ async function openStandalonePwa(context: BrowserContext, pwaUrl: string): Promi
 
 async function waitForPublishedResponseValue(page: Page, formId: string, expectedValue: string): Promise<void> {
   await expect
-    .poll(async () => JSON.stringify(await publishedResponses(page, formId)), {
+    .poll(async () => responseContainsExactString(await publishedResponses(page, formId), expectedValue), {
       message: `published response should contain ${expectedValue}`,
       timeout: 60_000,
     })
-    .toContain(expectedValue);
+    .toBe(true);
+}
+
+function responseContainsExactString(value: unknown, expectedValue: string): boolean {
+  if (typeof value === 'string') return value === expectedValue;
+  if (Array.isArray(value)) return value.some((entry) => responseContainsExactString(entry, expectedValue));
+  if (value && typeof value === 'object') {
+    return Object.values(value as JsonRecord).some((entry) => responseContainsExactString(entry, expectedValue));
+  }
+  return false;
 }
 
 async function waitForPublishedResponseCount(page: Page, formId: string, expectedCount: number): Promise<void> {
@@ -471,12 +480,9 @@ async function selectResponsesSegment(dataPage: Locator, value: 'Summary' | 'Ind
   const segment = dataPage.locator(`ion-segment-button[value="${value}"]`).first();
   await expect(segment, `${value} response segment should be visible`).toBeVisible({ timeout: 30_000 });
   await segment.click();
-  await expect
-    .poll(() => segment.getAttribute('aria-checked'), {
-      message: `${value} response segment should become selected`,
-      timeout: 30_000,
-    })
-    .toBe('true');
+  await expect(segment, `${value} response segment should become selected`).toHaveClass(/\bsegment-button-checked\b/, {
+    timeout: 30_000,
+  });
 }
 
 async function expectRenderedResponseImage(dataPage: Locator, surface: string): Promise<void> {
@@ -513,12 +519,17 @@ async function exportCsvThroughUi(
   options: CsvExportOptions = {},
   expectedDefaultEncoding?: string,
 ): Promise<CsvDownload> {
-  const dataPage = page.locator(RESPONSES_SEL.dataPage).last();
-  const exportButton = dataPage.locator('ion-button:has(ion-icon[src*="file-down.svg"]):visible').first();
+  // The response toolbar is rendered outside page-datapage. Ionic consumes the
+  // icon source during hydration, so its src is not a queryable host attribute;
+  // use the generated identity of the toolbar's CSV button instead.
+  const exportButton = page.locator('ion-button.class1770651143045:visible').first();
   await expect(exportButton, 'response view should expose CSV export').toBeVisible({ timeout: 30_000 });
   await exportButton.click();
 
   const modal = await visibleCsvExportModal(page);
+  if (expectedDefaultEncoding || options.questionSort || options.responseSort) {
+    await exposeCsvAdvancedOptions(modal);
+  }
   if (expectedDefaultEncoding) {
     await expectIonSelectValue(modal, expectedDefaultEncoding, 'default CSV character set');
   }
@@ -529,7 +540,7 @@ async function exportCsvThroughUi(
     await setIonSelectValue(modal, ['current', 'date_asc', 'date_desc'], options.responseSort, 'response sort');
   }
 
-  const downloadButton = modal.locator('ion-button:has(ion-icon[src*="arrow-down-to-line.svg"]):visible').last();
+  const downloadButton = modal.locator('ion-button.class1763127394827:visible').first();
   await expect(downloadButton, 'CSV export modal should expose file download').toBeVisible({ timeout: 30_000 });
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), downloadButton.click()]);
   const bytes = await readDownload(download);
@@ -539,21 +550,18 @@ async function exportCsvThroughUi(
 
 async function visibleCsvExportModal(page: Page): Promise<Locator> {
   const modals = page.locator(RESPONSES_SEL.exportModal);
-  await expect
-    .poll(async () => {
-      const count = await modals.count();
-      for (let index = count - 1; index >= 0; index -= 1) {
-        if (await modals.nth(index).locator('ion-select-option[value="UTF-8"]').count()) return index;
-      }
-      return -1;
-    }, { message: 'CSV export modal should open with encoding controls', timeout: 30_000 })
-    .toBeGreaterThanOrEqual(0);
-  const count = await modals.count();
-  for (let index = count - 1; index >= 0; index -= 1) {
-    const modal = modals.nth(index);
-    if (await modal.locator('ion-select-option[value="UTF-8"]').count()) return modal;
-  }
-  throw new Error('CSV export modal was not found');
+  await expect(modals.last(), 'CSV export page should open').toBeVisible({ timeout: 30_000 });
+  return modals.last();
+}
+
+async function exposeCsvAdvancedOptions(modal: Locator): Promise<void> {
+  const encodingOption = modal.locator('ion-select-option[value="UTF-8"]');
+  if (await encodingOption.count()) return;
+
+  const advancedToggle = modal.locator('ion-toggle.class1763123554438:visible').first();
+  await expect(advancedToggle, 'CSV export page should expose advanced settings').toBeVisible({ timeout: 15_000 });
+  await advancedToggle.click();
+  await expect(encodingOption, 'CSV export advanced settings should expose UTF-8').toHaveCount(1, { timeout: 15_000 });
 }
 
 async function expectIonSelectValue(root: Locator, value: string, description: string): Promise<void> {

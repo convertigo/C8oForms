@@ -42,7 +42,7 @@ test.describe('No-Code Studio functional response visualization and export', () 
   });
 
   /**
-   * #1512: reported in beta324. Commit 700579cd aligned response timestamps
+   * #1512: reported in beta324. Commit 700c795b aligned response timestamps
    * and Time values with the browser timezone in beta327. Historically
    * QA-validated in beta333. Runtime validation on the current test-nocode
    * release is pending.
@@ -57,7 +57,7 @@ test.describe('No-Code Studio functional response visualization and export', () 
   });
 
   /**
-   * #1516: discovered while beta324 was current. Commit 700579cd changed the
+   * #1516: discovered while beta324 was current. Commit 700c795b changed the
    * default CSV writer charset and attachment metadata to UTF-8 in beta327.
    * Historically QA-validated in beta333. Runtime validation on the current
    * test-nocode release is pending.
