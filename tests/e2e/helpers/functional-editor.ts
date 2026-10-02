@@ -413,9 +413,10 @@ export async function addPageAndNavigateThroughPagesPanel(page: Page): Promise<v
 
     const button = addPage.first();
     await expect(button, 'current Add Page action should be visible').toBeVisible({ timeout: 15_000 });
-    await expect(button.locator('ion-icon[src$="plus.svg"]'), 'current Add Page action should keep its plus icon').toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(
+      button.locator('ion-icon.class1780583331077[role="img"]'),
+      'current Add Page action should keep its plus icon',
+    ).toBeVisible({ timeout: 10_000 });
     await expect(button.locator('ion-label'), 'current Add Page action should expose a localized visible label').not.toHaveText(
       /^\s*$/,
     );
