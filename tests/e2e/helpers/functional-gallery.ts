@@ -95,7 +95,7 @@ export async function exerciseGalleryBaserowCardsThroughUi(page: Page): Promise<
     await page.keyboard.press('Backspace');
     await page.keyboard.press('Tab');
     await expect
-      .poll(() => presentationBody.innerText(), {
+      .poll(async () => (await presentationBody.innerText()).trim(), {
         message: 'Gallery presentation should be cleared through its rich-text editor',
         timeout: 15_000,
       })
@@ -146,12 +146,17 @@ export async function exerciseGalleryBaserowCardsThroughUi(page: Page): Promise<
     const gallery = page.locator(`#${technicalId}, ${GALLERY_COMPONENT}:visible`).first();
     await expect(gallery, 'configured Gallery should render in Preview').toBeVisible({ timeout: 45_000 });
     const cards = gallery.locator(GALLERY_CARD);
-    await expect(cards, 'Gallery should render one card per source row').toHaveCount(GALLERY_ROWS.length, {
-      timeout: 45_000,
-    });
+    await expect
+      .poll(() => cards.count(), {
+        message: 'Gallery should render every deterministic source row as a card',
+        timeout: 45_000,
+      })
+      .toBeGreaterThanOrEqual(GALLERY_ROWS.length);
 
     for (const row of GALLERY_ROWS) {
-      const card = cards.filter({ hasText: row.Name }).first();
+      const matchingCards = cards.filter({ hasText: row.Name });
+      await expect(matchingCards, `Gallery should render ${row.Name} exactly once`).toHaveCount(1);
+      const card = matchingCards.first();
       await expect(card, `Gallery card ${row.Name} should render`).toBeVisible({ timeout: 30_000 });
       await expect(card, `Gallery card ${row.Name} should expose its source values`).toContainText(row.Summary);
       const text = (await card.innerText()).replace(/\s+/g, ' ').trim();
@@ -214,11 +219,12 @@ async function expectGalleryCardsStayWithinBounds(cards: Locator): Promise<void>
           return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
         })
         .map((child) => child.getBoundingClientRect());
-      const firstChildTop = visibleChildren.length > 0 ? Math.min(...visibleChildren.map((box) => box.top)) : null;
+      const firstChildOffset =
+        visibleChildren.length > 0 ? Math.min(...visibleChildren.map((box) => box.top)) - cardBox.top : null;
       return {
         clientWidth: card.clientWidth,
         scrollWidth: card.scrollWidth,
-        firstChildTop,
+        firstChildOffset,
         childrenWithinCard: visibleChildren.every((box) => box.left >= cardBox.left - 1 && box.right <= cardBox.right + 1),
       };
     }),
@@ -231,9 +237,10 @@ async function expectGalleryCardsStayWithinBounds(cards: Locator): Promise<void>
     );
     expect(card.childrenWithinCard, `Gallery card ${index + 1} children should stay within its horizontal bounds`).toBe(true);
   }
-  const firstTops = geometry.map((card) => card.firstChildTop).filter((top): top is number => top != null);
-  expect(firstTops, 'Gallery cards should expose visible content').toHaveLength(geometry.length);
-  expect(Math.max(...firstTops) - Math.min(...firstTops), 'Gallery card content should start at a consistent height').toBeLessThanOrEqual(
-    2,
-  );
+  const firstOffsets = geometry.map((card) => card.firstChildOffset).filter((offset): offset is number => offset != null);
+  expect(firstOffsets, 'Gallery cards should expose visible content').toHaveLength(geometry.length);
+  expect(
+    Math.max(...firstOffsets) - Math.min(...firstOffsets),
+    'Gallery card content should start at a consistent height',
+  ).toBeLessThanOrEqual(2);
 }

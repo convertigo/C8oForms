@@ -4646,7 +4646,13 @@ async function prepareGridBaserowSourceSelection(page: Page, pickerTimeout: numb
   await page.locator('.class1775835275863').first().click();
   await openConfigTabById(page, 'tab_selector_choice_source');
 
-  await activateDataSourceMode(page);
+  // Gallery reuses the Grid source editor but is always data-driven: beta349
+  // deliberately hides the local/data-source toggle and coerces sourceEnabled
+  // to true. Grid and other consumers still have to select data-source mode.
+  const galleryEditor = page.locator('c8oforms-itemgalleryeditor:visible').first();
+  if (!(await galleryEditor.isVisible().catch(() => false))) {
+    await activateDataSourceMode(page);
+  }
   await selectDataSourceEntry(page, pickerTimeout, 'getData');
 }
 
