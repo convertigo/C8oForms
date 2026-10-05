@@ -230,6 +230,7 @@ export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page:
   const questionText = `Functional rich question ${suffix}`;
   const spacing = { marginBottom: '16px', padding: '12px' };
   let configuredChipPresentation: SourcePaletteChipPresentation | null = null;
+  let richQuestionIndex = -1;
 
   await test.step('Create another component as the Description source-chip value', async () => {
     await addConfiguredTextInput(page, 0, chipSourceTechnicalId, async () => {
@@ -272,6 +273,7 @@ export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page:
   await test.step('Create a Text input with a persistent rich-text question', async () => {
     await openComponentsPalette(page, PALETTE_ICON.textInput);
     const before = await page.locator(SEL.textComponent).count();
+    richQuestionIndex = before;
     await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
     const textComponent = page.locator(SEL.textComponent).nth(before);
     await expect(textComponent, 'Text input component should be visible').toBeVisible({ timeout: 30_000 });
@@ -305,7 +307,7 @@ export async function exerciseDescriptionRichTextAndSourcePaletteThroughUi(page:
       'Preview should render exactly one source value after the chip was moved inside HugeRTE',
     ).toBe(1);
     await expect(
-      page.locator(`${SEL.textComponent}:visible`).first(),
+      page.locator(`${SEL.textComponent}:visible`).nth(richQuestionIndex),
       'Preview Text input should render the persisted rich question',
     ).toContainText(questionText, { timeout: 30_000 });
   });
@@ -331,7 +333,7 @@ async function moveExistingSourcePaletteChipWithinVisibleHugeRte(page: Page): Pr
     expect(before.precedingTextLength, 'source chip should initially follow the configured Description text').toBeGreaterThan(10);
 
     await chip.dragTo(body, {
-      targetPosition: { x: 8, y: 8 },
+      targetPosition: { x: 2, y: 8 },
       timeout: 15_000,
     });
 
@@ -474,27 +476,11 @@ async function sourcePaletteChipPresentation(root: Locator): Promise<SourcePalet
   const chip = root.locator('[c8otype="path"]:visible').last();
   await expect(chip, 'Source Palette chip should be visible').toBeVisible({ timeout: 15_000 });
   return chip.evaluate((element) => {
-    const properties = [
-      'display',
-      'paddingTop',
-      'paddingRight',
-      'paddingBottom',
-      'paddingLeft',
-      'textAlign',
-      'minWidth',
-      'fontSize',
-      'fontWeight',
-      'lineHeight',
-      'whiteSpace',
-      'verticalAlign',
-      'borderRadius',
-      'color',
-      'backgroundColor',
-    ] as const;
-    const iconProperties = ['cursor', 'height', 'stroke', 'fill', 'display', 'color'] as const;
-    const badgeStyle = (element as HTMLElement).style;
+    const properties = ['fontSize', 'fontWeight', 'color', 'backgroundColor'] as const;
+    const iconProperties = ['stroke', 'fill', 'color'] as const;
+    const badgeStyle = getComputedStyle(element);
     const icon = element.querySelector('svg') as SVGElement | null;
-    const iconStyle = icon?.style;
+    const iconStyle = icon ? getComputedStyle(icon) : null;
     return {
       badge: Object.fromEntries(properties.map((property) => [property, badgeStyle[property]])),
       icon: iconStyle

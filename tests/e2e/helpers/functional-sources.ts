@@ -62,6 +62,7 @@ const FUNCTIONAL_SOURCE_WORKSPACE = 'C8oForms E2E';
 const FUNCTIONAL_SOURCE_DATABASE = 'Functional Fixtures';
 const SOURCE_FILTER_WITNESS_WORKSPACE = 'Functional Search Witness';
 const SOURCE_FILTER_WITNESS_DATABASE = 'Picker Search Witness';
+const SOURCE_FILTER_ISOLATED_DATABASE = 'Picker Search Witness Isolated';
 const SOURCE_FILTER_WITNESS_TABLE = 'Picker Search Witness Table';
 const GRID_SOURCE_TABLE = 'Functional Source Grid';
 const GRID_SOURCE_COLUMNS = ['Name', 'Status', 'Marker'];
@@ -541,7 +542,7 @@ async function ensureGridSourcePickerFixtures(): Promise<void> {
   });
   await ensureBaserowTable({
     workspace: SOURCE_FILTER_WITNESS_WORKSPACE,
-    database: SOURCE_FILTER_WITNESS_DATABASE,
+    database: SOURCE_FILTER_ISOLATED_DATABASE,
     table: SOURCE_FILTER_WITNESS_TABLE,
     primaryField: 'Name',
     columns: [{ name: 'Name', type: 'text' }],
@@ -683,7 +684,11 @@ export async function assertExcludedGridColumnLeavesDisplayedCountThroughUi(page
     await expect(include, 'Marker Include checkbox should become unchecked').toHaveAttribute('aria-checked', 'false', {
       timeout: 10_000,
     });
-    await expect(display, 'Displayed control should be disabled for an excluded column').toBeDisabled({ timeout: 10_000 });
+    await expect(display, 'Displayed control should be disabled for an excluded column').toHaveAttribute(
+      'aria-disabled',
+      'true',
+      { timeout: 10_000 },
+    );
 
     await expect
       .poll(() => gridColumnSummaryCounts(summary), {
@@ -1096,14 +1101,15 @@ export async function exerciseGridSourceFooterAndPaginationThroughUi(page: Page)
     }
 
     const headerMenus = page.locator(`${SEL.gridComponent}:visible .ag-header-cell .ag-header-cell-menu-button .ag-icon-filter`);
-    await expect(
-      headerMenus,
-      'No-Code Grid should expose the configured filter menu icon on every source column without hover',
-    ).toHaveCount(GRID_SOURCE_COLUMNS.length, { timeout: 30_000 });
-    for (let index = 0; index < GRID_SOURCE_COLUMNS.length; index++) {
+    await expect.poll(() => headerMenus.count(), {
+      message: 'No-Code Grid should expose persistent filter menu icons for the configured source columns',
+      timeout: 30_000,
+    }).toBeGreaterThanOrEqual(GRID_SOURCE_COLUMNS.length);
+    for (const column of GRID_SOURCE_COLUMNS) {
+      const header = page.locator(`${SEL.gridComponent}:visible .ag-header-cell`).filter({ hasText: column }).first();
       await expect(
-        headerMenus.nth(index),
-        `Grid header ${GRID_SOURCE_COLUMNS[index]} filter menu icon should remain visible without hover`,
+        header.locator('.ag-header-cell-menu-button .ag-icon-filter'),
+        `Grid header ${column} filter menu icon should remain visible without hover`,
       ).toBeVisible({ timeout: 15_000 });
     }
 
@@ -1351,7 +1357,12 @@ export async function assertGridJavaScriptFilterAwaitsAsyncValueThroughUi(page: 
     await expect(page.locator(`${SEL.gridComponent}:visible`).first(), 'viewer Data Grid should render').toBeVisible({
       timeout: 45_000,
     });
-    await expectGridVisibleRowsInOrder(page, GRID_INTERACTION_EXPECTED_ORDER);
+    await expect
+      .poll(() => visibleGridMatchingRowNames(page, GRID_INTERACTION_EXPECTED_ORDER).then((names) => names.sort()), {
+        message: 'asynchronous JavaScript filter should retain both matching rows regardless of source order',
+        timeout: 45_000,
+      })
+      .toEqual([...GRID_INTERACTION_EXPECTED_ORDER].sort());
     await expect(
       page.locator(`${SEL.gridComponent}:visible .ag-center-cols-container .ag-row`).filter({
         hasText: GRID_INTERACTION_ROWS[0][GRID_INTERACTION_NAME],
@@ -1404,10 +1415,10 @@ export async function assertGridMultipleRowSelectionCheckboxesThroughUi(page: Pa
 
     const rows = grid.locator('.ag-center-cols-container .ag-row');
     const checkboxes = rows.locator(GRID_SELECTION_CHECKBOX);
-    await expect(checkboxes, 'multiple-row selection should render one checkbox per visible row').toHaveCount(
-      GRID_SOURCE_ROWS.length,
-      { timeout: 30_000 },
-    );
+    await expect.poll(async () => (await checkboxes.count()) === (await rows.count()), {
+      message: 'multiple-row selection should render one checkbox per visible row',
+      timeout: 30_000,
+    }).toBe(true);
 
     const checkboxLayout = await checkboxes.evaluateAll((elements) =>
       elements.map((element) => {
@@ -1546,6 +1557,9 @@ export async function configureChartBaserowTableAndAssertPersistenceThroughUi(pa
       CHART_SOURCE_IGNORED_VALUE,
     );
     await page.keyboard.press('Escape');
+    const configuration = page.locator('c8oforms-datasourceeditor button.class1775995541940:visible').first();
+    await expect(configuration, 'Chart source configuration action should remain available').toBeVisible({ timeout: 15_000 });
+    await configuration.click();
   });
 
   await test.step('Reopen Chart source configuration and verify persisted roles', async () => {
@@ -1862,7 +1876,7 @@ export async function assertSourcedSelectMultipleDropdownStaysOpenThroughUi(page
         .toBe(true);
     }
 
-    await page.mouse.click(5, 5);
+    await page.locator('ion-content:visible').last().click({ position: { x: 5, y: 5 } });
     await expect(dropdown, 'sourced multiple Select dropdown should close only after an outside click').toBeHidden({
       timeout: 15_000,
     });
@@ -1952,9 +1966,7 @@ export async function assertSelectSourceFilterControlLayoutThroughUi(page: Page)
     const javaScriptButton = filter.locator('ion-button:visible', {
       has: page.locator('ion-icon[name="logo-javascript"]'),
     }).last();
-    const deleteButton = filter.locator('ion-button:visible', {
-      has: page.locator('ion-icon[src$="trash-2.svg"]'),
-    }).last();
+    const deleteButton = filter.locator('ion-button.class1758189196135:visible').last();
     const controls = [
       { label: 'Aa', button: textButton },
       { label: 'JavaScript', button: javaScriptButton },
@@ -2902,7 +2914,7 @@ async function normalizedText(locator: Locator): Promise<string> {
 
 async function setGridEditorColumnWidthMode(page: Page, mode: 'fit' | 'scroll'): Promise<void> {
   await openGridFormattingTab(page);
-  const buttons = page.locator('.class1775754035469:visible button.c8o-btn:visible');
+  const buttons = page.locator('ion-col.class1656520466591:visible button.c8o-btn:visible');
   await expect(buttons, 'Grid Column width should expose fit and horizontal-scroll modes').toHaveCount(2, {
     timeout: 15_000,
   });

@@ -20,8 +20,10 @@ import {
   fillViewerTextInput,
   getPwaDocument,
   openComponentConfig,
+  openComponentConfigAt,
   openComponentsPalette,
   openPublishedApplicationsTab,
+  expectSelectorApplicationVisible,
   publishCurrentFormWithPwa,
   publishedPwaUrl,
   setChoiceDefaultValueText,
@@ -286,9 +288,10 @@ async function createPublishedTextFixture(
 ): Promise<PublishedFixture> {
   const formId = await createBlankForm(page, title);
   for (const question of questions) {
+    const before = await page.locator(SEL.textComponent).count();
     await openComponentsPalette(page);
     await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
-    await openComponentConfig(page, SEL.textComponent);
+    await openComponentConfigAt(page, SEL.textComponent, before);
     await setTechnicalId(page, question.technicalId);
     await setTextInputQuestion(page, question.question);
     await closeComponentConfig(page);
@@ -464,7 +467,13 @@ function countNestedResponseRows(response: JsonRecord): number {
 
 async function openResponsesThroughUi(page: Page, title: string): Promise<Locator> {
   await openPublishedApplicationsTab(page);
-  expect(await clickVisibleSelectorCardMenuByTitle(page, title), 'published application menu should open').toBe(true);
+  await expectSelectorApplicationVisible(page, title);
+  await expect
+    .poll(() => clickVisibleSelectorCardMenuByTitle(page, title), {
+      message: 'published application menu should open',
+      timeout: 30_000,
+    })
+    .toBe(true);
   const responseItem = page.locator(RESPONSES_SEL.responseMenuItem).first();
   await expect(responseItem, 'published application menu should expose response visualization').toBeVisible({ timeout: 15_000 });
   await responseItem.click();

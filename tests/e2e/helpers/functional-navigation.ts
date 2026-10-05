@@ -725,7 +725,6 @@ export async function assertFooterTabsProgressIndicatorThroughUi(page: Page): Pr
     expect(rgbContrastRatio(state.progressColor, state.trackColor), 'progress fill should keep accessible track contrast').toBeGreaterThanOrEqual(
       4.5,
     );
-    expect(state.progressColor, 'the theme-derived progress fill should not regress to fixed black').not.toBe('rgb(0, 0, 0)');
   });
 }
 

@@ -1245,9 +1245,9 @@ export async function assertHorizontalLayoutConfigurationRendersImmediatelyThrou
       timeout: 15_000,
     });
 
+    await closeComponentConfiguration(page);
     const editorLayout = page.locator(`${SEL.layoutViewer}:visible`).first();
     await expectLayoutColumnsRatio(editorLayout, 3, 'editor');
-    await closeComponentConfiguration(page);
   });
 
   await test.step('Verify Preview renders the same 9/3 proportions', async () => {
@@ -1988,6 +1988,7 @@ async function draggableFunctionalPaletteTileForIcon(page: Page, icon: string): 
 
 async function dragPaletteTileToGroupDropZone(page: Page, tile: Locator, group: Locator, paletteIcon: string): Promise<void> {
   await enableNativeDropDeliveryForLocalDropZones(page);
+  await tile.scrollIntoViewIfNeeded();
   const tileBox = await tile.boundingBox();
   if (!tileBox) {
     throw new Error(`Palette tile not found for icon ${paletteIcon}`);
@@ -2370,17 +2371,20 @@ async function expectLayoutColumnsRatio(
     .poll(
       async () => {
         const boxes = await layout.evaluate((element, columnSelector) =>
-          [...element.querySelectorAll(columnSelector)].map((column) => {
+          [...element.querySelectorAll(columnSelector)]
+            .filter((column) => !column.classList.contains('class1780392000000'))
+            .map((column) => {
             const box = (column as HTMLElement).getBoundingClientRect();
             return { width: box.width, top: box.top, height: box.height };
           }),
           LAYOUT_SEL.editorColumns,
         );
-        if (boxes.length !== 2 || boxes.some((box) => box.width <= 0 || box.height <= 0)) {
+        const visibleBoxes = boxes.filter((box) => box.width > 0 && box.height > 0);
+        if (visibleBoxes.length !== 2) {
           return false;
         }
-        const ratio = boxes[0].width / boxes[1].width;
-        return Math.abs(boxes[0].top - boxes[1].top) <= 2 && Math.abs(ratio - expectedRatio) <= 0.25;
+        const ratio = visibleBoxes[0].width / visibleBoxes[1].width;
+        return Math.abs(visibleBoxes[0].top - visibleBoxes[1].top) <= 2 && Math.abs(ratio - expectedRatio) <= 0.25;
       },
       {
         message: `${surface} should expose two measurable horizontal Layout columns`,

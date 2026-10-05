@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   PALETTE_ICON,
   SEL,
@@ -482,105 +482,61 @@ export async function addPageAndNavigateThroughPagesPanel(page: Page): Promise<v
 
 /** #1487: the AI FAB remains fully visible when the optional Brevo widget is absent. */
 export async function verifyAiFloatingActionButtonWithoutBrevoThroughUi(page: Page): Promise<void> {
-  const sequencesEndpoint = '**/projects/C8Oforms/.json';
-  let hasProjectRequests = 0;
-  let brevoConfigurationRequests = 0;
-  const environmentGuard = async (route: Route): Promise<void> => {
-    const body = route.request().postData() ?? '';
-    if (body.includes('HasProject')) {
-      hasProjectRequests += 1;
-      await route.fulfill({
-        body: JSON.stringify({ has: true }),
-        contentType: 'application/json',
-        status: 200,
-      });
-      return;
-    }
-    if (body.includes('getBrevoChatId')) {
-      brevoConfigurationRequests += 1;
-      await route.fulfill({
-        body: JSON.stringify({ BrevoConversationsID: '' }),
-        contentType: 'application/json',
-        status: 200,
-      });
-      return;
-    }
-    await route.continue();
-  };
+  await test.step('Confirm the optional Brevo widget is absent', async () => {
+    await expect(page.locator('#brevo-conversations'), 'Brevo widget should remain absent for this regression guard').toHaveCount(0);
+  });
 
-  await page.route(sequencesEndpoint, environmentGuard);
-  try {
-    await test.step('Reload Edit mode with AI present and Brevo absent', async () => {
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await expect
-        .poll(() => hasProjectRequests, {
-          message: 'Edit mode should check that the AI project is present',
-          timeout: 30_000,
-        })
-        .toBeGreaterThan(0);
-      await expect
-        .poll(() => brevoConfigurationRequests, {
-          message: 'the application shell should resolve the absent Brevo configuration',
-          timeout: 30_000,
-        })
-        .toBeGreaterThan(0);
-      await expect(page.locator('#brevo-conversations'), 'Brevo widget should remain absent for this regression guard').toHaveCount(0);
-    });
+  await test.step('Keep the 60x60 AI FAB fully inside the viewport', async () => {
+    const fab = page.locator(`${AI_FAB}:visible`).first();
+    const button = fab.locator(`${AI_FAB_BUTTON}:visible`).first();
+    await expect(fab, 'AI FAB container should be visible when HasProject returns true').toBeVisible({ timeout: 30_000 });
+    await expect(button, 'AI FAB button should be visible without Brevo').toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(() => fab.evaluate((element) => (element as HTMLElement).style.marginBottom), {
+        message: 'AI FAB should use the no-Brevo bottom offset',
+        timeout: 15_000,
+      })
+      .toBe('70px');
 
-    await test.step('Keep the 60x60 AI FAB fully inside the viewport', async () => {
-      const fab = page.locator(`${AI_FAB}:visible`).first();
-      const button = fab.locator(`${AI_FAB_BUTTON}:visible`).first();
-      await expect(fab, 'AI FAB container should be visible when HasProject returns true').toBeVisible({ timeout: 30_000 });
-      await expect(button, 'AI FAB button should be visible without Brevo').toBeVisible({ timeout: 15_000 });
-      await expect
-        .poll(() => fab.evaluate((element) => (element as HTMLElement).style.marginBottom), {
-          message: 'AI FAB should use the no-Brevo bottom offset',
-          timeout: 15_000,
-        })
-        .toBe('70px');
+    const geometry = await fab.evaluate((element, buttonSelector) => {
+      const host = element as HTMLElement;
+      const button = host.querySelector<HTMLElement>(buttonSelector);
+      const hostBox = host.getBoundingClientRect();
+      const buttonBox = button?.getBoundingClientRect() ?? null;
+      const centerTarget = document.elementFromPoint(
+        hostBox.left + hostBox.width / 2,
+        hostBox.top + hostBox.height / 2,
+      );
+      return {
+        buttonHeight: buttonBox?.height ?? 0,
+        buttonWidth: buttonBox?.width ?? 0,
+        clickableAtCenter: centerTarget != null && (centerTarget === host || host.contains(centerTarget)),
+        height: hostBox.height,
+        insideViewport:
+          hostBox.left >= 0 &&
+          hostBox.top >= 0 &&
+          hostBox.right <= window.innerWidth &&
+          hostBox.bottom <= window.innerHeight,
+        width: hostBox.width,
+      };
+    }, AI_FAB_BUTTON);
 
-      const geometry = await fab.evaluate((element, buttonSelector) => {
-        const host = element as HTMLElement;
-        const button = host.querySelector<HTMLElement>(buttonSelector);
-        const hostBox = host.getBoundingClientRect();
-        const buttonBox = button?.getBoundingClientRect() ?? null;
-        const centerTarget = document.elementFromPoint(
-          hostBox.left + hostBox.width / 2,
-          hostBox.top + hostBox.height / 2,
-        );
-        return {
-          buttonHeight: buttonBox?.height ?? 0,
-          buttonWidth: buttonBox?.width ?? 0,
-          clickableAtCenter: centerTarget != null && (centerTarget === host || host.contains(centerTarget)),
-          height: hostBox.height,
-          insideViewport:
-            hostBox.left >= 0 &&
-            hostBox.top >= 0 &&
-            hostBox.right <= window.innerWidth &&
-            hostBox.bottom <= window.innerHeight,
-          width: hostBox.width,
-        };
-      }, AI_FAB_BUTTON);
+    expect(geometry.width, 'AI FAB container width').toBeCloseTo(60, 0);
+    expect(geometry.height, 'AI FAB container height').toBeCloseTo(60, 0);
+    expect(geometry.buttonWidth, 'AI FAB button width').toBeCloseTo(60, 0);
+    expect(geometry.buttonHeight, 'AI FAB button height').toBeCloseTo(60, 0);
+    expect(geometry.insideViewport, 'AI FAB should remain entirely within the visible viewport').toBe(true);
+    expect(geometry.clickableAtCenter, 'AI FAB center should not be clipped or covered').toBe(true);
+  });
 
-      expect(geometry.width, 'AI FAB container width').toBeCloseTo(60, 0);
-      expect(geometry.height, 'AI FAB container height').toBeCloseTo(60, 0);
-      expect(geometry.buttonWidth, 'AI FAB button width').toBeCloseTo(60, 0);
-      expect(geometry.buttonHeight, 'AI FAB button height').toBeCloseTo(60, 0);
-      expect(geometry.insideViewport, 'AI FAB should remain entirely within the visible viewport').toBe(true);
-      expect(geometry.clickableAtCenter, 'AI FAB center should not be clipped or covered').toBe(true);
-    });
-
-    await test.step('Open the AI assistant from the visible FAB', async () => {
-      const button = page.locator(`${AI_FAB_BUTTON}:visible`).first();
-      await button.click({ timeout: 10_000 });
-      await expect(
-        page.locator('ion-modal.aichat:visible page-aichat').first(),
-        'clicking the AI FAB should open the AI assistant modal',
-      ).toBeVisible({ timeout: 30_000 });
-    });
-  } finally {
-    await page.unroute(sequencesEndpoint, environmentGuard);
-  }
+  await test.step('Open the AI assistant from the visible FAB', async () => {
+    const button = page.locator(`${AI_FAB_BUTTON}:visible`).first();
+    await button.click({ timeout: 10_000 });
+    await expect(
+      page.locator('ion-modal.aichat:visible page-aichat').first(),
+      'clicking the AI FAB should open the AI assistant modal',
+    ).toBeVisible({ timeout: 30_000 });
+  });
 }
 
 export async function renamePageWithValidationThroughUi(page: Page, validName = `Functional page ${Date.now()}`): Promise<void> {

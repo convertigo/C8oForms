@@ -380,9 +380,10 @@ async function buttonViewerBorderWidthsAt(page: Page, index: number): Promise<st
   await expect(button, "Button should be visible in Preview").toBeVisible({
     timeout: 30_000,
   });
-  const card = button.locator(
-    "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]",
-  );
+  const groupChild = button.locator('xpath=ancestor::div[contains(@class, "class1730739322495")][1]');
+  const card = (await groupChild.count()) > 0
+    ? groupChild
+    : button.locator("xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
   await expect(
     card,
     "Button should be wrapped by the styled viewer card",

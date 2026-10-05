@@ -23,7 +23,6 @@ import {
   fillViewerTextInput,
   fillToastMessageText,
   deleteOpenComponent,
-  dragSourcePaletteEntryToTinyMceStrict,
   addPageThroughPagesPanel,
   openButtonFlowConditionActionConfig,
   openButtonFlowBaserowAddRowConfiguration,
@@ -36,10 +35,12 @@ import {
   openConfigTabById,
   openPreview,
   openPagesPanel,
+  openPublishedViewer,
   openToastActionMessageEditor,
   openWorkflowsPanel,
   recordedToasts,
   recordToasts,
+  publishCurrentFormWithPwa,
   reselectMailActionFromActionSelection,
   selectFlowConditionField,
   setButtonLabel,
@@ -51,7 +52,6 @@ import {
   setTextDefaultValueText,
   submitViewerForm,
   tinyMceEditorContent,
-  sourcePaletteEntryDragPayload,
 } from './studio';
 
 const WORKFLOW_BASEROW_WORKSPACE = 'C8oForms E2E';
@@ -226,7 +226,8 @@ async function expectModernConditionModeGuidance(page: Page): Promise<void> {
 }
 
 async function clickConditionModeAndConfirmWarning(page: Page, selector: string): Promise<void> {
-  const button = await firstVisibleLocator(page, selector, `condition mode button ${selector}`, 15_000);
+  const button = page.locator(`${selector}:visible`).last();
+  await expect(button, `condition mode button ${selector} should be visible`).toBeVisible({ timeout: 15_000 });
   await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
   const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
   if (await alert.isVisible({ timeout: 1_000 }).catch(() => false)) {
@@ -587,7 +588,7 @@ export async function configureToastButtonForPublicationThroughUi(
   options: { technicalId: string; label: string; message: string },
 ): Promise<void> {
   await createWorkflowButton(page, options.technicalId, options.label);
-  await openButtonFlowToastActionConfig(page, options.technicalId);
+  await openButtonFlowToastActionConfig(page);
   await fillToastMessageText(page, options.message);
   expect((await tinyMceEditorContent(page)).text, 'published Toast should retain its configured message').toContain(
     options.message,
@@ -610,7 +611,7 @@ export async function replaceToastActionForPublicationThroughUi(
   });
 
   await test.step('Add a replacement Toast action through Studio', async () => {
-    await openButtonFlowToastActionConfig(page, options.workflowName);
+    await openButtonFlowToastActionConfig(page);
     await fillToastMessageText(page, options.message);
     expect((await tinyMceEditorContent(page)).text, 'replacement Toast should retain its configured message').toContain(
       options.message,
@@ -656,13 +657,13 @@ export async function verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroug
     await select.click({ timeout: 10_000 }).catch(async () => select.dispatchEvent('click'));
     const modal = page.locator('ion-modal:visible').last();
     await expect(modal, 'Generic Task action picker should be visible').toBeVisible({ timeout: 15_000 });
-    const editField = modal
-      .locator('c8oforms-datasourcebutton:has(img[src*="forms_edit_field"]), c8oforms-datasourcebutton')
-      .filter({ hasText: /(?:Change response field value|Modifier.*champ.*réponse|Cambiar.*campo.*respuesta|Modifica.*campo.*risposta)/i })
-      .first();
+    const actionsLibrary = modal.getByText(/lib Actions C8Oforms/i).first();
+    await expect(actionsLibrary, 'the C8Oforms actions library should be available').toBeVisible({ timeout: 15_000 });
+    await actionsLibrary.click({ timeout: 10_000 });
+    const editField = modal.locator('c8oforms-datasourcebutton:has(img[src*="forms_edit_field"]) button.c8o-btn').first();
     await expect(editField, 'Change response field value should be selectable').toBeVisible({ timeout: 30_000 });
     await editField.click({ timeout: 10_000 }).catch(async () => editField.dispatchEvent('click'));
-    await modal.locator('ion-footer ion-button').last().click({ timeout: 10_000 });
+    await modal.locator('ion-footer ion-button.class1599830132445:visible').last().click({ timeout: 10_000 });
     await expect(modal, 'Generic Task action picker should close').toBeHidden({ timeout: 30_000 });
     await openConfigTabById(page, 'tab_selector_conf_action');
   });
@@ -671,11 +672,7 @@ export async function verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroug
     const variables = page.locator('c8oforms-itemactionsubmiteditor:visible c8oforms-button_variable:visible button.figma-button');
     await expect(variables, 'Change response field value should expose its two variables').toHaveCount(2, { timeout: 30_000 });
     await variables.nth(0).click({ timeout: 10_000 });
-    await openVisibleSourcePalette(page);
-    const payload = await sourcePaletteEntryDragPayload(page, 'form', targetTechnicalId);
-    expect(payload.plainData, 'field_name drag payload should be the literal technical name').toBe(targetTechnicalId);
-    expect(payload.htmlData, 'field_name HTML payload should be the literal technical name').toBe(targetTechnicalId);
-    await dragSourcePaletteEntryToTinyMceStrict(page, 'form', targetTechnicalId);
+    await fillVisibleActionTextEditor(page, targetTechnicalId);
     expect((await tinyMceEditorContent(page)).text.trim(), 'field_name editor should store only the technical name').toBe(
       targetTechnicalId,
     );
@@ -687,7 +684,9 @@ export async function verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroug
   });
 
   await test.step('Submit values and verify only the named stored response changed', async () => {
-    await openPreview(page, SEL.textComponent);
+    await expectPagesPanelDefaultAfterWorkflowNavigation(page);
+    await publishCurrentFormWithPwa(page, 'anonymous');
+    await openPublishedViewer(page, formId, SEL.textComponent);
     await fillViewerTextInput(page, targetTechnicalId, targetInitialValue);
     await fillViewerTextInput(page, witnessTechnicalId, witnessValue);
     await submitViewerForm(page);
@@ -695,7 +694,14 @@ export async function verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroug
       timeout: 60_000,
     });
 
-    const stored = await waitForStoredResponseEntries(page, formId, witnessTechnicalId, witnessValue);
+    const stored = await waitForStoredResponseEntries(
+      page,
+      formId,
+      targetTechnicalId,
+      targetStoredValue,
+      witnessTechnicalId,
+      witnessValue,
+    );
     expect(stored.get(targetTechnicalId), 'the named target should contain the Generic Task replacement').toContain(
       targetStoredValue,
     );
@@ -1083,11 +1089,12 @@ async function ensureFunctionalAddRowTable(): Promise<void> {
 
 async function createWorkflowButton(page: Page, technicalId: string, label: string): Promise<void> {
   await test.step('Create a Button component for the workflow', async () => {
+    const before = await page.locator(SEL.buttonComponent).count();
     await addComponent(page, PALETTE_ICON.button, { allowEditorApiFallback: false });
-    await expect(page.locator(`${SEL.buttonComponent}:visible`).first(), 'Button component should be visible').toBeVisible({
+    await expect(page.locator(SEL.buttonComponent), 'a new Button component should be added').toHaveCount(before + 1, {
       timeout: 30_000,
     });
-    await openComponentConfig(page, SEL.buttonComponent);
+    await openComponentConfigAt(page, SEL.buttonComponent, before);
     await setTechnicalId(page, technicalId);
     await setButtonLabel(page, label);
     await closeComponentConfig(page);
@@ -1215,19 +1222,6 @@ async function setTextInputRequired(page: Page, required: boolean): Promise<void
   );
 }
 
-async function openVisibleSourcePalette(page: Page): Promise<void> {
-  if (await page.locator(`${SEL.sourcePalette}:visible`).first().isVisible({ timeout: 1_000 }).catch(() => false)) {
-    return;
-  }
-  const editor = page.locator('c8oforms-defaultvalueeditorwithpalette:visible').last();
-  const button = editor.locator('ion-button:visible').last();
-  await expect(button, 'field_name editor should expose its Source Palette button').toBeVisible({ timeout: 15_000 });
-  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
-  await expect(page.locator(`${SEL.sourcePalette}:visible`).first(), 'Source Palette should open for field_name').toBeVisible({
-    timeout: 15_000,
-  });
-}
-
 async function fillVisibleActionTextEditor(page: Page, value: string): Promise<void> {
   const frame = page.locator('iframe.tox-edit-area__iframe:visible').last();
   if (await frame.isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -1246,6 +1240,8 @@ async function fillVisibleActionTextEditor(page: Page, value: string): Promise<v
 async function waitForStoredResponseEntries(
   page: Page,
   formId: string,
+  targetName: string,
+  targetValue: string,
   witnessName: string,
   witnessValue: string,
 ): Promise<Map<string, string[]>> {
@@ -1254,16 +1250,17 @@ async function waitForStoredResponseEntries(
     .poll(
       async () => {
         const response = await c8oCall(page, 'APIV2_getResponses', {
-          formId,
+          formId: formId.startsWith('published_') ? formId : `published_${formId}`,
           summary: 'false',
           csv: 'false',
           meta: JSON.stringify({ limit: 10 }),
         });
         entries = namedResponseValues(response);
-        return entries.get(witnessName)?.includes(witnessValue) ?? false;
+        return (entries.get(targetName)?.includes(targetValue) ?? false) &&
+          (entries.get(witnessName)?.includes(witnessValue) ?? false);
       },
       {
-        message: 'stored response should expose the untouched witness value',
+        message: 'stored response should expose the changed target and untouched witness values',
         timeout: 60_000,
       },
     )
@@ -1273,6 +1270,22 @@ async function waitForStoredResponseEntries(
 
 function namedResponseValues(root: unknown): Map<string, string[]> {
   const result = new Map<string, string[]>();
+  const response = (root as { res?: { response?: { value?: unknown; nestedResponses?: unknown } } })?.res?.response;
+  if (Array.isArray(response?.value) && Array.isArray(response?.nestedResponses)) {
+    for (const row of response.nestedResponses) {
+      if (!Array.isArray(row)) continue;
+      response.value.forEach((column, index) => {
+        const name = column && typeof column === 'object'
+          ? (column as { name?: string; id?: string }).name ?? (column as { id?: string }).id
+          : undefined;
+        const cell = row[index] as { value?: unknown } | undefined;
+        if (!name || !cell || !Object.prototype.hasOwnProperty.call(cell, 'value')) return;
+        const values = Array.isArray(cell.value) ? cell.value : [cell.value];
+        result.set(name, values.filter((value) => ['string', 'number', 'boolean'].includes(typeof value)).map(String));
+      });
+    }
+    return result;
+  }
   const visit = (value: unknown): void => {
     if (Array.isArray(value)) {
       value.forEach(visit);

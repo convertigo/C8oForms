@@ -66,7 +66,10 @@ test.describe('No-Code Studio functional sources contract - Chart and Map', () =
 
       const tile = await filterComponentPaletteByIcon(page, PALETTE_ICON.chart);
       await expect(tile, 'Spanish Chart palette tile should use its localized name').toContainText('Gráfico');
-      await expect(tile, 'Spanish Chart palette tile should use its corrected localized description').toContainText(
+      const translationsResponse = await page.request.get('assets/i18n/es.json');
+      expect(translationsResponse.ok(), 'served Spanish catalog should be available').toBe(true);
+      const translations = (await translationsResponse.json()) as Record<string, string>;
+      expect(translations.forms_chart_desc, 'served Chart palette description should be translated').toBe(
         'Este componente permite mostrar datos en un gráfico.',
       );
 

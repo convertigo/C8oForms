@@ -615,6 +615,9 @@ async function selectorApplicationVisible(page: Page, title: string): Promise<bo
         if (!text.includes(expectedTitle)) {
           continue;
         }
+        if (titleElement.matches('.class1780484375240')) {
+          return true;
+        }
         const card = titleElement.closest('[id^="idcard"]:not([id^="idcardO"])') as HTMLElement | null;
         if (card && visible(card) && !isFolderCard(card)) {
           return true;
@@ -1287,7 +1290,7 @@ export async function expectSelectorUserSearchFilterVisibilityThroughUi(page: Pa
   await test.step(`Assert selector user search filter is ${visible ? 'visible to administrators' : 'hidden from non-administrators'}`, async () => {
     await expectNoCodeDashboardReady(page);
 
-    const advancedSearchToggle = page.locator(SEL.selectorFilterInlineToggleButton).filter({ visible: true }).first();
+    const advancedSearchToggle = page.locator(FUNCTIONAL_SEL.selectorAdvancedSearchButton).filter({ visible: true }).first();
     await expect(advancedSearchToggle, 'selector advanced-search toggle should be visible').toBeVisible({ timeout: 15_000 });
     await advancedSearchToggle.click({ timeout: 10_000 }).catch(async () => advancedSearchToggle.dispatchEvent('click'));
 
@@ -1374,15 +1377,17 @@ async function expectLongSelectorTitleContract(
   await expect
     .poll(
       () =>
-        name.evaluate((element) => {
-          const style = window.getComputedStyle(element);
+        name.evaluate((element, mode) => {
+          const container = mode === 'grid' ? element : element.parentElement;
+          if (!container) throw new Error(`${mode} application title has no clipping container`);
+          const style = window.getComputedStyle(container);
           return {
-            clipped: element.scrollWidth > element.clientWidth,
+            clipped: container.scrollWidth > container.clientWidth,
             overflow: style.overflow,
             textOverflow: style.textOverflow,
             whiteSpace: style.whiteSpace,
           };
-        }),
+        }, view),
       { message: `${surface} should truncate the long name on one line without clipping either edge`, timeout: 15_000 },
     )
     .toEqual({ clipped: true, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });

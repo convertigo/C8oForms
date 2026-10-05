@@ -225,6 +225,7 @@ export const SEL = {
   selectorPaginationPageSize: 'ion-select.class1784280818686',
   selectorEmptyState: 'ion-text.class1772122480943',
   selectorFilterInlineToggleButton: 'ion-button.class1772117859505',
+  selectorAdvancedSearchButton: 'ion-button.class1783947965453',
   selectorFilterPopoverButton: 'ion-button.class1750686602638',
   selectorFiltersPopover: 'ion-popover:not(.overlay-hidden)',
   selectorMyApplicationsButton: 'ion-button.class1761746283533',
@@ -6994,7 +6995,15 @@ async function selectDataSourceEntry(page: Page, timeout: number, entry: 'getDat
     const sourcePicker = page.locator('ion-modal:visible').last();
     await expect(sourcePicker, 'Baserow source picker modal should open').toBeVisible({ timeout });
 
-    const sourceButton = sourcePicker.locator(SEL.dataSourceSelectButton).nth(entry === 'getSelectData' ? 1 : 0);
+    const sourceButtons = sourcePicker.locator(`${SEL.dataSourceSelectButton}:visible`);
+    await expect.poll(() => sourceButtons.count(), {
+      message: 'Baserow source entries should finish loading',
+      timeout: 20_000,
+    }).toBeGreaterThan(0);
+    const namedSource = sourceButtons.filter({ hasText: new RegExp(entry, 'i') }).first();
+    const sourceButton = (await namedSource.count()) > 0
+      ? namedSource
+      : (await sourceButtons.count()) === 1 ? sourceButtons.first() : sourceButtons.nth(entry === 'getSelectData' ? 1 : 0);
     const sourceReady = await expect(sourceButton).toBeVisible({ timeout: 20_000 }).then(() => true).catch(() => false);
     if (sourceReady) {
       await sourceButton.click({ timeout: 10_000 }).catch(async () => {
@@ -7782,15 +7791,27 @@ export async function openPublishedPwaEditor(page: Page, title: string): Promise
   });
 }
 
-export async function publishCurrentFormWithPwa(page: Page, mode: PwaAccessMode): Promise<void> {
+export async function publishCurrentFormWithPwa(
+  page: Page,
+  mode: PwaAccessMode,
+  options: { configureIcon?: boolean } = {},
+): Promise<void> {
   await test.step(`publish current form as ${mode} PWA`, async () => {
+    const readyEditor = page.locator(
+      `${SEL.pageButtonsBlock}:visible, ${SEL.flowToastActionCard}:visible, ${SEL.flowSubmitActionCard}:visible`,
+    ).first();
+    await expect(readyEditor, 'editor should finish loading before publication').toBeVisible({
+      timeout: 60_000,
+    });
     await expect(page.locator(SEL.publishButton).first(), 'the editor publish button should be visible').toBeVisible({
       timeout: 30_000,
     });
     await page.locator(SEL.publishButton).first().click();
     const modal = page.locator(SEL.pwaEditModal).last();
     await expect(modal, 'publishing should open the PWA editor modal').toBeVisible({ timeout: 60_000 });
-    await ensurePwaIconConfiguredThroughUi(page, modal);
+    if (options.configureIcon !== false) {
+      await ensurePwaIconConfiguredThroughUi(page, modal);
+    }
     await ensurePwaTextInputsFilled(modal);
     await setPwaAccessModeAndSave(page, mode);
   });
@@ -8430,9 +8451,13 @@ async function selectorApplicationVisible(page: Page, title: string): Promise<bo
       card.classList.contains('card-container--folder') ||
       !!card.querySelector('ion-icon[src*="folder.svg"], ion-icon[src*="folder-open.svg"], img[src*="folder.svg"], img[src*="folder-open.svg"]');
 
-    return [...document.querySelectorAll('[id^="idcard"]:not([id^="idcardO"])')]
+    const cards = [...document.querySelectorAll('[id^="idcard"]:not([id^="idcardO"])')]
       .filter(visible)
       .some((card) => !isFolderCard(card as HTMLElement) && normalize((card as HTMLElement).innerText).includes(expectedTitle));
+    const listTitles = [...document.querySelectorAll('.class1780484375240')]
+      .filter(visible)
+      .some((element) => normalize((element as HTMLElement).innerText) === expectedTitle);
+    return cards || listTitles;
   }, { expectedTitle: title });
 }
 
@@ -8501,9 +8526,9 @@ export async function createBlankForm(page: Page, title = `E2E ${Date.now()}`): 
 
   const id = editorFormId(page.url());
   if (!id) throw new Error('could not read the new form id from the editor URL');
-  // Wait for the editor to be interactive (palette rendered) before returning,
-  // otherwise a follow-up addComponent fires before the canvas can accept it.
-  await page.locator('[draggable="true"]').first().waitFor({ state: 'visible', timeout: 30_000 });
+  // The component palette can start collapsed; the page canvas is the stable
+  // readiness signal before a follow-up Studio gesture.
+  await page.locator(SEL.pageButtonsBlock).first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(2_500);
   return id;
 }
@@ -8672,11 +8697,12 @@ async function waitForPresentedPromptInput(alert: Locator, message: string): Pro
 export async function openComponentsPalette(page: Page, waitForIcon = PALETTE_ICON.select): Promise<void> {
   await acceptRgpdIfVisible(page);
   const tileSelector = componentPaletteTileSelector(waitForIcon);
-  if (await paletteTileForIconOrNull(page, waitForIcon, 1_000)) {
-    return;
-  }
   if (!(await page.locator(SEL.componentPaletteSearch).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
     await clickFirstVisible(page, SEL.componentPanelButton, 'component palette panel');
+  }
+  await expect(page.locator(SEL.componentPaletteSearch).first(), 'component palette should be open').toBeVisible({ timeout: 15_000 });
+  if (await paletteTileForIconOrNull(page, waitForIcon, 1_000)) {
+    return;
   }
   for (let attempt = 0; attempt < 8; attempt++) {
     if (await paletteTileForIconOrNull(page, waitForIcon, 500)) {
@@ -11747,6 +11773,8 @@ export async function dragPaletteComponentInto(
   const children = page.locator(`${containerSelector} ${SEL.layoutChild}`);
   const before = await children.count();
 
+  await tile.scrollIntoViewIfNeeded();
+  await container.scrollIntoViewIfNeeded();
   await dragPaletteComponentWithPointer(page, tile, container, containerSelector, paletteIcon);
   if (await waitForLayoutChildCount(children, before + 1, 6_000)) {
     return;

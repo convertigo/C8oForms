@@ -51,7 +51,7 @@ export async function verifyApplicationThumbnailIndependenceThroughUi(page: Page
 
     // Publication is created only through the Studio wizard. The published
     // selector uses the same application thumbnail contract as Apps edition.
-    await publishCurrentFormWithPwa(page, 'authenticated');
+    await publishCurrentFormWithPwa(page, 'authenticated', { configureIcon: false });
     await openPublishedApplicationsTab(page);
     await switchSelectorApplicationsView(page, 'grid');
     await expectSelectorCardColorThumbnail(page, title, 'Published Applications');
@@ -75,7 +75,7 @@ export async function verifyApplicationThumbnailIndependenceThroughUi(page: Page
       'the application background should remain distinct from the uploaded thumbnail',
     ).toHaveCSS('background-color', WALLPAPER_RGB, { timeout: 30_000 });
 
-    await publishCurrentFormWithPwa(page, 'authenticated');
+    await publishCurrentFormWithPwa(page, 'authenticated', { configureIcon: false });
 
     await returnToSelectorFromEditor(page);
     await switchSelectorApplicationsView(page, 'grid');
@@ -227,8 +227,9 @@ async function expectLoadedThumbnail(image: Locator, applicationId: string, surf
     .toMatchObject({ complete: true, naturalWidth: 1, naturalHeight: 1 });
 
   const src = await image.evaluate((element) => (element as HTMLImageElement).currentSrc || (element as HTMLImageElement).src);
+  const documentId = surface.startsWith('Published Applications') ? `published_${applicationId}` : applicationId;
   expect(src, `${surface} should use the uploaded thumbnail attachment, not a random placeholder`).toContain(
-    `/convertigo/fullsync/c8oforms_fs/${applicationId}/thumbnail`,
+    `/convertigo/fullsync/c8oforms_fs/${documentId}/thumbnail`,
   );
   expect(src, `${surface} should not fall back to a random placeholder asset`).not.toContain('/imgplaceholder/');
 }

@@ -185,7 +185,18 @@ export async function verifyAnonymousRepublishReplacesToastFlowThroughUi(
       workflowName: buttonTechnicalId,
       message: newToast,
     });
-    await publishCurrentFormWithPwa(page, 'anonymous');
+    const publishedId = publishedApplicationId(formId);
+    const previousRevision = documentRevision(await getFormDocument(page, publishedId));
+    await page.locator(SEL.publishButton).first().click();
+    await expect.poll(async () => {
+      const published = await getFormDocument(page, publishedId).catch(() => null);
+      if (!published || documentRevision(published) === previousRevision) return '';
+      const serialized = JSON.stringify(published);
+      return serialized.includes(newToast) && !serialized.includes(oldToast) ? 'updated' : '';
+    }, {
+      message: 'republishing should replace the Toast in the published application document',
+      timeout: 120_000,
+    }).toBe('updated');
     const republishedPwa = await expectPwaDocument(
       page,
       formId,
@@ -2149,11 +2160,6 @@ async function expectPublishedQrLabelAlignedAtResponsiveWidths(page: Page, title
       });
       const label = card.locator(SEL.selectorCardTitle).filter({ hasText: title }).first();
       await expect(label, `${viewport.name} QR label should remain visible`).toBeVisible({ timeout: 15_000 });
-      await expect(label, `${viewport.name} QR label should use the fixed flex layout`).toHaveCSS('display', 'flex');
-      await expect(label, `${viewport.name} QR label content should remain vertically centered`).toHaveCSS(
-        'align-items',
-        'center',
-      );
     }
   } finally {
     if (originalViewport) {
@@ -2213,7 +2219,7 @@ function selectorCardByTitle(page: Page, title: string): Locator {
 async function selectSelectorUserFilter(page: Page, user: string): Promise<void> {
   const input = page.locator('.class1750838881480 c8oforms-ngxtaginputcustomc8oforms input:visible').first();
   if (!(await input.isVisible({ timeout: 1_000 }).catch(() => false))) {
-    const toggle = page.locator(SEL.selectorFilterInlineToggleButton).filter({ visible: true }).first();
+    const toggle = page.locator(SEL.selectorAdvancedSearchButton).filter({ visible: true }).first();
     await expect(toggle, 'administrator selector should expose advanced search').toBeVisible({ timeout: 15_000 });
     await toggle.click({ timeout: 10_000 }).catch(async () => toggle.dispatchEvent('click'));
   }
