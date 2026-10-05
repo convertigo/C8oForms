@@ -49,7 +49,42 @@ function testLabel(test) {
 
 async function loadTests() {
   const raw = JSON.parse(await readFile(MANIFEST, 'utf8'));
-  return Object.entries(raw.tests).map(([id, t]) => ({ id, ...t }));
+  const manifestTests = Object.entries(raw.tests).map(([id, t]) => ({ id, ...t }));
+  return [...manifestTests, ...discoverFunctionalTests()];
+}
+
+function discoverFunctionalTests() {
+  const result = spawnSync(process.execPath, [
+    PW_CLI, 'test', 'functional-.*[.]spec[.]ts', '--list', '--reporter=json',
+  ], { cwd: testsDir, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 30_000, windowsHide: true });
+  if (result.status !== 0) {
+    throw new Error(`Playwright functional test discovery failed: ${result.stderr || result.error || result.stdout}`);
+  }
+  const tests = [];
+  const visit = (suite) => {
+    for (const spec of suite.specs ?? []) {
+      const id = /^([A-Z][A-Z0-9-]*-\d{3})\b/.exec(spec.title)?.[1];
+      if (!id || !spec.file?.startsWith('functional-')) continue;
+      const issue = /#(\d+)/.exec(spec.title)?.[1];
+      tests.push({
+        id,
+        kind: 'functional',
+        title: spec.title,
+        spec: `e2e/${spec.file}`,
+        line: spec.line,
+        grep: `${spec.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+        issueUrl: issue ? `https://github.com/convertigo/C8oForms/issues/${issue}` : undefined,
+      });
+    }
+    for (const child of suite.suites ?? []) visit(child);
+  };
+  for (const suite of JSON.parse(result.stdout).suites ?? []) visit(suite);
+  const counts = new Map();
+  for (const test of tests) counts.set(test.id, (counts.get(test.id) ?? 0) + 1);
+  return tests.map(({ line, ...test }) => ({
+    ...test,
+    id: counts.get(test.id) > 1 ? `${test.id}@${test.spec.slice(4).replace(/\.spec\.ts$/, '')}:${line}` : test.id,
+  }));
 }
 
 async function servedVersion(env = process.env) {
@@ -355,10 +390,15 @@ async function execute(send, params, tests, ctl) {
     HEADED: headed ? '1' : '0',
   };
 
-  const selected =
-    params.ids[0] === 'all' ? tests : tests.filter((t) => params.ids.includes(t.id));
+  const selected = params.ids[0] === 'all'
+    ? tests.filter((t) => params.version !== 'broken' || t.kind !== 'functional')
+    : tests.filter((t) => params.ids.includes(t.id));
   if (!selected.length) {
-    send('log', { line: 'No matching test in the manifest.', cls: 'err' });
+    send('log', { line: 'No matching test in the runner catalog.', cls: 'err' });
+    return send('done', { ok: false });
+  }
+  if (selected.some((t) => t.kind === 'functional') && ['broken', 'verify'].includes(params.version)) {
+    send('log', { line: 'Functional tests support Current and Latest only; no historical version is declared.', cls: 'err' });
     return send('done', { ok: false });
   }
 

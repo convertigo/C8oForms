@@ -49,10 +49,16 @@
   input[type=range]{ min-width:120px; flex:1 1 140px; vertical-align:middle; }
   @media (max-width:760px){ .topbar{ grid-template-columns:1fr; } .actions{ justify-content:flex-start; } .option-sections,.section-grid{ grid-template-columns:1fr; } .seg{ flex-basis:100%; display:grid; grid-template-columns:1fr; } .seg button{ text-align:left; } }
   .listpane { height:clamp(520px,62vh,760px); max-height:760px; display:flex; flex-direction:column; }
-  .listbar { flex:0 0 auto; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; display:flex; gap:12px; align-items:center; }
-  .search { flex:1 1 auto; position:relative; }
+  .listbar { flex:0 0 auto; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+  .search { flex:1 1 180px; min-width:0; position:relative; }
   .search input { width:100%; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font:inherit; outline:none; }
   .search input:focus { border-color:var(--blue); box-shadow:0 0 0 2px rgba(79,158,255,.18); }
+  .test-type { display:inline-flex; flex:0 1 auto; min-width:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .test-type button { background:var(--panel2); color:var(--mut); border:0; padding:9px 10px; cursor:pointer; font:inherit; white-space:nowrap; }
+  .test-type button + button { border-left:1px solid var(--line); }
+  .test-type button.on { background:var(--blue); color:#04122b; font-weight:700; }
+  .test-type button:focus-visible { outline:2px solid var(--green); outline-offset:-2px; }
+  @media (max-width:600px){ .search{ flex-basis:100%; } .test-type{ flex:1 1 auto; } .test-type button{ flex:1 1 auto; padding-inline:6px; } }
   .count { color:var(--mut); font-size:12px; white-space:nowrap; }
   #list { flex:1 1 auto; min-height:0; overflow:auto; padding-right:4px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
@@ -63,6 +69,7 @@
   .k-regression{ background:rgba(79,158,255,.15); color:var(--blue); }
   .k-open{ background:rgba(255,90,106,.15); color:var(--red); }
   .k-smoke{ background:rgba(61,220,132,.15); color:var(--green); }
+  .k-functional{ background:rgba(255,185,80,.15); color:var(--amber); }
   .id { color:var(--mut); font-family:ui-monospace,monospace; font-size:12px; }
   a.id { color:var(--blue); text-decoration:none; }
   a.id:hover { text-decoration:underline; }
@@ -95,7 +102,7 @@
   <span class="ver">deployed: <b id="served">…</b> <button class="ghost" id="refresh" style="padding:3px 8px;">↻</button></span>
     </div>
     <div class="actions">
-      <button class="runall" id="runall" title="Run every manifest test with the selected launch options. Disabled for Broken -> Latest because that mode verifies one ticket at a time.">Run all</button>
+      <button class="runall" id="runall" title="Run the entire Playwright suite, regardless of the list filters. Disabled for Broken -> Latest because that mode verifies one ticket at a time.">Run all tests</button>
       <button class="stop" id="stop" disabled title="Cancel the current run and kill the Playwright/deploy process spawned by the runner.">Stop</button>
     </div>
   </div>
@@ -168,6 +175,11 @@
       <label class="search">
         <input type="search" id="search" placeholder="Search ticket, title, kind, version..." autocomplete="off" />
       </label>
+      <div class="test-type" id="test-type" role="group" aria-label="Test type">
+        <button type="button" data-type="all" class="on" aria-pressed="true">All</button>
+        <button type="button" data-type="regression" aria-pressed="false" title="Manifest tests: regression, smoke, and open">Non-regression</button>
+        <button type="button" data-type="functional" aria-pressed="false">Functional</button>
+      </div>
       <span class="count" id="count"></span>
     </div>
     <div id="list"></div>
@@ -181,7 +193,7 @@
 
 <script>
 const $ = (s) => document.querySelector(s);
-let version = 'current', running = false, stopping = false, es = null;
+let version = 'current', testType = 'all', running = false, stopping = false, es = null;
 // global controls
 $('#version').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -198,6 +210,17 @@ $('#runall').addEventListener('click', () => {
 });
 $('#stop').addEventListener('click', stopRun);
 $('#search').addEventListener('input', render);
+$('#test-type').addEventListener('click', (e) => {
+  const button = e.target.closest('button[data-type]');
+  if (!button) return;
+  testType = button.dataset.type;
+  for (const option of $('#test-type').querySelectorAll('button')) {
+    const selected = option === button;
+    option.classList.toggle('on', selected);
+    option.setAttribute('aria-pressed', String(selected));
+  }
+  render();
+});
 
 let tests = [];
 async function load() {
@@ -219,7 +242,8 @@ function render() {
     $('#list').innerHTML = '<div class="card empty">No test matches the current search.</div>';
   }
   for (const t of visible) {
-    const noBroken = (version === 'broken' && !brokenOf(t)) || (version === 'verify' && !t.brokenVersion);
+    const noBroken = ((version === 'broken' || version === 'verify') && t.kind === 'functional') ||
+      (version === 'broken' && !brokenOf(t)) || (version === 'verify' && !t.brokenVersion);
     const el = document.createElement('div');
     el.className = 'card';
     el.innerHTML = `
@@ -238,16 +262,22 @@ function render() {
   $('#list').querySelectorAll('button.run').forEach((b) =>
     b.addEventListener('click', () => run([b.dataset.id])));
   $('#runall').disabled = running || version === 'verify';
+  $('#runall').textContent = version === 'broken' ? 'Run all manifest tests' : 'Run all tests';
   $('#runall').title = version === 'verify'
     ? 'Broken -> Latest verification runs one ticket at a time.'
-    : 'Run every manifest test with the selected launch options.';
+    : version === 'broken'
+      ? 'Run all manifest tests on their broken versions; functional tests are excluded.'
+    : 'Run the entire Playwright suite, regardless of the list filters.';
   $('#stop').disabled = !running || stopping;
 }
 
 function filteredTests() {
   const q = normalize($('#search').value);
-  if (!q) return tests;
-  return tests.filter((t) => normalize([
+  return tests.filter((t) => {
+    if (testType === 'functional' && t.kind !== 'functional') return false;
+    if (testType === 'regression' && t.kind === 'functional') return false;
+    if (!q) return true;
+    return normalize([
     t.id,
     ticketNumber(t),
     t.issueUrl,
@@ -257,7 +287,8 @@ function filteredTests() {
     t.brokenVersion,
     t.fixedVersion,
     t.version,
-  ].filter(Boolean).join(' ')).includes(q));
+    ].filter(Boolean).join(' ')).includes(q);
+  });
 }
 
 function ticketNumber(t) {
@@ -265,6 +296,12 @@ function ticketNumber(t) {
 }
 
 function ticketLink(t) {
+  if (t.kind === 'functional') {
+    const id = `<span class="id">${esc(t.id)}</span>`;
+    return t.issueUrl
+      ? `${id} <a class="id" href="${escAttr(t.issueUrl)}" target="_blank" rel="noreferrer">#${ticketNumber(t)}</a>`
+      : id;
+  }
   const label = t.issueUrl ? `#${ticketNumber(t) || t.id}` : t.id;
   if (!t.issueUrl) return `<span class="id">${esc(label)}</span>`;
   return `<a class="id" href="${escAttr(t.issueUrl)}" target="_blank" rel="noreferrer">${esc(label)}</a>`;
@@ -304,6 +341,7 @@ function envQuery() {
 }
 
 function versionLabel(t) {
+  if (t.kind === 'functional' && (version === 'broken' || version === 'verify')) return 'functional test: Current or Latest only';
   if (version === 'latest') return 'will ensure the latest release is deployed, then run';
   if (version === 'current') return 'will run on the currently deployed version without deploying';
   if (version === 'verify') {
