@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import {
   PALETTE_ICON,
   SEL,
@@ -36,6 +36,16 @@ const FUNCTIONAL_SEL = {
   selectorAllApplicationsButton: 'ion-button.class1761754659662',
   selectorGridViewButton: 'ion-button.class1761574287897',
   selectorListViewButton: 'ion-button.class1761576075026',
+  selectorImportButton: 'ion-button.class1761574287978',
+  selectorImportModal: 'ion-modal.show-modal page-dropfilepage',
+  selectorImportModalCloseButton: 'ion-button.close-button',
+  selectorImportModalConfirmButton: 'ion-button.class1658764714718',
+  selectorTemplateCard: '.class1645547241674',
+  selectorTemplateList: '.class1645547241638',
+  selectorTemplateMoreButton: 'ion-button.class1761563584596',
+  selectorAdvancedSearchButton: 'ion-button.class1783947965453',
+  selectorAdvancedSearchPanel: '.class1645545984242',
+  selectorCommittedSearchBadge: 'ion-badge.class1645887518298',
   selectorUserSearchFilter: '.class1750838881480',
   selectorUserSearchInput: '.class1750838881480 c8oforms-ngxtaginputcustomc8oforms input',
   labelsModal: 'ion-modal.show-modal page-labelspage',
@@ -154,10 +164,15 @@ export async function expectForgottenPasswordModalOpensAndCloses(page: Page): Pr
       modal.locator('ion-input.class1757510564581 input, ion-input.class1582285458300 input').first(),
       'forgotten password email input should be visible',
     ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      modal.locator('ion-button.send-button, ion-button.class1757510317776, ion-button.class1582285458387').first(),
-      'forgotten password send action should be visible',
-    ).toBeVisible({ timeout: 15_000 });
+    const send = modal
+      .locator('ion-button.send-button, ion-button.class1757510317776, ion-button.class1582285458387')
+      .first();
+    await expect(send, 'forgotten password send action should be visible').toBeVisible({ timeout: 15_000 });
+    await expectButtonUsesSolidThemeColor(
+      send,
+      '--ion-color-convertigo',
+      'forgotten password send action',
+    );
 
     const close = modal.locator('ion-button.close-button, ion-button.class1757510386777').first();
     await expect(close, 'forgotten password modal close action should be visible').toBeVisible({ timeout: 15_000 });
@@ -168,14 +183,13 @@ export async function expectForgottenPasswordModalOpensAndCloses(page: Page): Pr
 }
 
 /**
- * Covers both halves of #1259 without holding two global-symbol locks at once.
- * The second assertion uses a fresh browser context so the login discovery
- * sequence cannot reuse the first phase's long-lived client cache entry.
+ * Covers #1259 and #1391 without holding two global-symbol locks at once.
+ * Every assertion after the first uses a fresh browser context so the login
+ * discovery sequence cannot reuse an earlier priority-server cache entry.
  */
-export async function expectLoginIdentifierSymbolsThroughUi(page: Page): Promise<void> {
+export async function expectLoginSymbolsThroughUi(page: Page): Promise<void> {
   const token = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const placeholderValue = `QA placeholder ${token}`;
-  const identifierValue = `QA identifier ${token}`;
   let restoreSymbol: RestoreGlobalSymbol | undefined;
 
   try {
@@ -195,32 +209,87 @@ export async function expectLoginIdentifierSymbolsThroughUi(page: Page): Promise
 
   const browser = page.context().browser();
   expect(browser, 'the identity symbol check requires a Playwright browser context').not.toBeNull();
-  const appBaseUrl = new URL('.', page.url()).href;
-  const identifierContext = await browser!.newContext({
-    baseURL: appBaseUrl,
-    viewport: page.viewportSize() ?? { width: 1440, height: 900 },
-  });
+  const appBaseUrl = page.url().match(/^(.*\/DisplayObjects\/mobile\/)/)?.[1] ?? '';
+  expect(appBaseUrl, 'the identity symbol check should resolve the C8OForms mobile root URL').not.toBe('');
+  const viewport = page.viewportSize() ?? { width: 1440, height: 900 };
+  const checks: LoginTextSymbolCheck[] = [
+    {
+      symbol: 'C8Oforms.IdentifierValue',
+      value: `QA identifier ${token}`,
+      selector: 'ion-label.class1757506269316:visible',
+      description: 'identifier label',
+      revealLoginForm: true,
+    },
+    {
+      symbol: 'C8Oforms.customHeaderDescription',
+      value: `QA header description ${token}`,
+      selector: '.hero-subtitle:visible',
+      description: 'header description',
+    },
+    {
+      symbol: 'C8Oforms.customContentTitle',
+      value: `QA content title ${token}`,
+      selector: '.login-form-header h1.main-title:visible',
+      description: 'login-card title',
+    },
+    {
+      symbol: 'C8Oforms.customContentDescription',
+      value: `QA content description ${token}`,
+      selector: '.login-form-header .description:visible',
+      description: 'login-card description',
+    },
+  ];
+
+  for (const check of checks) {
+    await expectLoginTextSymbolInFreshContext(browser!, appBaseUrl, viewport, check);
+  }
+}
+
+type LoginTextSymbolCheck = {
+  symbol: string;
+  value: string;
+  selector: string;
+  description: string;
+  revealLoginForm?: boolean;
+};
+
+async function expectLoginTextSymbolInFreshContext(
+  browser: Browser,
+  appBaseUrl: string,
+  viewport: { width: number; height: number },
+  check: LoginTextSymbolCheck,
+): Promise<void> {
+  const context = await browser.newContext({ baseURL: appBaseUrl, viewport });
+  let restoreSymbol: RestoreGlobalSymbol | undefined;
 
   try {
-    await test.step('Set and verify the identifier label server symbol', async () => {
-      restoreSymbol = await setGlobalSymbolForTest('C8Oforms.IdentifierValue', identifierValue);
-      const identifierPage = await identifierContext.newPage();
-      await openUsernamePasswordLoginForm(identifierPage);
+    await test.step(`Set and verify the ${check.description} server symbol`, async () => {
+      restoreSymbol = await setGlobalSymbolForTest(check.symbol, check.value);
+      const symbolPage = await context.newPage();
+      if (check.revealLoginForm) {
+        await openUsernamePasswordLoginForm(symbolPage);
+      } else {
+        await symbolPage.goto('./', { waitUntil: 'domcontentloaded', timeout: 90_000 });
+        await expect(symbolPage.locator(SEL.loginPageRoot).first(), 'login page should be visible').toBeVisible({
+          timeout: 30_000,
+        });
+      }
 
-      const identifierLabel = identifierPage
-        .locator('page-loginpage ion-label:visible')
-        .filter({ hasText: identifierValue });
-      await expect(identifierLabel, 'the signed-out login page should expose one customized identifier label').toHaveCount(1);
+      const customizedText = symbolPage.locator(check.selector).filter({ hasText: check.value });
       await expect(
-        identifierLabel.first(),
-        'the identifier label should use C8Oforms.IdentifierValue verbatim instead of a translated fallback',
-      ).toHaveText(identifierValue);
+        customizedText,
+        `the signed-out login page should expose one customized ${check.description}`,
+      ).toHaveCount(1);
+      await expect(
+        customizedText.first(),
+        `${check.description} should use ${check.symbol} verbatim instead of its translated fallback`,
+      ).toHaveText(check.value);
     });
   } finally {
     try {
       await restoreSymbol?.();
     } finally {
-      await identifierContext.close();
+      await context.close();
     }
   }
 }
@@ -559,6 +628,13 @@ async function selectorApplicationVisible(page: Page, title: string): Promise<bo
 
 async function searchSelectorApplicationsByNameThroughDashboard(page: Page, query: string): Promise<void> {
   await expectNoCodeDashboardReady(page);
+  const input = await selectorApplicationSearchInput(page);
+  await input.fill(query, { timeout: 10_000 });
+  await input.press('Enter', { timeout: 10_000 });
+  await page.waitForTimeout(1_500);
+}
+
+async function selectorApplicationSearchInput(page: Page): Promise<Locator> {
   const input = page
     .locator(
       [
@@ -570,9 +646,17 @@ async function searchSelectorApplicationsByNameThroughDashboard(page: Page, quer
     )
     .first();
   await expect(input, 'selector application search input should be visible').toBeVisible({ timeout: 15_000 });
-  await input.fill(query, { timeout: 10_000 });
-  await input.press('Enter', { timeout: 10_000 });
-  await page.waitForTimeout(1_500);
+  return input;
+}
+
+async function expectCommittedSelectorSearchQuery(page: Page, query: string | null): Promise<void> {
+  const badge = page.locator(FUNCTIONAL_SEL.selectorCommittedSearchBadge).filter({ visible: true });
+  if (query === null) {
+    await expect(badge, 'selector should not display a committed search chip').toHaveCount(0, { timeout: 15_000 });
+    return;
+  }
+  await expect(badge, 'selector should display the committed search chip').toHaveCount(1, { timeout: 15_000 });
+  await expect(badge.first(), 'search chip should equal the last submitted query').toHaveText(query, { timeout: 15_000 });
 }
 
 async function setSelectorAllApplicationsFilter(page: Page, enabled: boolean): Promise<void> {
@@ -645,7 +729,12 @@ export async function createBlankApplicationThroughUi(page: Page, title = `Funct
 export async function createApplicationFromFirstTemplateThroughUi(page: Page): Promise<string> {
   return test.step('Create an application from the first available template', async () => {
     await expectNoCodeDashboardReady(page);
-    const templateCard = await firstVisibleFromLocator(page, page.locator('.class1645547241674'), 'template application card');
+    await expectTemplateCardsRemainContainedThroughUi(page);
+    const templateCard = await firstVisibleFromLocator(
+      page,
+      page.locator(FUNCTIONAL_SEL.selectorTemplateCard),
+      'template application card',
+    );
     await templateCard.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
     await templateCard.click({ timeout: 10_000 }).catch(async () => templateCard.dispatchEvent('click'));
 
@@ -849,6 +938,7 @@ export async function moveApplicationIntoFolderAndAssertThroughUi(
 
 export async function searchApplicationsByNameVariantsThroughUi(page: Page, suffix = `${Date.now()}`): Promise<void> {
   await test.step('Search applications by case, accent, and punctuation', async () => {
+    const folderTitle = `Functional search folder ${suffix}`;
     const cases = [
       {
         title: `Functional Search Case ${suffix}`,
@@ -864,17 +954,288 @@ export async function searchApplicationsByNameVariantsThroughUi(page: Page, suff
       },
     ];
 
+    // A folder makes clearing an empty query observable: #1442 previously
+    // left the selector in a filtered state where folders did not come back.
+    await createFolderAndValidateTitleThroughUi(page, folderTitle);
+
     for (const { title } of cases) {
       await createBlankForm(page, title);
       await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await expectNoCodeDashboardReady(page);
     }
 
-    for (const { title, query } of cases) {
-      await searchSelectorApplicationsByNameThroughDashboard(page, query);
+    for (const [index, { title, query }] of cases.entries()) {
+      const input = await selectorApplicationSearchInput(page);
+      await input.fill(query, { timeout: 10_000 });
+      if (index === 0) {
+        await expectCommittedSelectorSearchQuery(page, null);
+      }
+      await input.press('Enter', { timeout: 10_000 });
+      await expectCommittedSelectorSearchQuery(page, query);
       await expectSelectorSearchKeepsSingleApplication(page, title);
+
+      // Typing and modifier keys edit only the pending query. They must not
+      // erase or rewrite the chip for the last query committed with Enter.
+      await input.press('Control', { timeout: 10_000 });
+      await input.fill(`${query} pending`, { timeout: 10_000 });
+      await expectCommittedSelectorSearchQuery(page, query);
+      await expectSelectorSearchKeepsSingleApplication(page, title);
+      await input.fill(query, { timeout: 10_000 });
     }
+
+    await test.step('Open advanced filters and return to the direct search bar', async () => {
+      const advancedSearch = page.locator(FUNCTIONAL_SEL.selectorAdvancedSearchButton).filter({ visible: true }).first();
+      await expect(advancedSearch, 'direct search should expose the advanced-filter action').toBeVisible({ timeout: 15_000 });
+      await advancedSearch.click({ timeout: 10_000 }).catch(async () => advancedSearch.dispatchEvent('click'));
+
+      const panel = page.locator(FUNCTIONAL_SEL.selectorAdvancedSearchPanel).filter({ visible: true }).first();
+      await expect(panel, 'advanced search panel should open from the direct search bar').toBeVisible({ timeout: 15_000 });
+      const content = page.locator(`${SEL.selectorPageRoot} ion-content`).first();
+      const contentBounds = await content.boundingBox();
+      expect(contentBounds, 'selector content should expose an outside-click surface').not.toBeNull();
+      await page.mouse.click(contentBounds!.x + 4, contentBounds!.y + contentBounds!.height - 4);
+      await expect(panel, 'closing advanced search should restore the direct search bar').toBeHidden({ timeout: 15_000 });
+      await selectorApplicationSearchInput(page);
+    });
+
+    const input = await selectorApplicationSearchInput(page);
+    await input.fill('', { timeout: 10_000 });
+    await input.press('Enter', { timeout: 10_000 });
+    await expectCommittedSelectorSearchQuery(page, null);
+    await expectSelectorFolderVisible(page, folderTitle);
   });
+}
+
+export async function verifyDashboardStateSurvivesImportModalAndViewSwitchThroughUi(
+  page: Page,
+  title = `Functional dashboard state ${Date.now()}`,
+): Promise<void> {
+  await test.step('Preserve selector state while opening the import modal and switching views', async () => {
+    await createBlankForm(page, title);
+    await page.goto('./', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await expectNoCodeDashboardReady(page);
+    await searchSelectorApplicationsByNameThroughDashboard(page, title);
+    await expectSelectorApplicationVisible(page, title);
+    await expectCommittedSelectorSearchQuery(page, title);
+
+    const root = page.locator(SEL.selectorPageRoot).first();
+    const input = await selectorApplicationSearchInput(page);
+    const pendingQuery = `${title} pending`;
+    const stateMarker = `e2e-${Date.now()}`;
+    await root.evaluate((element, marker) => ((element as HTMLElement).dataset.e2eSelectorState = marker), stateMarker);
+    const applicationCard = page
+      .locator('[id^="idcard"]:not([id^="idcardO"])')
+      .filter({ hasText: title, visible: true })
+      .first();
+    await expect(applicationCard, 'searched application card should be visible before opening the modal').toBeVisible({
+      timeout: 15_000,
+    });
+    await applicationCard.evaluate(
+      (element, marker) => ((element as HTMLElement).dataset.e2eSelectorCardState = marker),
+      stateMarker,
+    );
+    await input.fill(pendingQuery, { timeout: 10_000 });
+    const dashboardUrl = page.url();
+
+    const expectStatePreserved = async (context: string) => {
+      await expect(page, `${context} should not navigate away from the selector`).toHaveURL(dashboardUrl);
+      await expect
+        .poll(
+          () => root.evaluate((element) => (element as HTMLElement).dataset.e2eSelectorState ?? ''),
+          { message: `${context} should keep the same selector page instance`, timeout: 15_000 },
+        )
+        .toBe(stateMarker);
+      await expect(input, `${context} should preserve the pending search text`).toHaveValue(pendingQuery);
+      await expectCommittedSelectorSearchQuery(page, title);
+    };
+
+    const importButton = page.locator(FUNCTIONAL_SEL.selectorImportButton).filter({ visible: true }).first();
+    await expect(importButton, 'selector import action should be visible').toBeVisible({ timeout: 15_000 });
+    await importButton.click({ timeout: 10_000 }).catch(async () => importButton.dispatchEvent('click'));
+
+    const modal = page.locator(FUNCTIONAL_SEL.selectorImportModal).last();
+    await expect(modal, 'application import modal should open over the selector').toBeVisible({ timeout: 15_000 });
+    await expectSolidPrimaryImportAction(modal);
+    await expectStatePreserved('opening the import modal');
+
+    const close = modal.locator(FUNCTIONAL_SEL.selectorImportModalCloseButton).filter({ visible: true }).first();
+    await expect(close, 'application import modal close action should be visible').toBeVisible({ timeout: 10_000 });
+    await close.click({ timeout: 10_000 }).catch(async () => close.dispatchEvent('click'));
+    await expect(modal, 'application import modal should close').toBeHidden({ timeout: 15_000 });
+    await expectStatePreserved('closing the import modal');
+    await expect
+      .poll(
+        () => applicationCard.evaluate((element) => (element as HTMLElement).dataset.e2eSelectorCardState ?? ''),
+        { message: 'closing the import modal should not replace or reload the displayed application data', timeout: 15_000 },
+      )
+      .toBe(stateMarker);
+
+    const listView = page.locator(FUNCTIONAL_SEL.selectorListViewButton).filter({ visible: true }).first();
+    await expect(listView, 'selector list-view action should be visible').toBeVisible({ timeout: 15_000 });
+    await listView.click({ timeout: 10_000 }).catch(async () => listView.dispatchEvent('click'));
+    await expectStatePreserved('switching to list view');
+    await expectSelectorApplicationVisible(page, title);
+
+    const gridView = page.locator(FUNCTIONAL_SEL.selectorGridViewButton).filter({ visible: true }).first();
+    await expect(gridView, 'selector grid-view action should be visible').toBeVisible({ timeout: 15_000 });
+    await gridView.click({ timeout: 10_000 }).catch(async () => gridView.dispatchEvent('click'));
+    await expectStatePreserved('switching back to grid view');
+    await expectSelectorApplicationVisible(page, title);
+  });
+}
+
+async function expectTemplateCardsRemainContainedThroughUi(page: Page): Promise<void> {
+  const originalViewport = page.viewportSize();
+
+  try {
+    for (const viewport of [
+      { name: 'desktop', width: 1440, height: 900 },
+      { name: 'narrow desktop', width: 1024, height: 900 },
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const cards = page.locator(`${FUNCTIONAL_SEL.selectorTemplateCard}:visible`);
+      await expect(cards.first(), `${viewport.name} selector should expose a template card`).toBeVisible({ timeout: 30_000 });
+      const cardCount = await cards.count();
+      expect(cardCount, `${viewport.name} selector should expose at least one template`).toBeGreaterThan(0);
+
+      const layoutBeforeExpansion = await page.evaluate(
+        ({ cardSelector, listSelector, moreSelector }) => {
+          const visible = (element: Element): element is HTMLElement => {
+            const rect = (element as HTMLElement).getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+          };
+          const cardElements = [...document.querySelectorAll(cardSelector)].filter(visible);
+          const list = document.querySelector(listSelector) as HTMLElement | null;
+          const more = [...document.querySelectorAll(moreSelector)].find(visible);
+          if (cardElements.length === 0 || !list || !more) return null;
+
+          const listRect = list.getBoundingClientRect();
+          const cardRects = cardElements.map((element) => element.getBoundingClientRect());
+          const firstRowTop = Math.min(...cardRects.map((rect) => rect.top));
+          const firstRowCards = cardRects.filter((rect) => Math.abs(rect.top - firstRowTop) <= 1);
+          const moreRect = more.getBoundingClientRect();
+          const tolerance = 1;
+          return {
+            firstRowContained: firstRowCards.every(
+              (rect) =>
+                rect.left >= listRect.left - tolerance &&
+                rect.right <= listRect.right + tolerance &&
+                rect.top >= listRect.top - tolerance &&
+                rect.bottom <= listRect.bottom + tolerance,
+            ),
+            firstRowInsideViewport: firstRowCards.every(
+              (rect) =>
+                rect.left >= -tolerance &&
+                rect.right <= window.innerWidth + tolerance &&
+                rect.top >= -tolerance &&
+                rect.bottom <= window.innerHeight + tolerance,
+            ),
+            maxCardBottom: Math.max(...cardRects.map((rect) => rect.bottom)),
+            moreTop: moreRect.top,
+            listBottom: listRect.bottom,
+            firstPointerEvents: getComputedStyle(cardElements[0]).pointerEvents,
+          };
+        },
+        {
+          cardSelector: FUNCTIONAL_SEL.selectorTemplateCard,
+          listSelector: FUNCTIONAL_SEL.selectorTemplateList,
+          moreSelector: FUNCTIONAL_SEL.selectorTemplateMoreButton,
+        },
+      );
+
+      expect(layoutBeforeExpansion, `${viewport.name} should expose the template grid and See more control`).not.toBeNull();
+      expect(layoutBeforeExpansion!.firstRowContained, `${viewport.name} first-row template cards should fit their grid`).toBe(true);
+      expect(layoutBeforeExpansion!.firstRowInsideViewport, `${viewport.name} first-row template cards should not be clipped`).toBe(
+        true,
+      );
+      expect(
+        layoutBeforeExpansion!.moreTop,
+        `${viewport.name} See more control should follow the collapsed template grid in normal flow`,
+      ).toBeGreaterThanOrEqual(layoutBeforeExpansion!.listBottom - 1);
+      expect(layoutBeforeExpansion!.firstPointerEvents, `${viewport.name} first template card should remain actionable`).not.toBe(
+        'none',
+      );
+
+      if (layoutBeforeExpansion!.maxCardBottom > layoutBeforeExpansion!.listBottom + 1) {
+        const more = page.locator(FUNCTIONAL_SEL.selectorTemplateMoreButton).filter({ visible: true }).first();
+        await more.click({ timeout: 10_000 }).catch(async () => more.dispatchEvent('click'));
+      }
+
+      await expect
+        .poll(
+          () =>
+            page.evaluate(
+              ({ cardSelector, listSelector, moreSelector }) => {
+                const cardRects = [...document.querySelectorAll<HTMLElement>(cardSelector)].map((element) =>
+                  element.getBoundingClientRect(),
+                );
+                const list = document.querySelector<HTMLElement>(listSelector);
+                const more = document.querySelector<HTMLElement>(moreSelector);
+                if (cardRects.length === 0 || !list || !more) return false;
+                const listRect = list.getBoundingClientRect();
+                const moreRect = more.getBoundingClientRect();
+                const tolerance = 1;
+                const cardsContained = cardRects.every(
+                  (rect) =>
+                    rect.left >= listRect.left - tolerance &&
+                    rect.right <= listRect.right + tolerance &&
+                    rect.top >= listRect.top - tolerance &&
+                    rect.bottom <= listRect.bottom + tolerance,
+                );
+                const maxCardBottom = Math.max(...cardRects.map((rect) => rect.bottom));
+                return cardsContained && moreRect.top >= maxCardBottom - tolerance;
+              },
+              {
+                cardSelector: FUNCTIONAL_SEL.selectorTemplateCard,
+                listSelector: FUNCTIONAL_SEL.selectorTemplateList,
+                moreSelector: FUNCTIONAL_SEL.selectorTemplateMoreButton,
+              },
+            ),
+          {
+            message: `${viewport.name} expanded template grid should contain every card before See more`,
+            timeout: 10_000,
+          },
+        )
+        .toBe(true);
+    }
+  } finally {
+    if (originalViewport) await page.setViewportSize(originalViewport);
+  }
+}
+
+async function expectSolidPrimaryImportAction(modal: Locator): Promise<void> {
+  const button = modal.locator(FUNCTIONAL_SEL.selectorImportModalConfirmButton).filter({ visible: true }).first();
+  await expect(button, 'application import modal should expose its Import action').toBeVisible({ timeout: 15_000 });
+
+  await expectButtonUsesSolidThemeColor(button, '--ion-color-primary', 'application Import action');
+}
+
+async function expectButtonUsesSolidThemeColor(
+  button: Locator,
+  colorVariable: `--${string}`,
+  description: string,
+): Promise<void> {
+  const colors = await button.evaluate((host, variable) => {
+    const native = host.shadowRoot?.querySelector<HTMLElement>('[part="native"]') ?? (host as HTMLElement);
+    const hostStyle = getComputedStyle(host);
+    const nativeStyle = getComputedStyle(native);
+    const themeValue = hostStyle.getPropertyValue(variable).trim();
+    const probe = document.createElement('span');
+    probe.style.backgroundColor = themeValue;
+    document.body.appendChild(probe);
+    const themeColor = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return {
+      backgroundImage: nativeStyle.backgroundImage,
+      backgroundColor: nativeStyle.backgroundColor,
+      themeColor,
+    };
+  }, colorVariable);
+
+  expect(colors.backgroundImage, `${description} should not retain a gradient`).toBe('none');
+  expect(colors.themeColor, `${description} should resolve ${colorVariable}`).not.toBe('rgba(0, 0, 0, 0)');
+  expect(colors.backgroundColor, `${description} should use the resolved ${colorVariable}`).toBe(colors.themeColor);
 }
 
 export async function assertSelectorFiltersThroughUi(

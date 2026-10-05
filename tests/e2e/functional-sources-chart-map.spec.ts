@@ -1,5 +1,6 @@
 import { expect, test } from './fixtures';
 import {
+  assertChartLoadingStateThroughUi,
   configureChartBaserowTableAndAssertPersistenceThroughUi,
   configureMapBaserowTableAndAssertPersistenceThroughUi,
   exerciseChartSourceTypeAndHeightThroughUi,
@@ -22,7 +23,11 @@ test.describe('No-Code Studio functional sources contract - Chart and Map', () =
     viewport: { width: 1920, height: 1080 },
   });
 
-  test('SRC-004 - configure Chart from Baserow', async ({ page }) => {
+  /**
+   * #1433: the Chart filter model request must expose every source column,
+   * including columns that are not assigned to the visible category/value roles.
+   */
+  test('SRC-004 #1433 - configure Chart from Baserow and filter on non-rendered columns', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -34,6 +39,14 @@ test.describe('No-Code Studio functional sources contract - Chart and Map', () =
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await exerciseChartSourceTypeAndHeightThroughUi(page);
+  });
+
+  /** #1450: fixed by 914eb93e in beta265 and historically QA-validated in beta294. */
+  test('CMP-CHART-002 #1450 - sourced Chart shows loading feedback without demo labels', async ({ page }) => {
+    test.setTimeout(420_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertChartLoadingStateThroughUi(page);
   });
 
   /**
@@ -83,7 +96,8 @@ test.describe('No-Code Studio functional sources contract - Chart and Map', () =
     }
   });
 
-  test('SRC-005 - configure Map from Baserow', async ({ page }) => {
+  // #1437: this journey uses the dedicated Source Selection and Source Configuration tabs.
+  test('SRC-005 #1437 - configure Map from Baserow through split source tabs', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);

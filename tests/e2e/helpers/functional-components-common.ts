@@ -9,9 +9,12 @@ import {
   addVisibilityCondition,
   createTextBusinessLogicFormula,
   configureComponentNavigationFilter,
+  containerChildDropZoneCountsDuringPaletteDrags,
   deleteLayoutChild,
+  dragSourcePaletteEntryToTinyMceStrict,
   dragPaletteComponentInto,
   filterComponentPaletteByIcon,
+  fillVisibilityValueTextEditor,
   getFormDocument,
   layoutChildComponentTypes,
   moveLayoutChildToStart,
@@ -36,6 +39,7 @@ import {
   setDescriptionText,
   setTechnicalId,
   setTextDefaultValueJavascript,
+  setTextDefaultValueText,
 } from './studio';
 
 interface PaletteComponentCase {
@@ -77,6 +81,48 @@ interface DataVisibilityTarget {
   icon: string;
   tag: string;
 }
+
+interface ActionRailSnapshot {
+  dimensions: Array<{ width: number; height: number; x: number }>;
+  semanticStyles: Record<string, { color: string; borderColor: string }>;
+}
+
+const ACTION_RAIL_LABELS: Record<string, readonly string[]> = {
+  close: ['Close', 'Fermer', 'Cerrar', 'Chiudere'],
+  delete: ['Delete', 'Supprimer', 'Eliminar', 'Eliminare'],
+  copy: [
+    'Copy here',
+    'Copier ici',
+    'Copiar aquí',
+    'Copia qui',
+    'Copy to page',
+    'Copier vers page',
+    'Copiar a página',
+    'Copia in pagina',
+  ],
+  transform: [
+    'Transform into choice',
+    'Transform into single-choice grid',
+    'Transform into list',
+    'Transform into checkbox',
+    'Transform into checkboxes',
+    'Tranformer en choix',
+    'Tranformer en grille à choix unique',
+    'Tranformer en Liste',
+    'Tranformer en cases',
+    'Tranformer en cases à cocher',
+    'Transformar en opción',
+    'Transformar en cuadrícula de opción única',
+    'Transformar en lista',
+    'Transformar en casilla',
+    'Transformar en casillas',
+    'Trasforma in scelta',
+    'Trasforma in griglia a scelta singola',
+    'Trasforma in lista',
+    'Trasforma in casella',
+    'Trasforma in caselle',
+  ],
+} as const;
 
 interface ContainerVisibilityTarget {
   type: ContainerVisibilityTargetType;
@@ -379,6 +425,13 @@ export async function duplicateConfiguredButtonAndAssertCopyThroughUi(page: Page
   const originalTechnicalId = `functional_button_${suffix}`;
   const buttonLabel = `Functional duplicate ${suffix}`;
   let toastCountBeforeDuplication = 0;
+  let targetPageName = '';
+  let localTechnicalIds: string[] = [];
+
+  await test.step('Create the destination page used by Copy to page', async () => {
+    targetPageName = await addPageThroughPagesPanel(page);
+    await selectEditorPageByName(page, 'Page 1');
+  });
 
   await test.step('Add and configure a Button component', async () => {
     await acceptRgpdIfVisible(page);
@@ -415,15 +468,15 @@ export async function duplicateConfiguredButtonAndAssertCopyThroughUi(page: Page
 
   await test.step('Verify the copy and feedback identify distinct source and destination IDs', async () => {
     await expectButtonCopiesWithLabel(page, buttonLabel, 2, 'duplicated Button should keep the configured label');
-    const technicalIds = await readComponentTechnicalIds(page, SEL.buttonComponent, 2);
-    expect(technicalIds, 'duplicated Button set should include the original technical identifier').toContain(originalTechnicalId);
-    expect(new Set(technicalIds).size, `technical identifiers should be distinct: ${technicalIds.join(', ')}`).toBe(2);
-    const copiedTechnicalId = technicalIds.find(
+    localTechnicalIds = await readComponentTechnicalIds(page, SEL.buttonComponent, 2);
+    expect(localTechnicalIds, 'duplicated Button set should include the original technical identifier').toContain(originalTechnicalId);
+    expect(new Set(localTechnicalIds).size, `technical identifiers should be distinct: ${localTechnicalIds.join(', ')}`).toBe(2);
+    const copiedTechnicalId = localTechnicalIds.find(
       (technicalId) => technicalId !== originalTechnicalId && technicalId.trim().length > 0,
     );
     expect(
       copiedTechnicalId,
-      `one duplicated Button ID should differ from ${originalTechnicalId}: ${technicalIds.join(', ')}`,
+      `one duplicated Button ID should differ from ${originalTechnicalId}: ${localTechnicalIds.join(', ')}`,
     ).toBeTruthy();
     if (!copiedTechnicalId) throw new Error('duplicated Button should expose a generated technical identifier');
 
@@ -444,6 +497,99 @@ export async function duplicateConfiguredButtonAndAssertCopyThroughUi(page: Page
   await test.step('Open Preview and verify both Button copies render the configured label', async () => {
     await openPreview(page, SEL.buttonComponent);
     await expectButtonCopiesWithLabel(page, buttonLabel, 2, 'viewer should render both duplicated Button labels');
+  });
+
+  await test.step('Copy the configured Button to another page through the redesigned alert', async () => {
+    const applicationId = page.url().match(/\/viewer\/([^/?#]+)/)?.[1] ?? '';
+    expect(applicationId, 'cross-page Button copy needs the current application id').toMatch(/^\d+$/);
+    await openEditor(page, applicationId);
+    await expect(
+      page.locator(`${SEL.buttonComponent}:visible`).first(),
+      'configured Button should reappear before opening the Pages panel',
+    ).toBeVisible({ timeout: 60_000 });
+    await selectEditorPageByName(page, 'Page 1');
+    await openComponentConfigAt(page, SEL.buttonComponent, 0);
+
+    const copyToPage = page.locator('button.c8o-btn-copy:visible').nth(1);
+    await expect(copyToPage, 'a second-page fixture should expose Copy to page after Copy here').toBeVisible({
+      timeout: 15_000,
+    });
+    await copyToPage.click({ timeout: 10_000 }).catch(async () => copyToPage.dispatchEvent('click'));
+
+    const alert = page.locator('ion-alert.alert-custom.text-generic:not(.overlay-hidden)').last();
+    await expect(alert, 'Copy to page should open the redesigned alert').toBeVisible({ timeout: 15_000 });
+    const cancel = alert.locator('button.btn--info').first();
+    const validate = alert.locator('button.btn--valid').first();
+    await expect(cancel, 'Copy to page cancel action should use the informational button style').toBeVisible();
+    await expect(validate, 'Copy to page validation should use the valid button style').toBeVisible();
+    await expectAlertControlsInsideViewport(page, alert, [cancel, validate]);
+
+    const targetChoice = alert.locator('button.alert-checkbox, button[role="checkbox"]').filter({ hasText: targetPageName }).first();
+    await expect(targetChoice, `Copy to page should list destination ${targetPageName}`).toBeVisible({ timeout: 10_000 });
+    await targetChoice.click({ timeout: 10_000 }).catch(async () => targetChoice.dispatchEvent('click'));
+    await validate.click({ timeout: 10_000 }).catch(async () => validate.dispatchEvent('click'));
+    await expect(alert, 'Copy to page alert should close after validation').toBeHidden({ timeout: 15_000 });
+    await closeComponentConfiguration(page);
+
+    await selectEditorPageByName(page, targetPageName);
+    await expectButtonCopiesWithLabel(page, buttonLabel, 1, 'destination page should render the configured Button copy');
+    const destinationIds = await readComponentTechnicalIds(page, SEL.buttonComponent, 1);
+    expect(destinationIds[0], 'destination copy should expose a generated technical identifier').toBeTruthy();
+    expect(localTechnicalIds, 'destination copy technical identifier should differ from both local Buttons').not.toContain(
+      destinationIds[0],
+    );
+  });
+}
+
+/**
+ * Deliberately bounded #1371 sample: compare the action rails rendered for a
+ * Button and a Radio. This does not claim that every settings surface in Studio
+ * is covered. #1387 is asserted against the complete labels shipped for every
+ * supported locale.
+ */
+export async function assertRepresentativeComponentActionRailsThroughUi(page: Page): Promise<void> {
+  await test.step('Create representative Button and Radio components', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.button);
+    await addComponent(page, PALETTE_ICON.button, { allowEditorApiFallback: false });
+    await openComponentsPalette(page, PALETTE_ICON.radio);
+    await addComponent(page, PALETTE_ICON.radio, { allowEditorApiFallback: false });
+    await expect(page.locator(`${SEL.buttonComponent}:visible`), 'representative Button should be visible').toHaveCount(1, {
+      timeout: 30_000,
+    });
+    await expect(page.locator(`${SEL.radioComponent}:visible`), 'representative Radio should be visible').toHaveCount(1, {
+      timeout: 30_000,
+    });
+  });
+
+  let buttonRail: ActionRailSnapshot;
+  await test.step('Assert the Button action rail geometry and complete localized labels', async () => {
+    await openComponentConfig(page, SEL.buttonComponent);
+    buttonRail = await actionRailSnapshot(page, 'Button', false);
+    await closeComponentConfiguration(page);
+  });
+
+  await test.step('Compare the Radio rail and assert its transformation label', async () => {
+    await openComponentConfig(page, SEL.radioComponent);
+    const radioRail = await actionRailSnapshot(page, 'Radio', true);
+    for (const semantic of ['close', 'delete', 'copy']) {
+      expect(
+        radioRail.semanticStyles[semantic],
+        `Radio ${semantic} action should keep the same semantic colors as Button`,
+      ).toEqual(buttonRail!.semanticStyles[semantic]);
+    }
+    expect(radioRail.dimensions[0].width, 'Button and Radio rail actions should use the same width').toBeCloseTo(
+      buttonRail!.dimensions[0].width,
+      0,
+    );
+    expect(radioRail.dimensions[0].height, 'Button and Radio rail actions should use the same height').toBeCloseTo(
+      buttonRail!.dimensions[0].height,
+      0,
+    );
+    expect(radioRail.dimensions[0].x, 'Button and Radio action rails should keep the same right-side alignment').toBeCloseTo(
+      buttonRail!.dimensions[0].x,
+      0,
+    );
   });
 }
 
@@ -504,6 +650,70 @@ async function expectRecentlyDuplicatedComponentFeedback(page: Page, component: 
       },
     )
     .toBe(true);
+}
+
+export async function disableTextInputAndAssertViewerExclusionThroughUi(
+  page: Page,
+  applicationId: string,
+): Promise<void> {
+  const technicalId = `functional_disabled_text_${Date.now()}`;
+  const componentWrapper = page.locator(
+    `[id="@prefixc8oitem${technicalId}@prefixc8otypetext"]`,
+  );
+
+  await test.step('Create a Text input and disable it from the component action rail', async () => {
+    await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.textInput);
+    await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.textComponent);
+    await setTechnicalId(page, technicalId);
+
+    const disableButton = page.locator('button.c8o-btn-disable:visible').first();
+    await expect(disableButton, 'component action rail should expose the enable/disable control').toBeVisible({
+      timeout: 15_000,
+    });
+    await disableButton.click({ timeout: 10_000 }).catch(async () => disableButton.dispatchEvent('click'));
+    await expect(disableButton, 'disable control should expose its active state').toHaveClass(/c8o-btn-disable-active/, {
+      timeout: 15_000,
+    });
+    await closeComponentConfiguration(page);
+    await expect(
+      componentWrapper.locator('.c8o-editor-component-disabled').first(),
+      'disabled Text input should remain in the Studio canvas with its disabled marker',
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  await test.step('Verify the disabled component is omitted from Preview', async () => {
+    await openPreview(page, SEL.viewerPage);
+    await expect(page.locator(`#${technicalId}`), 'disabled Text input should not render in Preview').toHaveCount(0, {
+      timeout: 15_000,
+    });
+  });
+
+  await test.step('Reload Studio, re-enable the retained component, and verify it renders again', async () => {
+    await openEditor(page, applicationId);
+    await expect(componentWrapper, 'disabled Text input configuration should persist after reopening Studio').toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(componentWrapper.locator('.c8o-editor-component-disabled').first()).toBeVisible({ timeout: 15_000 });
+    await openComponentConfig(page, SEL.textComponent);
+    const disableButton = page.locator('button.c8o-btn-disable:visible').first();
+    await expect(disableButton, 'persisted component should keep its disabled action state').toHaveClass(
+      /c8o-btn-disable-active/,
+      { timeout: 15_000 },
+    );
+    await disableButton.click({ timeout: 10_000 }).catch(async () => disableButton.dispatchEvent('click'));
+    await expect(disableButton, 're-enabled component should clear the disabled action state').not.toHaveClass(
+      /c8o-btn-disable-active/,
+      { timeout: 15_000 },
+    );
+    await closeComponentConfiguration(page);
+
+    await openPreview(page, `#${technicalId}`);
+    await expect(page.locator(`#${technicalId}`).first(), 're-enabled Text input should render in Preview').toBeVisible({
+      timeout: 30_000,
+    });
+  });
 }
 
 export async function reorderButtonsAndAssertPersistenceThroughUi(page: Page): Promise<void> {
@@ -852,11 +1062,16 @@ export async function configureVisibilityOnContainerComponentTypesThroughUi(page
   });
 }
 
-export async function configureConditionalComponentNavigationThroughUi(page: Page): Promise<void> {
+export async function configureConditionalComponentNavigationThroughUi(
+  page: Page,
+  applicationId: string,
+): Promise<void> {
   const suffix = Date.now();
+  const rightHandFieldTechnicalId = `functional_nav_rhs_${suffix}`;
   const radioTechnicalId = `functional_nav_radio_${suffix}`;
   const rejectedOption = `Functional blocked ${suffix}`;
   const acceptedOption = `Functional accepted ${suffix}`;
+  const rightHandInitialValue = `Functional source initial ${suffix}`;
   const targetPageMarker = `Functional target page ${suffix}`;
   let targetPageName = '';
 
@@ -875,8 +1090,15 @@ export async function configureConditionalComponentNavigationThroughUi(page: Pag
     await selectEditorPageByName(page, 'Page 1');
   });
 
-  await test.step('Create a Radio component with conditional page navigation', async () => {
+  await test.step('Create the right-hand field and a Radio with conditional navigation', async () => {
     await acceptRgpdIfVisible(page);
+    await openComponentsPalette(page, PALETTE_ICON.textInput);
+    await addComponent(page, PALETTE_ICON.textInput, { allowEditorApiFallback: false });
+    await openComponentConfig(page, SEL.textComponent);
+    await setTechnicalId(page, rightHandFieldTechnicalId);
+    await setTextDefaultValueText(page, rightHandInitialValue);
+    await closeComponentConfiguration(page);
+
     await openComponentsPalette(page, PALETTE_ICON.radio);
     await addComponent(page, PALETTE_ICON.radio, { allowEditorApiFallback: false });
     await expect(page.locator(`${SEL.radioComponent}:visible`).first(), 'navigation Radio component should be visible').toBeVisible({
@@ -893,35 +1115,37 @@ export async function configureConditionalComponentNavigationThroughUi(page: Pag
       action: 'goTo',
       pageName: targetPageName,
     });
+    await expectNavigationOperatorFamily(page);
     await closeComponentConfiguration(page);
   });
 
-  await test.step('Open Preview and verify the false condition does not navigate', async () => {
+  await test.step('Verify a literal right-hand value handles false then true navigation', async () => {
     await openPreview(page, SEL.radioComponent);
-    await expect(page.locator(`#${radioTechnicalId}`).first(), 'viewer should start on Page 1 with the Radio visible').toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(page.getByText(targetPageMarker, { exact: true }).first(), 'target page marker should start hidden').toBeHidden({
-      timeout: 30_000,
-    });
-
-    await selectViewerRadioOption(page, radioTechnicalId, rejectedOption);
-    await expect(page.locator(`#${radioTechnicalId}`).first(), 'false condition should keep the Radio page visible').toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(page.getByText(targetPageMarker, { exact: true }).first(), 'false condition should not show target page').toBeHidden({
-      timeout: 30_000,
-    });
+    await expectConditionalRadioNavigation(page, radioTechnicalId, rejectedOption, acceptedOption, targetPageMarker);
   });
 
-  await test.step('Select the matching value and verify navigation to the target page', async () => {
-    await clickViewerRadioOptionForNavigation(page, radioTechnicalId, acceptedOption);
-    await expect(page.getByText(targetPageMarker, { exact: true }).first(), 'true condition should show the target page').toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(page.locator(`#${radioTechnicalId}`).first(), 'true condition should leave the Radio page').toBeHidden({
-      timeout: 30_000,
-    });
+  await test.step('Use the right-hand value as an advanced JavaScript expression', async () => {
+    await reopenNavigationFilter(page, applicationId, radioTechnicalId);
+    await switchNavigationFilterValueToJavaScript(page);
+    await expectNavigationMonacoReturn(page, JSON.stringify(acceptedOption));
+    await closeComponentConfiguration(page);
+
+    await openPreview(page, SEL.radioComponent);
+    await expectConditionalRadioNavigation(page, radioTechnicalId, rejectedOption, acceptedOption, targetPageMarker);
+  });
+
+  await test.step('Replace the right-hand value with another form field source', async () => {
+    await reopenNavigationFilter(page, applicationId, radioTechnicalId);
+    await switchNavigationFilterValueToText(page);
+    await fillVisibilityValueTextEditor(page, '');
+    await dragSourcePaletteEntryToTinyMceStrict(page, 'form', rightHandFieldTechnicalId);
+    await closeComponentConfiguration(page);
+
+    await openPreview(page, SEL.radioComponent);
+    const rightHandInput = page.locator(`#${rightHandFieldTechnicalId} input:visible`).first();
+    await expect(rightHandInput, 'viewer should expose the right-hand Text input source').toBeVisible({ timeout: 30_000 });
+    await rightHandInput.fill(acceptedOption);
+    await expectConditionalRadioNavigation(page, radioTechnicalId, rejectedOption, acceptedOption, targetPageMarker);
   });
 }
 
@@ -980,6 +1204,21 @@ export async function configureHorizontalLayoutChildrenThroughUi(page: Page): Pr
       })
       .toHaveLength(2);
   });
+
+  await test.step('Show only valid child drop zones while dragging over the Horizontal layout', async () => {
+    const counts = await containerChildDropZoneCountsDuringPaletteDrags(page, SEL.layoutViewer);
+    expect(counts.validComponent, 'a Text input drag should expose Horizontal layout child insertion zones').toBeGreaterThan(0);
+    expect(counts.group, 'a Group drag must not expose forbidden Horizontal layout child zones').toBe(0);
+    expect(counts.horizontalLayout, 'a nested Horizontal layout drag should expose valid child insertion zones').toBeGreaterThan(0);
+  });
+
+  await test.step('Nest a Horizontal layout in the existing Horizontal layout', async () => {
+    await dragPaletteComponentInto(page, PALETTE_ICON.layout, SEL.layoutViewer);
+    await expect(
+      page.locator(`${SEL.layoutViewer} ${SEL.layoutViewer}`),
+      'the editor should render the nested Horizontal layout inside its parent',
+    ).toHaveCount(1, { timeout: 30_000 });
+  });
 }
 
 export async function assertHorizontalLayoutConfigurationRendersImmediatelyThroughUi(
@@ -1007,21 +1246,21 @@ export async function assertHorizontalLayoutConfigurationRendersImmediatelyThrou
     });
 
     const editorLayout = page.locator(`${SEL.layoutViewer}:visible`).first();
-    await expectLayoutColumnsRatio(editorLayout.locator(LAYOUT_SEL.editorColumns), 3, 'editor');
+    await expectLayoutColumnsRatio(editorLayout, 3, 'editor');
     await closeComponentConfiguration(page);
   });
 
   await test.step('Verify Preview renders the same 9/3 proportions', async () => {
     await openPreview(page, LAYOUT_SEL.viewer);
     const viewerLayout = page.locator(`${LAYOUT_SEL.viewer}:visible`).first();
-    await expectLayoutColumnsRatio(viewerLayout.locator(LAYOUT_SEL.editorColumns), 3, 'Preview');
+    await expectLayoutColumnsRatio(viewerLayout, 3, 'Preview');
   });
 
   await test.step('Return to the editor and verify the 9/3 layout remains correct', async () => {
     await openEditor(page, applicationId);
     const editorLayout = page.locator(`${SEL.layoutViewer}:visible`).first();
     await expect(editorLayout, 'Horizontal layout should render again after returning from Preview').toBeVisible({ timeout: 30_000 });
-    await expectLayoutColumnsRatio(editorLayout.locator(LAYOUT_SEL.editorColumns), 3, 'editor');
+    await expectLayoutColumnsRatio(editorLayout, 3, 'editor');
   });
 }
 
@@ -1081,6 +1320,13 @@ export async function configureGroupChildrenVisibilityReorderAndDeleteThroughUi(
       .toBe(2);
   });
 
+  await test.step('Show only valid child drop zones while dragging over the Group', async () => {
+    const counts = await containerChildDropZoneCountsDuringPaletteDrags(page, GROUP_SEL.editor);
+    expect(counts.validComponent, 'a Text input drag should expose Group child insertion zones').toBeGreaterThan(0);
+    expect(counts.group, 'a Group drag must not expose forbidden Group child zones').toBe(0);
+    expect(counts.horizontalLayout, 'a Horizontal layout drag must not expose forbidden Group child zones').toBe(0);
+  });
+
   await test.step('Set Group visibility to never and verify the viewer hides it with its children', async () => {
     await closeComponentConfiguration(page);
     await openComponentConfig(page, GROUP_SEL.editor);
@@ -1102,6 +1348,223 @@ export async function configureGroupChildrenVisibilityReorderAndDeleteThroughUi(
       timeout: 15_000,
     });
   });
+}
+
+async function expectNavigationOperatorFamily(page: Page): Promise<void> {
+  const expected = [
+    'equals',
+    'different',
+    'minus',
+    'minusequals',
+    'greater',
+    'greaterequals',
+    'among_following',
+    'out_following',
+    'contains',
+    'not_contains',
+    'is_empty',
+    'is_filled',
+  ].sort();
+  const select = page.locator('c8oforms-filterbr:visible ion-select.class1758189195757').first();
+  await expect(select, 'Navigation filter should expose its operator selector').toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(
+      () =>
+        select.evaluate((element) =>
+          [...element.querySelectorAll('ion-select-option')]
+            .map((option) => String((option as HTMLElement & { value?: unknown }).value ?? option.getAttribute('value') ?? ''))
+            .filter(Boolean)
+            .sort(),
+        ),
+      {
+        message: 'Navigation filter should expose the complete #505 operator family for Radio',
+        timeout: 15_000,
+      },
+    )
+    .toEqual(expected);
+}
+
+async function expectConditionalRadioNavigation(
+  page: Page,
+  technicalId: string,
+  rejectedOption: string,
+  acceptedOption: string,
+  targetPageMarker: string,
+): Promise<void> {
+  const radio = page.locator(`#${technicalId}`).first();
+  const marker = page.getByText(targetPageMarker, { exact: true }).first();
+  await expect(radio, 'viewer should start on Page 1 with the controlled Radio visible').toBeVisible({ timeout: 30_000 });
+  await expect(marker, 'target page marker should start hidden').toBeHidden({ timeout: 30_000 });
+
+  await selectViewerRadioOption(page, technicalId, rejectedOption);
+  await expect(radio, 'a false navigation condition should keep Page 1 visible').toBeVisible({ timeout: 30_000 });
+  await expect(marker, 'a false navigation condition should keep the target page hidden').toBeHidden({ timeout: 30_000 });
+
+  await clickViewerRadioOptionForNavigation(page, technicalId, acceptedOption);
+  await expect(marker, 'a true navigation condition should show the target page').toBeVisible({ timeout: 30_000 });
+  await expect(radio, 'a true navigation condition should leave Page 1').toBeHidden({ timeout: 30_000 });
+
+  const previousPage = page
+    .getByText(/^\s*(?:Previous page|Page précédente|Página anterior|Pagina precedente|上一页)\s*$/i)
+    .first();
+  await expect(previousPage, 'target page should expose its previous-page action').toBeVisible({ timeout: 15_000 });
+  await previousPage.click({ timeout: 10_000 }).catch(async () => previousPage.dispatchEvent('click'));
+  await expect(radio, 'returning from the target page should restore Page 1').toBeVisible({ timeout: 30_000 });
+  await selectViewerRadioOption(page, technicalId, rejectedOption);
+  await expect(marker, 'resetting the Radio should leave the target page hidden for the next Preview run').toBeHidden({
+    timeout: 15_000,
+  });
+}
+
+async function reopenNavigationFilter(page: Page, applicationId: string, radioTechnicalId: string): Promise<void> {
+  await openEditor(page, applicationId);
+  await expect(
+    page.locator(`${SEL.radioComponent}:visible`).first(),
+    'configured Radio should reappear before opening the Pages panel',
+  ).toBeVisible({ timeout: 60_000 });
+  await selectEditorPageByName(page, 'Page 1');
+  await openComponentConfig(page, SEL.radioComponent);
+  await expect(
+    page.locator(`${SEL.technicalIdInput}:visible`).first(),
+    'the navigation configuration should belong to the controlled Radio',
+  ).toHaveValue(radioTechnicalId, { timeout: 15_000 });
+  await openConfigTabById(page, 'navigation_tab_selector');
+  await expect(page.locator('c8oforms-filterbr:visible').first(), 'the persisted Navigation filter should reopen').toBeVisible({
+    timeout: 15_000,
+  });
+}
+
+async function switchNavigationFilterValueToJavaScript(page: Page): Promise<void> {
+  const button = page.locator('c8oforms-filterbr:visible ion-button.class1768907106582').first();
+  await expect(button, 'Navigation filter should expose JavaScript right-hand-value mode').toBeVisible({ timeout: 15_000 });
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await confirmNavigationModeWarningIfVisible(page);
+  await expect(
+    page.locator('c8oforms-filterbr:visible c8oforms-monacoeditor .monaco-editor:visible').first(),
+    'Navigation JavaScript right-hand-value editor should be visible',
+  ).toBeVisible({ timeout: 15_000 });
+}
+
+async function switchNavigationFilterValueToText(page: Page): Promise<void> {
+  const button = page.locator('c8oforms-filterbr:visible ion-button.class1768907106516').first();
+  await expect(button, 'Navigation filter should expose text/source right-hand-value mode').toBeVisible({ timeout: 15_000 });
+  await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+  await confirmNavigationModeWarningIfVisible(page);
+  await expect(
+    page.locator('c8oforms-filterbr:visible .tox-edit-area, c8oforms-filterbr:visible [contenteditable="true"].mce-content-body').last(),
+    'Navigation text/source right-hand-value editor should be visible',
+  ).toBeVisible({ timeout: 15_000 });
+}
+
+async function confirmNavigationModeWarningIfVisible(page: Page): Promise<void> {
+  const alert = page.locator('ion-alert:not(.overlay-hidden)').last();
+  if (!(await alert.isVisible({ timeout: 1_500 }).catch(() => false))) return;
+  const confirm = alert.locator('button.btn--valid, button.alert-button').last();
+  await expect(confirm, 'Navigation value-mode warning should expose a confirmation action').toBeVisible({ timeout: 5_000 });
+  await confirm.click({ timeout: 10_000 }).catch(async () => confirm.dispatchEvent('click'));
+  await expect(alert, 'Navigation value-mode warning should close').toBeHidden({ timeout: 10_000 });
+}
+
+async function expectNavigationMonacoReturn(page: Page, returnExpression: string): Promise<void> {
+  const editor = page.locator('c8oforms-filterbr:visible c8oforms-monacoeditor .monaco-editor:visible').first();
+  const lines = editor.locator('.view-lines');
+  const expectedLine = `return ${returnExpression};`;
+  await expect
+    .poll(() => lines.innerText().then(normalizeFunctionalText), {
+      message: 'Navigation JavaScript editor should generate the expected return statement',
+      timeout: 10_000,
+    })
+    .toContain(expectedLine);
+  await expect(editor, `Navigation JavaScript should contain ${expectedLine}`).toContainText(expectedLine, {
+    timeout: 10_000,
+  });
+}
+
+async function actionRailSnapshot(page: Page, componentName: string, requireTransform: boolean): Promise<ActionRailSnapshot> {
+  const selector = [
+    'button.c8o-btn-close:visible',
+    'button.c8o-btn-delete:visible',
+    'button.c8o-btn-copy:visible',
+    'button.c8o-btn-transform:visible',
+  ].join(', ');
+  const actions = page.locator(selector);
+  await expect
+    .poll(() => actions.count(), {
+      message: `${componentName} should expose its representative action rail`,
+      timeout: 15_000,
+    })
+    .toBeGreaterThanOrEqual(requireTransform ? 4 : 3);
+  if (requireTransform) {
+    await expect(page.locator('button.c8o-btn-transform:visible').first(), `${componentName} should expose a transform action`).toBeVisible();
+  }
+
+  const snapshot = await actions.evaluateAll((buttons, args) => {
+    const normalize = (value: string | null | undefined) => (value ?? '').replace(/\s+/g, ' ').trim();
+    const dimensions: Array<{ width: number; height: number; x: number }> = [];
+    const semanticStyles: Record<string, { color: string; borderColor: string }> = {};
+    for (const button of buttons as HTMLButtonElement[]) {
+      const box = button.getBoundingClientRect();
+      const label = button.querySelector<HTMLElement>('.label');
+      const labelBox = label?.getBoundingClientRect();
+      const labelText = normalize(label?.innerText);
+      const semantic = ['close', 'delete', 'copy', 'transform'].find((name) => button.classList.contains(`c8o-btn-${name}`));
+      if (!semantic || !(args.allowedLabels as Record<string, string[]>)[semantic]?.includes(labelText)) {
+        throw new Error(
+          `${args.componentName} action must use a complete localized #1387 label: semantic=${semantic} label="${labelText}"`,
+        );
+      }
+      if (
+        !labelBox ||
+        labelBox.left < box.left - 1 ||
+        labelBox.right > box.right + 1 ||
+        labelBox.top < box.top - 1 ||
+        labelBox.bottom > box.bottom + 1
+      ) {
+        throw new Error(`${args.componentName} action label "${labelText}" must remain inside its button`);
+      }
+      dimensions.push({ width: box.width, height: box.height, x: box.x });
+      if (semantic && semanticStyles[semantic] == null) {
+        const style = getComputedStyle(button);
+        semanticStyles[semantic] = { color: style.color, borderColor: style.borderTopColor };
+      }
+    }
+    return { dimensions, semanticStyles };
+  }, { allowedLabels: ACTION_RAIL_LABELS, componentName });
+
+  expect(snapshot.dimensions.length, `${componentName} rail should contain measured actions`).toBeGreaterThan(0);
+  const first = snapshot.dimensions[0];
+  expect(first.width, `${componentName} rail actions should be wide enough to remain discoverable`).toBeGreaterThanOrEqual(60);
+  expect(first.height, `${componentName} rail actions should be tall enough to remain discoverable`).toBeGreaterThanOrEqual(50);
+  for (const dimension of snapshot.dimensions) {
+    expect(dimension.width, `${componentName} action widths should be consistent`).toBeCloseTo(first.width, 0);
+    expect(dimension.height, `${componentName} action heights should be consistent`).toBeCloseTo(first.height, 0);
+    expect(dimension.x, `${componentName} actions should share one vertical rail`).toBeCloseTo(first.x, 0);
+  }
+  for (const semantic of ['close', 'delete', 'copy']) {
+    expect(snapshot.semanticStyles[semantic], `${componentName} should expose the ${semantic} semantic action`).toBeTruthy();
+  }
+  return snapshot;
+}
+
+async function expectAlertControlsInsideViewport(page: Page, alert: Locator, controls: Locator[]): Promise<void> {
+  const alertBox = await alert.boundingBox();
+  const viewport = page.viewportSize();
+  expect(alertBox, 'Copy to page alert should have measurable geometry').not.toBeNull();
+  expect(viewport, 'Copy to page geometry assertion requires a viewport').not.toBeNull();
+  if (!alertBox || !viewport) return;
+  expect(alertBox.x, 'Copy to page alert should start inside the viewport').toBeGreaterThanOrEqual(0);
+  expect(alertBox.y, 'Copy to page alert should start inside the viewport').toBeGreaterThanOrEqual(0);
+  expect(alertBox.x + alertBox.width, 'Copy to page alert should fit horizontally').toBeLessThanOrEqual(viewport.width + 1);
+  expect(alertBox.y + alertBox.height, 'Copy to page alert should fit vertically').toBeLessThanOrEqual(viewport.height + 1);
+  for (const control of controls) {
+    const box = await control.boundingBox();
+    expect(box, 'Copy to page action should have measurable geometry').not.toBeNull();
+    if (!box) continue;
+    expect(box.x).toBeGreaterThanOrEqual(alertBox.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(alertBox.x + alertBox.width + 1);
+    expect(box.y).toBeGreaterThanOrEqual(alertBox.y - 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(alertBox.y + alertBox.height + 1);
+  }
 }
 
 async function selectEditorPageByName(page: Page, pageName: string): Promise<void> {
@@ -1498,7 +1961,7 @@ function normalizeFunctionalText(text: string): string {
   return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-async function addPaletteComponentIntoGroup(page: Page, paletteIcon: string, expectedChildCount: number): Promise<void> {
+export async function addPaletteComponentIntoGroup(page: Page, paletteIcon: string, expectedChildCount: number): Promise<void> {
   await openComponentsPalette(page, paletteIcon);
   const tile = await draggableFunctionalPaletteTileForIcon(page, paletteIcon);
   const group = page.locator(`${GROUP_SEL.editor}:visible`).first();
@@ -1899,19 +2362,19 @@ async function expectInvalidTechnicalIdentifierRestoresPreviousValue(
 }
 
 async function expectLayoutColumnsRatio(
-  columns: Locator,
+  layout: Locator,
   expectedRatio: number,
   surface: 'editor' | 'Preview',
 ): Promise<void> {
-  await expect(columns, `${surface} should render exactly two Layout columns`).toHaveCount(2, { timeout: 30_000 });
   await expect
     .poll(
       async () => {
-        const boxes = await columns.evaluateAll((elements) =>
-          elements.map((element) => {
-            const box = (element as HTMLElement).getBoundingClientRect();
+        const boxes = await layout.evaluate((element, columnSelector) =>
+          [...element.querySelectorAll(columnSelector)].map((column) => {
+            const box = (column as HTMLElement).getBoundingClientRect();
             return { width: box.width, top: box.top, height: box.height };
           }),
+          LAYOUT_SEL.editorColumns,
         );
         if (boxes.length !== 2 || boxes.some((box) => box.width <= 0 || box.height <= 0)) {
           return false;

@@ -35,7 +35,21 @@ test('#1322 - background actions populate the first editor palette without reloa
       await addComponent(page, PALETTE_ICON.button);
       await openButtonWorkflow(page);
       await page.locator(SEL.componentPanelButton).first().click();
-      await expect(page.locator(SEL.componentPaletteSearch)).toBeVisible();
+      const paletteSearch = page.locator(SEL.componentPaletteSearch).first();
+      await expect(paletteSearch).toBeVisible();
+      await paletteSearch.evaluate((element) => {
+        const search = element as HTMLElement & { value?: string; shadowRoot?: ShadowRoot | null };
+        const root = search.shadowRoot ?? search;
+        const input = root.querySelector('input') as HTMLInputElement | null;
+        search.value = '';
+        if (input) {
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+        }
+        search.dispatchEvent(new CustomEvent('ionInput', { bubbles: true, composed: true, detail: { value: '' } }));
+        search.dispatchEvent(new CustomEvent('ionChange', { bubbles: true, composed: true, detail: { value: '' } }));
+      });
       await expect.poll(() => intercepted, { message: 'the editor should request its actions tree' }).toBeGreaterThan(0);
       await expect(mailAction, 'tree-sourced action should not exist before the tree arrives').toHaveCount(0);
     });

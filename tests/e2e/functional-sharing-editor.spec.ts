@@ -32,7 +32,12 @@ test.describe('No-Code Studio functional sharing editor contract', () => {
     await verifyEditorCollaboratorsCsvImportAddsExistingUserThroughUi(page);
   });
 
-  test('SHARE-001 - add a collaborator from the editor', async ({ page }) => {
+  /**
+   * #1451: the generic collaborator modal still used a gradient Save action
+   * after the solid-button redesign. Commit 7ec0f78c aligned the modal in
+   * beta315/beta316 and the fix was historically QA-validated in beta320.
+   */
+  test('SHARE-001 #1451 - add a collaborator with a solid-color Save action', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await verifyEditorCollaboratorCanBeAddedThroughUi(page);
@@ -44,8 +49,16 @@ test.describe('No-Code Studio functional sharing editor contract', () => {
     await verifyEditorCollaboratorCanBeRemovedThroughUi(page);
   });
 
-  test('SHARE-006 - published application share notification fields are configurable', async ({ page }) => {
-    test.setTimeout(300_000);
+  /**
+   * #1445: reported in beta257. Commit 2821b1a5 removed the fixed invitee-row
+   * height in beta259; selector/data-page follow-ups shipped in beta261 and
+   * the complete fix was historically QA-validated in beta262. Automated E2E
+   * coverage was runtime-validated against test-nocode 2.2.0-beta371.
+   */
+  test('SHARE-006 #1445 - published sharing keeps notification fields and invitee response rows readable', async ({
+    page,
+  }) => {
+    test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await verifyPublishedShareNotificationFieldsThroughUi(page);
   });

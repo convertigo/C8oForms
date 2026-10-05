@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import {
   PALETTE_ICON,
   SEL,
@@ -9,7 +9,7 @@ import {
   closePageSettings,
   closeComponentConfig,
   countComponents,
-  expectEditorSidebarButtonTitles,
+  editorSidebarTooltipTitles,
   expectEditorSidebarButtonsVisible,
   expectPagesPanelDefaultAfterWorkflowNavigation,
   openComponentConfig,
@@ -31,6 +31,209 @@ const DUPLICATE_PAGE_NAME_MESSAGE = /Ce nom existe deja|Ce nom existe d.j.|This 
 const PAGE_DUPLICATE_ACTION = '[data-id="duplicate-action-pages"]';
 const WORKFLOWS_SCROLL_CONTAINER = '#bloc-palette .class1773251123673';
 const WORKFLOW_STRESS_BUTTON_COUNT = 10;
+const PAGE_SETTINGS_HEADER_ICON = 'ion-button.class1664198060282';
+const APPLICATION_SETTINGS_HEADER_ICON = 'ion-button.class1774950763931';
+const PAGE_NAVIGATION_INHERITANCE_TOGGLE = 'c8oforms-toggleswitch.class1781188989133';
+const PAGE_NAVIGATION_BUTTONS_TOGGLE = 'c8oforms-toggleswitch.class1779359000054';
+const WORKFLOW_EDIT_ACTION = '[data-id="edit-action-workflows"]';
+const EDITABLE_WORKFLOW_NAME_INPUT = 'ion-input.class1742208653180';
+const FLOW_HEADER = '.class1780661784366';
+const FLOW_HEADER_HOVER_AFFORDANCE = '.class1780661784486';
+const CURRENT_PAGE_ADD_ACTION = 'ion-button.class1780583331059';
+const LEGACY_PAGE_ADD_ACTION = 'ion-button.class1750084426535';
+const AI_FAB = 'ion-fab.class1730193473111';
+const AI_FAB_BUTTON = 'ion-fab-button.class1730193473102';
+const LOCALIZED_DISABLED_LABEL =
+  /^(?:Disabled|Désactivé|Discapacitado|Disabilitato|已禁用)$/;
+
+interface DecorativeSettingsIconState {
+  cursor: string;
+  hostDisabled: boolean;
+  opacity: string;
+  shadowDisabled: boolean;
+}
+
+/**
+ * #1321: the icons heading Page and Application settings are informational,
+ * not actions. Assert their actual host/shadow disabled state and neutral
+ * visual behavior, then verify the localized Disabled option in Page >
+ * Navigation uses the corrected capitalization.
+ */
+export async function assertPageAndApplicationSettingsIconsAreDisabledThroughUi(page: Page): Promise<void> {
+  await test.step('Assert the Page settings header icon is disabled', async () => {
+    await openPageSettings(page);
+    await expectDecorativeSettingsIconDisabled(
+      page.locator(`${PAGE_SETTINGS_HEADER_ICON}:visible`).first(),
+      'Page settings icon',
+    );
+  });
+
+  await test.step('Assert Page Navigation exposes the corrected localized Disabled label', async () => {
+    const navigationTab = page.locator(SEL.pageSettingsNavigationTab).first();
+    await expect(navigationTab, 'Page settings Navigation tab should be visible').toBeVisible({ timeout: 15_000 });
+    await navigationTab.click({ timeout: 10_000 }).catch(async () => navigationTab.dispatchEvent('click'));
+    await expect
+      .poll(() => activePageSettingsSection(page), {
+        message: 'Page settings should switch to Navigation',
+        timeout: 10_000,
+      })
+      .toBe('navigation');
+
+    const inheritance = page.locator(`${PAGE_NAVIGATION_INHERITANCE_TOGGLE}:visible`).first();
+    await expect(inheritance, 'Page Navigation should expose the global-navigation inheritance choice').toBeVisible({
+      timeout: 15_000,
+    });
+    const individual = inheritance.locator('button.c8o-btn:visible').nth(0);
+    await individual.click({ timeout: 10_000 }).catch(async () => individual.dispatchEvent('click'));
+    await expect(individual, 'individual Page navigation should be selected').toHaveClass(/c8o-btn-selected/, {
+      timeout: 10_000,
+    });
+
+    const buttonModes = page.locator(`${PAGE_NAVIGATION_BUTTONS_TOGGLE}:visible`).first().locator('button.c8o-btn:visible');
+    await expect(buttonModes, 'Page Navigation should expose its three button modes').toHaveCount(3, { timeout: 15_000 });
+    await expect
+      .poll(async () => (await buttonModes.nth(0).innerText()).trim(), {
+        message: 'the localized disabled mode should use the corrected label',
+        timeout: 10_000,
+      })
+      .toMatch(LOCALIZED_DISABLED_LABEL);
+  });
+
+  await test.step('Assert the Application settings header icon is disabled', async () => {
+    await closePageSettings(page);
+    await openApplicationSettingsFromSidebar(page);
+    await expectDecorativeSettingsIconDisabled(
+      page.locator(`${APPLICATION_SETTINGS_HEADER_ICON}:visible`).first(),
+      'Application settings icon',
+    );
+  });
+}
+
+async function expectDecorativeSettingsIconDisabled(icon: Locator, description: string): Promise<void> {
+  await expect(icon, `${description} should be visible`).toBeVisible({ timeout: 15_000 });
+  const state = await icon.evaluate((host): DecorativeSettingsIconState => {
+    const button = host as HTMLElement & { disabled?: boolean };
+    const shadowButton = host.shadowRoot?.querySelector('button');
+    const style = getComputedStyle(host);
+    return {
+      cursor: style.cursor,
+      hostDisabled: button.disabled === true || button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true',
+      opacity: style.opacity,
+      shadowDisabled: shadowButton instanceof HTMLButtonElement && shadowButton.disabled,
+    };
+  });
+  expect(
+    state.hostDisabled || state.shadowDisabled,
+    `${description} should be disabled at the host or native-button level`,
+  ).toBe(true);
+  expect(state.cursor, `${description} should not advertise a clickable pointer`).not.toBe('pointer');
+  expect(Number(state.opacity), `${description} should retain its informational icon opacity`).toBe(1);
+}
+
+/**
+ * #1372/#1373: only user-created workflows are editable. Their list row must
+ * expose the edit affordance on hover and their canvas header must advertise
+ * that it can be configured. Formula and submission system workflows must do
+ * neither, and selecting either one must close an already-open rename panel.
+ */
+export async function verifyEditableWorkflowAffordancesThroughUi(page: Page): Promise<void> {
+  await test.step('Create one editable workflow through the component Palette', async () => {
+    const buttonComponents = page.locator(SEL.buttonComponent);
+    const before = await buttonComponents.count();
+    await openComponentsPalette(page, PALETTE_ICON.button);
+    await addComponent(page, PALETTE_ICON.button, { allowEditorApiFallback: false });
+    await expect
+      .poll(() => buttonComponents.count(), {
+        message: 'adding a Button through the Palette should create its editable workflow',
+        timeout: 30_000,
+      })
+      .toBe(before + 1);
+  });
+
+  await openWorkflowsPanel(page);
+  const userFlow = page.locator(`${SEL.buttonWorkflowEntry}:visible`).first();
+  const formulas = page.locator('#unique_formulas:visible').first();
+  const submission = page.locator('#unique_submit:visible').first();
+
+  await test.step('Expose edit only when hovering a user-created workflow', async () => {
+    await expect(userFlow, 'the Button should expose a user-created workflow').toBeVisible({ timeout: 15_000 });
+    await expect(formulas, 'the Formula system workflow should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(submission, 'the submission system workflow should be visible').toBeVisible({ timeout: 15_000 });
+
+    await userFlow.hover();
+    await expect(
+      userFlow.locator(WORKFLOW_EDIT_ACTION),
+      'hovering a user-created workflow should expose its edit control',
+    ).toBeVisible({ timeout: 10_000 });
+
+    for (const [name, systemFlow] of [
+      ['Formula', formulas],
+      ['submission', submission],
+    ] as const) {
+      await systemFlow.hover();
+      await expect(
+        systemFlow.locator(WORKFLOW_EDIT_ACTION),
+        `${name} is a system workflow and must not expose an edit control on hover`,
+      ).toHaveCount(0);
+    }
+  });
+
+  await test.step('Close user-flow rename settings when selecting each system workflow', async () => {
+    for (const [name, systemFlow] of [
+      ['Formula', formulas],
+      ['submission', submission],
+    ] as const) {
+      await openUserWorkflowRenameSettings(userFlow);
+      await expect(
+        page.locator(`${EDITABLE_WORKFLOW_NAME_INPUT}:visible`),
+        'the edit affordance should open the editable user-workflow name field',
+      ).toHaveCount(1, { timeout: 10_000 });
+
+      await systemFlow.click({ timeout: 10_000 }).catch(async () => systemFlow.dispatchEvent('click'));
+      await expect(
+        page.locator(`${EDITABLE_WORKFLOW_NAME_INPUT}:visible`),
+        `selecting ${name} should close the user-workflow rename field`,
+      ).toHaveCount(0, { timeout: 10_000 });
+    }
+  });
+
+  await test.step('Show canvas-header hover feedback only for the editable workflow', async () => {
+    await userFlow.click({ timeout: 10_000 }).catch(async () => userFlow.dispatchEvent('click'));
+    await expectWorkflowHeaderHoverAffordance(page, true, 'user-created workflow');
+
+    await formulas.click({ timeout: 10_000 }).catch(async () => formulas.dispatchEvent('click'));
+    await expectWorkflowHeaderHoverAffordance(page, false, 'Formula system workflow');
+
+    await submission.click({ timeout: 10_000 }).catch(async () => submission.dispatchEvent('click'));
+    await expectWorkflowHeaderHoverAffordance(page, false, 'submission system workflow');
+  });
+}
+
+async function openUserWorkflowRenameSettings(userFlow: Locator): Promise<void> {
+  await userFlow.hover();
+  const edit = userFlow.locator(WORKFLOW_EDIT_ACTION);
+  await expect(edit, 'user-workflow edit control should be visible after hover').toBeVisible({ timeout: 10_000 });
+  await edit.click({ position: { x: 2, y: 2 }, timeout: 10_000 }).catch(async () => edit.dispatchEvent('click'));
+}
+
+async function expectWorkflowHeaderHoverAffordance(
+  page: Page,
+  editable: boolean,
+  description: string,
+): Promise<void> {
+  const visibleHeaders = page.locator(`${FLOW_HEADER}:visible`);
+  await expect(visibleHeaders, `${description} should render one current workflow header`).toHaveCount(1, {
+    timeout: 15_000,
+  });
+  const header = visibleHeaders.first();
+  await header.hover();
+  const affordance = header.locator(FLOW_HEADER_HOVER_AFFORDANCE);
+  if (editable) {
+    await expect(affordance, `${description} should show its edit feedback on hover`).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(affordance, `${description} must not show editable hover feedback`).toHaveCount(0);
+  }
+}
 
 export async function navigateEditorShellSectionsThroughUi(page: Page): Promise<void> {
   await test.step('Open the component Palette panel', async () => {
@@ -39,7 +242,8 @@ export async function navigateEditorShellSectionsThroughUi(page: Page): Promise<
       timeout: 15_000,
     });
     await expectEditorSidebarButtonsVisible(page);
-    await expectEditorSidebarButtonTitles(page);
+    const titles = await editorSidebarTooltipTitles(page);
+    expect(new Set(titles).size, 'the four editor sidebar actions should expose distinct tooltip titles').toBe(4);
     await expectEditorCanvasVisible(page);
   });
 
@@ -192,7 +396,75 @@ export async function openSettingsFromWorkflowsAndKeepSidebarNavigable(page: Pag
 }
 
 export async function addPageAndNavigateThroughPagesPanel(page: Page): Promise<void> {
-  const newPageName = await addPageThroughPagesPanel(page);
+  let newPageName = '';
+
+  await test.step('Use the single prominent Add Page action', async () => {
+    await acceptRgpdIfVisible(page);
+    await openPagesPanel(page);
+
+    const addPage = page.locator(`${CURRENT_PAGE_ADD_ACTION}:visible`);
+    await expect(addPage, 'Pages should expose exactly one current Add Page action').toHaveCount(1, {
+      timeout: 15_000,
+    });
+    await expect(
+      page.locator(LEGACY_PAGE_ADD_ACTION),
+      'the obsolete upper-right Add Page action should not remain in the DOM',
+    ).toHaveCount(0);
+
+    const button = addPage.first();
+    await expect(button, 'current Add Page action should be visible').toBeVisible({ timeout: 15_000 });
+    await expect(
+      button.locator('ion-icon.class1780583331077[role="img"]'),
+      'current Add Page action should keep its plus icon',
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(button.locator('ion-label'), 'current Add Page action should expose a localized visible label').not.toHaveText(
+      /^\s*$/,
+    );
+
+    const layout = await button.evaluate((element) => {
+      const host = element as HTMLElement;
+      const panel = host.closest<HTMLElement>('#bloc-palette');
+      const paintedPanel = panel?.querySelector<HTMLElement>('.class1650357035508') ?? panel;
+      const native = host.shadowRoot?.querySelector<HTMLElement>('[part="native"]') ?? null;
+      const hostBox = host.getBoundingClientRect();
+      const panelBox = panel?.getBoundingClientRect() ?? null;
+      const hostStyle = getComputedStyle(host);
+      const panelStyle = paintedPanel ? getComputedStyle(paintedPanel) : null;
+      return {
+        borderTopWidth: Number.parseFloat(hostStyle.borderTopWidth),
+        height: hostBox.height,
+        nativeWidth: native?.getBoundingClientRect().width ?? 0,
+        panelBackground: panelStyle?.backgroundColor ?? '',
+        withinPanel:
+          panelBox != null &&
+          hostBox.left >= panelBox.left - 1 &&
+          hostBox.right <= panelBox.right + 1 &&
+          hostBox.top >= panelBox.top - 1 &&
+          hostBox.bottom <= panelBox.bottom + 1,
+        width: hostBox.width,
+      };
+    });
+    expect(layout.width, 'Add Page action should span a readily discoverable panel row').toBeGreaterThanOrEqual(120);
+    expect(layout.height, 'Add Page action should retain a usable click height').toBeGreaterThanOrEqual(28);
+    expect(layout.nativeWidth, 'Add Page native button should expose a measurable click target').toBeGreaterThanOrEqual(60);
+    expect(layout.borderTopWidth, 'Add Page action should be visually separated from the page list').toBeGreaterThanOrEqual(1);
+    expect(layout.panelBackground, 'Add Page action should sit on a painted Pages-panel background').not.toMatch(
+      /^(?:transparent|rgba\(0,\s*0,\s*0,\s*0\))$/,
+    );
+    expect(layout.withinPanel, 'Add Page action should remain fully contained in the Pages panel').toBe(true);
+
+    const beforeNames = await visiblePageNames(page);
+    await button.click({ timeout: 10_000 }).catch(async () => button.dispatchEvent('click'));
+    await expect
+      .poll(() => visiblePageNames(page), {
+        message: 'clicking the current Add Page action should create exactly one page',
+        timeout: 20_000,
+      })
+      .toHaveLength(beforeNames.length + 1);
+    const afterNames = await visiblePageNames(page);
+    newPageName = afterNames.find((name) => !beforeNames.includes(name)) ?? '';
+    expect(newPageName, `new page should be identifiable after ${afterNames.join(', ')}`).not.toBe('');
+  });
 
   await test.step('Navigate to the newly added page from the Pages panel', async () => {
     await openPagesPanel(page);
@@ -206,6 +478,109 @@ export async function addPageAndNavigateThroughPagesPanel(page: Page): Promise<v
       timeout: 15_000,
     });
   });
+}
+
+/** #1487: the AI FAB remains fully visible when the optional Brevo widget is absent. */
+export async function verifyAiFloatingActionButtonWithoutBrevoThroughUi(page: Page): Promise<void> {
+  const sequencesEndpoint = '**/projects/C8Oforms/.json';
+  let hasProjectRequests = 0;
+  let brevoConfigurationRequests = 0;
+  const environmentGuard = async (route: Route): Promise<void> => {
+    const body = route.request().postData() ?? '';
+    if (body.includes('HasProject')) {
+      hasProjectRequests += 1;
+      await route.fulfill({
+        body: JSON.stringify({ has: true }),
+        contentType: 'application/json',
+        status: 200,
+      });
+      return;
+    }
+    if (body.includes('getBrevoChatId')) {
+      brevoConfigurationRequests += 1;
+      await route.fulfill({
+        body: JSON.stringify({ BrevoConversationsID: '' }),
+        contentType: 'application/json',
+        status: 200,
+      });
+      return;
+    }
+    await route.continue();
+  };
+
+  await page.route(sequencesEndpoint, environmentGuard);
+  try {
+    await test.step('Reload Edit mode with AI present and Brevo absent', async () => {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
+      await expect
+        .poll(() => hasProjectRequests, {
+          message: 'Edit mode should check that the AI project is present',
+          timeout: 30_000,
+        })
+        .toBeGreaterThan(0);
+      await expect
+        .poll(() => brevoConfigurationRequests, {
+          message: 'the application shell should resolve the absent Brevo configuration',
+          timeout: 30_000,
+        })
+        .toBeGreaterThan(0);
+      await expect(page.locator('#brevo-conversations'), 'Brevo widget should remain absent for this regression guard').toHaveCount(0);
+    });
+
+    await test.step('Keep the 60x60 AI FAB fully inside the viewport', async () => {
+      const fab = page.locator(`${AI_FAB}:visible`).first();
+      const button = fab.locator(`${AI_FAB_BUTTON}:visible`).first();
+      await expect(fab, 'AI FAB container should be visible when HasProject returns true').toBeVisible({ timeout: 30_000 });
+      await expect(button, 'AI FAB button should be visible without Brevo').toBeVisible({ timeout: 15_000 });
+      await expect
+        .poll(() => fab.evaluate((element) => (element as HTMLElement).style.marginBottom), {
+          message: 'AI FAB should use the no-Brevo bottom offset',
+          timeout: 15_000,
+        })
+        .toBe('70px');
+
+      const geometry = await fab.evaluate((element, buttonSelector) => {
+        const host = element as HTMLElement;
+        const button = host.querySelector<HTMLElement>(buttonSelector);
+        const hostBox = host.getBoundingClientRect();
+        const buttonBox = button?.getBoundingClientRect() ?? null;
+        const centerTarget = document.elementFromPoint(
+          hostBox.left + hostBox.width / 2,
+          hostBox.top + hostBox.height / 2,
+        );
+        return {
+          buttonHeight: buttonBox?.height ?? 0,
+          buttonWidth: buttonBox?.width ?? 0,
+          clickableAtCenter: centerTarget != null && (centerTarget === host || host.contains(centerTarget)),
+          height: hostBox.height,
+          insideViewport:
+            hostBox.left >= 0 &&
+            hostBox.top >= 0 &&
+            hostBox.right <= window.innerWidth &&
+            hostBox.bottom <= window.innerHeight,
+          width: hostBox.width,
+        };
+      }, AI_FAB_BUTTON);
+
+      expect(geometry.width, 'AI FAB container width').toBeCloseTo(60, 0);
+      expect(geometry.height, 'AI FAB container height').toBeCloseTo(60, 0);
+      expect(geometry.buttonWidth, 'AI FAB button width').toBeCloseTo(60, 0);
+      expect(geometry.buttonHeight, 'AI FAB button height').toBeCloseTo(60, 0);
+      expect(geometry.insideViewport, 'AI FAB should remain entirely within the visible viewport').toBe(true);
+      expect(geometry.clickableAtCenter, 'AI FAB center should not be clipped or covered').toBe(true);
+    });
+
+    await test.step('Open the AI assistant from the visible FAB', async () => {
+      const button = page.locator(`${AI_FAB_BUTTON}:visible`).first();
+      await button.click({ timeout: 10_000 });
+      await expect(
+        page.locator('ion-modal.aichat:visible page-aichat').first(),
+        'clicking the AI FAB should open the AI assistant modal',
+      ).toBeVisible({ timeout: 30_000 });
+    });
+  } finally {
+    await page.unroute(sequencesEndpoint, environmentGuard);
+  }
 }
 
 export async function renamePageWithValidationThroughUi(page: Page, validName = `Functional page ${Date.now()}`): Promise<void> {
@@ -758,6 +1133,7 @@ async function dragPageBefore(page: Page, sourceName: string, targetName: string
   const target = page.locator(SEL.pageRow).filter({ hasText: targetName }).first();
   await expect(source, `source page row ${sourceName} should be visible before drag`).toBeVisible({ timeout: 15_000 });
   await expect(target, `target page row ${targetName} should be visible before drag`).toBeVisible({ timeout: 15_000 });
+  const orderBeforeNativeDrag = await visiblePageNames(page);
 
   await source.dragTo(target, {
     sourcePosition: { x: 16, y: 16 },
@@ -766,7 +1142,7 @@ async function dragPageBefore(page: Page, sourceName: string, targetName: string
   }).catch(() => undefined);
 
   const orderAfterNativeDrag = await visiblePageNames(page);
-  if (orderAfterNativeDrag[0] === sourceName) {
+  if (JSON.stringify(orderAfterNativeDrag) !== JSON.stringify(orderBeforeNativeDrag)) {
     return;
   }
 

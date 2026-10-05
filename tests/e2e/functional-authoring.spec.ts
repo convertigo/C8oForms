@@ -15,6 +15,7 @@ import {
   renameApplicationAndAssertPersistenceThroughUi,
   reopenExistingApplicationFromSelectorThroughUi,
   searchApplicationsByNameVariantsThroughUi,
+  verifyDashboardStateSurvivesImportModalAndViewSwitchThroughUi,
   verifyLongApplicationNamePresentationThroughUi,
 } from './helpers/functional-studio';
 
@@ -55,7 +56,15 @@ test.describe('No-Code Studio functional authoring', () => {
     await createBlankApplicationThroughUi(page);
   });
 
-  test('APP-002 - create an application from a template', async ({ page }) => {
+  /**
+   * #1444 was reported in 2.2.0-beta256. The selector template region still
+   * imposed a fixed 165px height and absolutely positioned its See more
+   * control, clipping the lower edge of template cards and overlapping the
+   * following content. Fix 194cc8bd disables the fixed height and restores the
+   * control to normal flow; it first shipped in 2.2.0-beta278 and was
+   * historically QA-validated in 2.2.0-beta282.
+   */
+  test('APP-002 #1444 - create an application from a fully visible template card', async ({ page }) => {
     await loginWithUsernamePassword(page);
     await createApplicationFromFirstTemplateThroughUi(page);
   });
@@ -88,8 +97,14 @@ test.describe('No-Code Studio functional authoring', () => {
     await moveApplicationIntoFolderAndAssertThroughUi(page);
   });
 
-  test('APP-008 - search applications by name variants', async ({ page }) => {
-    test.setTimeout(150_000);
+  /**
+   * #1442 introduced the direct-search UI in beta262. Its query-chip
+   * lifecycle was corrected through beta321, where QA historically validated
+   * the final behavior. Runtime validation of this functional owner on current
+   * test-nocode is pending.
+   */
+  test('APP-008 #1442 - search applications by name variants and preserve the committed query', async ({ page }) => {
+    test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await searchApplicationsByNameVariantsThroughUi(page);
   });
@@ -110,5 +125,23 @@ test.describe('No-Code Studio functional authoring', () => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await verifyLongApplicationNamePresentationThroughUi(page);
+  });
+
+  /**
+   * #1440 was reported in 2.2.0-beta256. Commit f2b6cd67 replaced the Import
+   * modal action's purple gradient with the resolved primary theme color; it
+   * first shipped in 2.2.0-beta257 and was historically QA-validated in
+   * 2.2.0-beta262.
+   *
+   * #1441 was reported in 2.2.0-beta256. Commit b73acff6 stopped the import
+   * modal from refreshing the selector (beta257), and commit 2daa686f made
+   * grid/list switches update in place (beta292). QA historically validated
+   * the complete behavior in beta294. Current test-nocode validation remains
+   * pending.
+   */
+  test('APP-013 #1440 #1441 - import styling and view switches preserve in-progress state', async ({ page }) => {
+    test.setTimeout(180_000);
+    await loginWithUsernamePassword(page);
+    await verifyDashboardStateSurvivesImportModalAndViewSwitchThroughUi(page);
   });
 });

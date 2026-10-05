@@ -48,8 +48,8 @@ test.describe('No-Code Studio functional media components', () => {
   /**
    * #1280: reported while beta104 was current (timing inference). The reopened
    * Location case was fixed by 986b5c81 then e0dd7e2e, first shipped and
-   * historically QA-validated in beta116. Current latest-only runtime
-   * validation is pending.
+   * historically QA-validated in beta116. Automated E2E coverage was
+   * runtime-validated against test-nocode 2.2.0-beta371.
    */
   test('CMP-LOCATION-001 #1280 - Location action style, accepted permission, value and submission', async ({ page }) => {
     test.setTimeout(240_000);

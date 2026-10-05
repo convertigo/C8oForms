@@ -8,8 +8,10 @@ import {
   configureTextInputCommonPropertiesThroughUi,
   configureConditionalComponentNavigationThroughUi,
   configureHorizontalLayoutChildrenThroughUi,
+  assertRepresentativeComponentActionRailsThroughUi,
   deleteTextInputCancelThenConfirmThroughUi,
   duplicateConfiguredButtonAndAssertCopyThroughUi,
+  disableTextInputAndAssertViewerExclusionThroughUi,
   renameTextInputTechnicalIdentifierThroughUi,
   reorderButtonsAndAssertPersistenceThroughUi,
   validateTextInputTechnicalIdentifierErrorsThroughUi,
@@ -54,9 +56,13 @@ test.describe('No-Code Studio functional common component contract', () => {
     await deleteTextInputCancelThenConfirmThroughUi(page);
   });
 
-  // #1298: duplication must select/scroll to the copy and provide visible feedback.
-  test('CMP-COM-005 - duplicate a configured component', async ({ page }) => {
-    test.setTimeout(240_000);
+  /**
+   * #1298: duplication must select/scroll to the copy and identify both ends.
+   * #1388: Copy to page must use the redesigned alert without regressing the
+   * cross-page copy itself.
+   */
+  test('CMP-COM-005 #1298 #1388 - duplicate a configured component locally and to another page', async ({ page }) => {
+    test.setTimeout(300_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await duplicateConfiguredButtonAndAssertCopyThroughUi(page);
@@ -84,11 +90,17 @@ test.describe('No-Code Studio functional common component contract', () => {
     await configureSelectDefaultValuesInAllModesThroughUi(page);
   });
 
-  test('CMP-COM-010 - component navigation with a condition', async ({ page }) => {
+  /**
+   * #505 asks the shared navigation filter to support the complete operator
+   * family and right-hand values authored as text, another form field, or an
+   * advanced JavaScript expression. The complete contract was runtime-validated
+   * on test-nocode running 2.2.0-beta371.
+   */
+  test('CMP-COM-010 #505 - component navigation with text source and JavaScript conditions', async ({ page }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);
-    await createBlankApplicationThroughUi(page);
-    await configureConditionalComponentNavigationThroughUi(page);
+    const applicationId = await createBlankApplicationThroughUi(page);
+    await configureConditionalComponentNavigationThroughUi(page, applicationId);
   });
 
   // #1251: filtering must keep each palette result bound to its own hover resources.
@@ -99,7 +111,33 @@ test.describe('No-Code Studio functional common component contract', () => {
     await assertFilteredComponentPaletteHoverHasNo404sThroughUi(page);
   });
 
-  test('CMP-LAYOUT-001 - Horizontal layout children add reorder and delete', async ({ page }) => {
+  /**
+   * #1436: disabled components stay configured and visibly marked in Studio,
+   * but are omitted from Preview until explicitly re-enabled.
+   */
+  test('CMP-COM-012 #1436 - disable a component without removing its configuration', async ({ page }) => {
+    test.setTimeout(300_000);
+    await loginWithUsernamePassword(page);
+    const applicationId = await createBlankApplicationThroughUi(page);
+    await disableTextInputAndAssertViewerExclusionThroughUi(page, applicationId);
+  });
+
+  /**
+   * Representative, deliberately bounded coverage for #1371: this compares
+   * the action rails of a Button and a Radio component. It does not claim to
+   * exhaust every Studio settings page. #1387 is protected by requiring every
+   * sampled action's visible label to match one complete supported-locale
+   * wording and to remain geometrically contained in its button. This bounded
+   * contract was runtime-validated on test-nocode running 2.2.0-beta371.
+   */
+  test('CMP-COM-013 #1371 #1387 - Button and Radio action rails stay consistent and explicit', async ({ page }) => {
+    test.setTimeout(300_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await assertRepresentativeComponentActionRailsThroughUi(page);
+  });
+
+  test('CMP-LAYOUT-001 #1379 #1463 - Horizontal layout children, nesting, and valid drop-zone feedback', async ({ page }) => {
     test.setTimeout(240_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
@@ -118,7 +156,7 @@ test.describe('No-Code Studio functional common component contract', () => {
     await assertHorizontalLayoutConfigurationRendersImmediatelyThroughUi(page, applicationId);
   });
 
-  test('CMP-GROUP-001 - Group children visibility reorder and delete', async ({ page }) => {
+  test('CMP-GROUP-001 #1379 - Group children visibility reorder delete and valid drop-zone feedback', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);

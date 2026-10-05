@@ -2,6 +2,7 @@ import { test } from './fixtures';
 import {
   exerciseDateAlternateDisplayFormatThroughUi,
   exerciseDateDefaultBoundsFormatAndSubmitThroughUi,
+  exerciseDateManualInputValidationThroughUi,
   exerciseSliderBoundsLabelsAndViewerValueThroughUi,
   exerciseTimeAlternateDisplayFormatThroughUi,
   exerciseTimeDefaultFormatInputAndSubmitThroughUi,
@@ -33,6 +34,14 @@ test.describe('No-Code Studio functional date and time component values', () => 
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
     await exerciseDateAlternateDisplayFormatThroughUi(page);
+  });
+
+  /** #1490: first shipped in beta333, finalized in beta335, and historically QA-validated in beta337. */
+  test('CMP-DATE-001 #1490 - manual Date entry persists and validates impossible dates', async ({ page }) => {
+    test.setTimeout(300_000);
+    await loginWithUsernamePassword(page);
+    await createBlankApplicationThroughUi(page);
+    await exerciseDateManualInputValidationThroughUi(page);
   });
 
   test.fixme('CMP-DATE-001 - Date alternate display format runtime rendering contract', async () => {

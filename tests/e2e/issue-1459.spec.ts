@@ -41,7 +41,7 @@ const COLUMNS = [NAME, GROUP, FILTER_ONLY];
 
 test.setTimeout(300_000);
 
-test('#1459 - Grid Filter keeps all Baserow columns after Group by is selected', async ({ page }) => {
+test('#1083 #1459 - Grid Group by remains configurable without restricting Filter columns', async ({ page }) => {
   const token = mintCurrentWorkerMcpToken();
   const catalog = await test.step('Ensure the Baserow fixture', () =>
     ensureBaserowTable(

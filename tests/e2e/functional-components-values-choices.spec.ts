@@ -64,7 +64,11 @@ test.describe('No-Code Studio functional choice component values', () => {
     await exerciseRadioGroupCustomRowsOptionsThroughUi(page);
   });
 
-  test('CMP-SELECT-001 - Select local options default and dropdown sizing', async ({ page }) => {
+  /**
+   * #1466: reported in beta297. Fixes e5ca2f78, 67dc710b and f9506af4
+   * restored the dedicated Select default-value contract; QA validated beta323.
+   */
+  test('CMP-SELECT-001 #1466 - Select local options default persistence and dropdown sizing', async ({ page }) => {
     test.setTimeout(300_000);
     await loginWithUsernamePassword(page);
     await createBlankApplicationThroughUi(page);
