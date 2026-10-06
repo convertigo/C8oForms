@@ -1347,7 +1347,7 @@ export async function assertGridJavaScriptFilterAwaitsAsyncValueThroughUi(page: 
     });
     await replaceVisibleFilterMonacoCode(
       page,
-      `(async ()=>{\n\treturn ${JSON.stringify(GRID_INTERACTION_VISIBLE_STATUS)};\n})();`,
+      `(async ()=>{ return ${JSON.stringify(GRID_INTERACTION_VISIBLE_STATUS)}; })();`,
     );
     await closeComponentConfig(page);
   });
@@ -1557,9 +1557,16 @@ export async function configureChartBaserowTableAndAssertPersistenceThroughUi(pa
       CHART_SOURCE_IGNORED_VALUE,
     );
     await page.keyboard.press('Escape');
-    const configuration = page.locator('c8oforms-datasourceeditor button.class1775995541940:visible').first();
+    // The source actions (configure, filter, sort...) are the variable buttons listed beside the source editor, not
+    // inside it; the first one (forms_config) brings the table configuration back after the Filter panel.
+    const configuration = page
+      .locator('c8oforms-button_variable.class1775996201003 button.class1775995541940:visible')
+      .first();
     await expect(configuration, 'Chart source configuration action should remain available').toBeVisible({ timeout: 15_000 });
     await configuration.click();
+    await expect(configuration, 'Chart source configuration action should be selected').toHaveClass(/figma-button--selected/, {
+      timeout: 10_000,
+    });
   });
 
   await test.step('Reopen Chart source configuration and verify persisted roles', async () => {
@@ -2688,22 +2695,37 @@ async function clickSourcePickerNavigationEntry(
   await entry.click({ timeout: 10_000 }).catch(async () => entry.dispatchEvent('click'));
 }
 
+/**
+ * Replaces the whole code of the visible Filter Monaco editor, like replaceVisibleMonacoCode in studio.ts: the code
+ * is typed on a single line, since Monaco auto-closes brackets and quotes and a typed new line leaves the auto-closed
+ * tail behind (a code ending with an extra "})" that the Preview cannot run), and the editor must then hold exactly
+ * that code.
+ */
 async function replaceVisibleFilterMonacoCode(page: Page, code: string): Promise<void> {
+  expect(code, 'data source Filter code should fit on one line').not.toContain('\n');
   const editor = page.locator(`${SEL.defaultValueMonacoEditor} .monaco-editor:visible`).last();
   await expect(editor, 'data source Filter JavaScript editor should be visible').toBeVisible({ timeout: 15_000 });
-  await editor.click();
-  await page.keyboard.press('ControlOrMeta+A');
-  await page.keyboard.insertText(code);
-  await page.keyboard.press('Tab');
+  const editorCode = async () => (await editor.locator('.view-lines').innerText()).replace(/\s+/g, ' ').trim();
   await expect
     .poll(
-      async () => (await editor.locator('.view-lines').innerText()).replace(/\s+/g, ' ').trim(),
-      {
-        message: 'data source Filter JavaScript editor should keep the asynchronous return value',
-        timeout: 15_000,
+      async () => {
+        await editor.click();
+        await page.keyboard.press('ControlOrMeta+A');
+        await page.keyboard.press('Delete');
+        return editorCode();
       },
+      { message: 'data source Filter JavaScript editor should be empty before typing', timeout: 10_000 },
     )
-    .toContain(`return ${JSON.stringify(GRID_INTERACTION_VISIBLE_STATUS)};`);
+    .toBe('');
+  await page.keyboard.type(code);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Tab');
+  await expect
+    .poll(editorCode, {
+      message: 'data source Filter JavaScript editor should contain exactly the asynchronous code',
+      timeout: 15_000,
+    })
+    .toBe(code.replace(/\s+/g, ' ').trim());
   await page.waitForTimeout(1_000);
 }
 

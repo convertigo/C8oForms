@@ -529,10 +529,26 @@ async function openPublishedLanguageSelect(page: Page): Promise<Locator> {
 
 async function selectPublishedLanguageThroughUi(page: Page, languageSelect: Locator, language: string): Promise<void> {
   await languageSelect.click({ timeout: 10_000 }).catch(async () => languageSelect.dispatchEvent('click'));
-  const popover = page.locator('ion-popover.custom-popover:not(.overlay-hidden):visible, ion-popover.my-custom-interface:not(.overlay-hidden):visible').last();
+  // Ionic gives the popover of an ion-select the class select-popover; the cssClass of the menu select is written as
+  // a plain attribute, so it does not reach the popover.
+  const popover = page
+    .locator(
+      ['select-popover', 'custom-popover', 'my-custom-interface']
+        .map((cssClass) => `ion-popover.${cssClass}:not(.overlay-hidden):visible`)
+        .join(', '),
+    )
+    .last();
   await expect(popover, 'published language options should open in a popover').toBeVisible({ timeout: 15_000 });
 
-  const option = popover.locator(`ion-radio[value="${language}"], ion-item:has(ion-label[lang="${language}"])`).first();
+  // The options are ion-radio elements whose value is a property, not an attribute, and that have no ion-label.
+  const radios = popover.locator('ion-select-popover ion-radio');
+  await expect(radios.first(), 'published language options should be listed').toBeVisible({ timeout: 15_000 });
+  const index = await radios.evaluateAll(
+    (elements, lang) => elements.findIndex((element) => (element as HTMLElement & { value?: unknown }).value === lang),
+    language,
+  );
+  expect(index, `published language option ${language} should be offered`).toBeGreaterThanOrEqual(0);
+  const option = radios.nth(index);
   await expect(option, `published language option ${language} should be visible`).toBeVisible({ timeout: 15_000 });
   await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
   await expect(popover, 'published language options should close after selection').toBeHidden({ timeout: 15_000 });
@@ -1314,18 +1330,25 @@ export async function verifySelectedOwnerCollaborationsOnlyThroughUi(
         timeout: 30_000,
       });
       await expect(collaborationsOnly, 'Collaboration-only should be enabled for the selected owner').toBeEnabled();
-      await expect(collaborationsOnly, 'Collaboration-only should initially be inactive').toHaveAttribute(
-        'aria-pressed',
-        'false',
-      );
-      await expect(collaborationsOnly, 'Collaboration-only should expose its localized accessible name').toHaveAttribute(
-        'aria-label',
-        /(?:Collaborations only|Collaborations uniquement|Solo colaboraciones|Solo collaborazioni)/i,
-      );
+      await expect
+        .poll(() => ionButtonAriaAttribute(collaborationsOnly, 'aria-pressed'), {
+          message: 'Collaboration-only should initially be inactive',
+          timeout: 15_000,
+        })
+        .toBe('false');
+      await expect
+        .poll(() => ionButtonAriaAttribute(collaborationsOnly, 'aria-label'), {
+          message: 'Collaboration-only should expose its localized accessible name',
+          timeout: 15_000,
+        })
+        .toMatch(/(?:Collaborations only|Collaborations uniquement|Solo colaboraciones|Solo collaborazioni)/i);
       await collaborationsOnly.click({ timeout: 10_000 }).catch(async () => collaborationsOnly.dispatchEvent('click'));
-      await expect(collaborationsOnly, 'Collaboration-only should become active').toHaveAttribute('aria-pressed', 'true', {
-        timeout: 15_000,
-      });
+      await expect
+        .poll(() => ionButtonAriaAttribute(collaborationsOnly, 'aria-pressed'), {
+          message: 'Collaboration-only should become active',
+          timeout: 15_000,
+        })
+        .toBe('true');
 
       // #1350: creator stays the selected owner while collaboration membership
       // is evaluated against the currently connected administrator.
@@ -1817,7 +1840,7 @@ async function selectEditorCollaboratorByEmail(page: Page, modal: Locator, email
   await expect(option, `collaborator ${email} should be selectable from autocomplete`).toBeVisible({
     timeout: 30_000,
   });
-  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  await clickAutocompleteOption(option, `collaborator ${email} should be selected from autocomplete`);
   await expect(modal.locator('ion-item').filter({ hasText: email }).first(), `collaborator ${email} should be listed before saving`).toBeVisible({
     timeout: 15_000,
   });
@@ -2210,6 +2233,26 @@ async function expectSharedCardAccessIndicatorPositioned(page: Page, title: stri
   }
 }
 
+// The autocomplete list is rendered again while the search results arrive: the click is retried on the current
+// option (a dispatched event would wait without limit for a detached one) until the list closes on the selection.
+async function clickAutocompleteOption(option: Locator, description: string): Promise<void> {
+  await expect(async () => {
+    if (!(await option.isVisible())) {
+      return;
+    }
+    await option.click({ timeout: 5_000 });
+  }, description).toPass({ timeout: 30_000 });
+}
+
+// ion-button moves the aria-* attributes of its host to its inner native button when it loads; Angular may write a
+// changed value on the host again. The host value, when present, is the latest one.
+async function ionButtonAriaAttribute(button: Locator, name: string): Promise<string | null> {
+  return button.evaluate(
+    (host, attribute) => host.getAttribute(attribute) ?? host.shadowRoot?.querySelector('button')?.getAttribute(attribute) ?? null,
+    name,
+  );
+}
+
 function selectorCardByTitle(page: Page, title: string): Locator {
   const exactTitle = new RegExp(`^${escapeRegExp(title)}$`);
   const label = page.locator(`${SEL.selectorCardTitle}:visible`).filter({ hasText: exactTitle }).first();
@@ -2228,7 +2271,7 @@ async function selectSelectorUserFilter(page: Page, user: string): Promise<void>
   await input.fill(user);
   const option = page.locator(SEL.collaboratorAutocompleteOption).filter({ hasText: user }).first();
   await expect(option, `selector user ${user} should be selectable from autocomplete`).toBeVisible({ timeout: 30_000 });
-  await option.click({ timeout: 10_000 }).catch(async () => option.dispatchEvent('click'));
+  await clickAutocompleteOption(option, `selector user ${user} should be selected from autocomplete`);
 
   const collaborationsOnly = page.locator('ion-button.class1784723090278:visible').first();
   await expect(

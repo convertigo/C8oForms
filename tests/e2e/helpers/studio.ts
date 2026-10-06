@@ -6996,10 +6996,20 @@ async function selectDataSourceEntry(page: Page, timeout: number, entry: 'getDat
     await expect(sourcePicker, 'Baserow source picker modal should open').toBeVisible({ timeout });
 
     const sourceButtons = sourcePicker.locator(`${SEL.dataSourceSelectButton}:visible`);
-    await expect.poll(() => sourceButtons.count(), {
-      message: 'Baserow source entries should finish loading',
-      timeout: 20_000,
-    }).toBeGreaterThan(0);
+    // The picker sometimes opens without its entries: like an empty source below, it is closed and opened again.
+    const sourcesLoaded = await expect
+      .poll(() => sourceButtons.count(), {
+        message: 'Baserow source entries should finish loading',
+        timeout: 20_000,
+      })
+      .toBeGreaterThan(0)
+      .then(() => true)
+      .catch(() => false);
+    if (!sourcesLoaded) {
+      await closeTopModal(page);
+      await page.waitForTimeout(1_500 * (attempt + 1));
+      continue;
+    }
     const namedSource = sourceButtons.filter({ hasText: new RegExp(entry, 'i') }).first();
     const sourceButton = (await namedSource.count()) > 0
       ? namedSource

@@ -655,7 +655,7 @@ export async function reorderPagesAndAssertPersistenceThroughUi(page: Page): Pro
     const beforeOrder = await visiblePageNames(page);
     expect(beforeOrder, 'three page rows should be visible before reordering').toEqual(['Page 1', secondPageName, thirdPageName]);
 
-    await dragPageBefore(page, thirdPageName, 'Page 1');
+    await dragPageOnto(page, thirdPageName, 'Page 1');
 
     await expect
       .poll(() => visiblePageNames(page), {
@@ -666,7 +666,9 @@ export async function reorderPagesAndAssertPersistenceThroughUi(page: Page): Pro
   });
 
   await test.step('Move the first page downward and keep every page exactly once', async () => {
-    await dragPageBefore(page, thirdPageName, secondPageName);
+    // Since #1308 a dropped page takes the place of the page it is dropped on: Page 3, first, dropped on Page 1
+    // (second) goes down between Page 1 and Page 2.
+    await dragPageOnto(page, thirdPageName, 'Page 1');
     await expect
       .poll(() => visiblePageNames(page), {
         message: 'page rows should support downward drag-and-drop without duplicates',
@@ -1083,7 +1085,8 @@ async function visiblePageNames(page: Page): Promise<string[]> {
   });
 }
 
-async function dragPageBefore(page: Page, sourceName: string, targetName: string): Promise<void> {
+// Drags a page row onto another one: the dragged page takes the position of the target (#1308).
+async function dragPageOnto(page: Page, sourceName: string, targetName: string): Promise<void> {
   await openPagesPanel(page);
   const source = page.locator(SEL.pageRow).filter({ hasText: sourceName }).first();
   const target = page.locator(SEL.pageRow).filter({ hasText: targetName }).first();
@@ -1103,7 +1106,7 @@ async function dragPageBefore(page: Page, sourceName: string, targetName: string
   }
 
   const dispatched = await dispatchPageDragDrop(page, sourceName, targetName);
-  expect(dispatched, `page drag/drop events should be dispatched for ${sourceName} before ${targetName}`).toBe(true);
+  expect(dispatched, `page drag/drop events should be dispatched for ${sourceName} onto ${targetName}`).toBe(true);
 }
 
 async function dispatchPageDragDrop(page: Page, sourceName: string, targetName: string): Promise<boolean> {
