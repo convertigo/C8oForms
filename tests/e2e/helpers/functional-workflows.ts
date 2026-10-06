@@ -1,12 +1,12 @@
 import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
 import { ensureBaserowTable, type BaserowCatalog } from './baserow';
+import { expectIndividualResponseCount, openResponsesThroughUi, selectResponsesSegment } from './functional-responses';
 import {
   PALETTE_ICON,
   SEL,
   addComponent,
   addBaserowAddRowColumnMapping,
   closeComponentConfig,
-  c8oCall,
   configureButtonFlowBaserowAddRow,
   expectBaserowAddRowColumnMappingDeletable,
   expectConditionActionConfigurationTabsOnlyIf,
@@ -50,6 +50,7 @@ import {
   setMailActionTextVariable,
   setTechnicalId,
   setTextDefaultValueText,
+  setTextInputQuestion,
   submitViewerForm,
   tinyMceEditorContent,
 } from './studio';
@@ -623,6 +624,7 @@ export async function replaceToastActionForPublicationThroughUi(
 export async function verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroughUi(
   page: Page,
   formId: string,
+  formTitle: string,
 ): Promise<void> {
   const suffix = Date.now();
   const targetTechnicalId = `functional_wf_generic_target_${suffix}`;
@@ -630,9 +632,11 @@ export async function verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroug
   const targetInitialValue = `Generic target before ${suffix}`;
   const witnessValue = `Generic witness ${suffix}`;
   const targetStoredValue = `Generic target after ${suffix}`;
+  const targetQuestion = `Generic target ${suffix}`;
+  const witnessQuestion = `Generic witness ${suffix}`;
 
-  await createTextSource(page, targetTechnicalId);
-  await createTextSource(page, witnessTechnicalId);
+  await createTextSource(page, targetTechnicalId, { question: targetQuestion });
+  await createTextSource(page, witnessTechnicalId, { question: witnessQuestion });
 
   await test.step('Add Change response field value to the submission workflow', async () => {
     await ensureWorkflowsPanelOpen(page);
@@ -683,32 +687,39 @@ export async function verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroug
     await closeComponentConfig(page);
   });
 
-  await test.step('Submit values and verify only the named stored response changed', async () => {
+  await test.step('Submit values in the published application', async () => {
     await expectPagesPanelDefaultAfterWorkflowNavigation(page);
     await publishCurrentFormWithPwa(page, 'anonymous');
+    const studioEditorUrl = page.url();
     await openPublishedViewer(page, formId, SEL.textComponent);
     await fillViewerTextInput(page, targetTechnicalId, targetInitialValue);
     await fillViewerTextInput(page, witnessTechnicalId, witnessValue);
     await submitViewerForm(page);
-    await expect(page.locator(SEL.responseCompletedPage), 'Generic Task submission should complete').toBeAttached({
+    await expect(page.locator(SEL.responseCompletedPage), 'Generic Task submission should complete').toBeVisible({
       timeout: 60_000,
     });
+    await page.goto(studioEditorUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  });
 
-    const stored = await waitForStoredResponseEntries(
-      page,
-      formId,
-      targetTechnicalId,
-      targetStoredValue,
-      witnessTechnicalId,
+  await test.step('Inspect the new response in Studio Published Applications', async () => {
+    const dataPage = await openResponsesThroughUi(page, formTitle);
+    await selectResponsesSegment(dataPage, 'Individual');
+    await expectIndividualResponseCount(dataPage, 1);
+    const cards = dataPage.locator('c8oforms-sharedstatsinputtext:visible');
+    const target = cards.filter({ hasText: targetQuestion }).first();
+    const witness = cards.filter({ hasText: witnessQuestion }).first();
+    await expect(target, 'the target question should be visible in the stored response').toBeVisible({ timeout: 30_000 });
+    await expect(witness, 'the witness question should be visible in the stored response').toBeVisible({ timeout: 30_000 });
+    await expect(witness.locator('ion-card-content'), 'the unrelated witness answer should remain unchanged').toContainText(
       witnessValue,
     );
-    expect(stored.get(targetTechnicalId), 'the named target should contain the Generic Task replacement').toContain(
+    await expect(target.locator('ion-card-content'), 'the Generic Task should replace the target answer').toContainText(
       targetStoredValue,
+      { timeout: 60_000 },
     );
-    expect(stored.get(targetTechnicalId), 'the stale submitted target value should not remain stored').not.toContain(
+    await expect(target.locator('ion-card-content'), 'the original target answer should not remain').not.toContainText(
       targetInitialValue,
     );
-    expect(stored.get(witnessTechnicalId), 'the unrelated witness field should remain unchanged').toContain(witnessValue);
   });
 }
 
@@ -1104,7 +1115,7 @@ async function createWorkflowButton(page: Page, technicalId: string, label: stri
 async function createTextSource(
   page: Page,
   technicalId: string,
-  options: { required?: boolean; defaultValue?: string } = {},
+  options: { required?: boolean; defaultValue?: string; question?: string } = {},
 ): Promise<void> {
   await test.step('Create a Text source for workflow conditions', async () => {
     const before = await page.locator(SEL.textComponent).count();
@@ -1117,6 +1128,9 @@ async function createTextSource(
       .toBeGreaterThan(before);
     await openComponentConfigAt(page, SEL.textComponent, before);
     await setTechnicalId(page, technicalId);
+    if (options.question) {
+      await setTextInputQuestion(page, options.question);
+    }
     if (options.required || options.defaultValue !== undefined) {
       await openConfigTabById(page, 'data_interactions');
     }
@@ -1235,76 +1249,6 @@ async function fillVisibleActionTextEditor(page: Page, value: string): Promise<v
   await expect(body, 'Generic Task inline text editor should be visible').toBeVisible({ timeout: 15_000 });
   await body.fill(value);
   await body.press('Tab').catch(() => undefined);
-}
-
-async function waitForStoredResponseEntries(
-  page: Page,
-  formId: string,
-  targetName: string,
-  targetValue: string,
-  witnessName: string,
-  witnessValue: string,
-): Promise<Map<string, string[]>> {
-  let entries = new Map<string, string[]>();
-  await expect
-    .poll(
-      async () => {
-        const response = await c8oCall(page, 'APIV2_getResponses', {
-          formId: formId.startsWith('published_') ? formId : `published_${formId}`,
-          summary: 'false',
-          csv: 'false',
-          meta: JSON.stringify({ limit: 10 }),
-        });
-        entries = namedResponseValues(response);
-        return (entries.get(targetName)?.includes(targetValue) ?? false) &&
-          (entries.get(witnessName)?.includes(witnessValue) ?? false);
-      },
-      {
-        message: 'stored response should expose the changed target and untouched witness values',
-        timeout: 60_000,
-      },
-    )
-    .toBe(true);
-  return entries;
-}
-
-function namedResponseValues(root: unknown): Map<string, string[]> {
-  const result = new Map<string, string[]>();
-  const response = (root as { res?: { response?: { value?: unknown; nestedResponses?: unknown } } })?.res?.response;
-  if (Array.isArray(response?.value) && Array.isArray(response?.nestedResponses)) {
-    for (const row of response.nestedResponses) {
-      if (!Array.isArray(row)) continue;
-      response.value.forEach((column, index) => {
-        const name = column && typeof column === 'object'
-          ? (column as { name?: string; id?: string }).name ?? (column as { id?: string }).id
-          : undefined;
-        const cell = row[index] as { value?: unknown } | undefined;
-        if (!name || !cell || !Object.prototype.hasOwnProperty.call(cell, 'value')) return;
-        const values = Array.isArray(cell.value) ? cell.value : [cell.value];
-        result.set(name, values.filter((value) => ['string', 'number', 'boolean'].includes(typeof value)).map(String));
-      });
-    }
-    return result;
-  }
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-      return;
-    }
-    if (!value || typeof value !== 'object') return;
-    const record = value as Record<string, unknown>;
-    const name = typeof record.name === 'string' ? record.name : typeof record.id === 'string' ? record.id : '';
-    if (name && Object.prototype.hasOwnProperty.call(record, 'value')) {
-      const values = Array.isArray(record.value) ? record.value : [record.value];
-      const strings = values.flatMap((entry) =>
-        typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean' ? [String(entry)] : [],
-      );
-      if (strings.length > 0) result.set(name, strings);
-    }
-    Object.values(record).forEach(visit);
-  };
-  visit(root);
-  return result;
 }
 
 function viewerTextInput(page: Page, technicalId: string): Locator {

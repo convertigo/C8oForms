@@ -465,7 +465,7 @@ function countNestedResponseRows(response: JsonRecord): number {
   return nested.length;
 }
 
-async function openResponsesThroughUi(page: Page, title: string): Promise<Locator> {
+export async function openResponsesThroughUi(page: Page, title: string): Promise<Locator> {
   await openPublishedApplicationsTab(page);
   await expectSelectorApplicationVisible(page, title);
   await expect
@@ -485,7 +485,7 @@ async function openResponsesThroughUi(page: Page, title: string): Promise<Locato
   return dataPage;
 }
 
-async function selectResponsesSegment(dataPage: Locator, value: 'Summary' | 'Individual' | 'Invitees'): Promise<void> {
+export async function selectResponsesSegment(dataPage: Locator, value: 'Summary' | 'Individual' | 'Invitees'): Promise<void> {
   const segment = dataPage.locator(`ion-segment-button[value="${value}"]`).first();
   await expect(segment, `${value} response segment should be visible`).toBeVisible({ timeout: 30_000 });
   await segment.click();
@@ -504,7 +504,7 @@ async function expectRenderedResponseImage(dataPage: Locator, surface: string): 
     .toBeGreaterThan(0);
 }
 
-async function expectIndividualResponseCount(dataPage: Locator, expectedCount: number): Promise<void> {
+export async function expectIndividualResponseCount(dataPage: Locator, expectedCount: number): Promise<void> {
   const pager = dataPage.locator('ion-input[type="number"]:visible').first();
   await expect(pager, 'Individual response pager should be visible').toBeVisible({ timeout: 30_000 });
   await expect

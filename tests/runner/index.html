@@ -186,7 +186,8 @@
   </section>
   <div class="console">
     <div class="cbar"><span class="dot" id="dot"></span><span id="status">idle</span>
-      <button class="ghost" id="clear" style="margin-left:auto; padding:3px 10px;">clear</button></div>
+      <button class="ghost" id="copy-log" style="margin-left:auto; padding:3px 10px;">copy log</button>
+      <button class="ghost" id="clear" style="padding:3px 10px;">clear</button></div>
     <pre id="log"></pre>
   </div>
 </div>
@@ -203,6 +204,7 @@ $('#version').addEventListener('click', (e) => {
 });
 $('#slowmo').addEventListener('input', (e) => $('#slowval').textContent = e.target.value);
 $('#clear').addEventListener('click', () => { $('#log').textContent = ''; setStatus('idle',''); });
+$('#copy-log').addEventListener('click', copyLog);
 $('#refresh').addEventListener('click', refreshVersion);
 $('#runall').addEventListener('click', () => {
   if (version === 'verify') return;
@@ -374,6 +376,45 @@ function append(line, cls){
   span.textContent = line + '\n';
   $('#log').appendChild(span);
   $('#log').scrollTop = $('#log').scrollHeight;
+}
+
+async function copyLog() {
+  const button = $('#copy-log');
+  const text = $('#log').textContent;
+  if (!text) {
+    button.textContent = 'log empty';
+    setTimeout(() => { button.textContent = 'copy log'; }, 1500);
+    return;
+  }
+  try {
+    let copied = false;
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch {
+        // Clipboard permissions can be unavailable on a local HTTP runner.
+      }
+    }
+    if (!copied) {
+      const selection = window.getSelection();
+      if (!selection) throw new Error('Selection is unavailable');
+      const range = document.createRange();
+      range.selectNodeContents($('#log'));
+      selection.removeAllRanges();
+      selection.addRange(range);
+      try {
+        copied = document.execCommand('copy');
+      } finally {
+        selection.removeAllRanges();
+      }
+    }
+    if (!copied) throw new Error('Copy command failed');
+    button.textContent = 'copied!';
+  } catch {
+    button.textContent = 'copy failed';
+  }
+  setTimeout(() => { button.textContent = 'copy log'; }, 1500);
 }
 
 function run(ids) {

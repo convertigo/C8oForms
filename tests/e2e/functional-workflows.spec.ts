@@ -169,13 +169,14 @@ test.describe('No-Code Studio functional workflow contract', () => {
    * field_name variable serialize the selected component's technical name,
    * while lib_Actions_C8Oforms bde2b16a persisted the corresponding response
    * edit. The complete fix first shipped in beta329 and was historically
-   * QA-validated in beta337. Runtime validation of this functional owner is
-   * pending.
+   * QA-validated in beta337. This functional owner inspects the submitted
+   * response in Studio's Individual view after publishing.
    */
   test('WF-014 #1492 - Generic Task changes only the named stored response field', async ({ page }) => {
     test.setTimeout(420_000);
     await loginWithUsernamePassword(page);
-    const formId = await createBlankApplicationThroughUi(page);
-    await verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroughUi(page, formId);
+    const title = `WF-014 Generic Task ${Date.now()}`;
+    const formId = await createBlankApplicationThroughUi(page, title);
+    await verifyGenericTaskChangesOnlyNamedStoredResponseFieldThroughUi(page, formId, title);
   });
 });
