@@ -1646,6 +1646,8 @@ export async function exerciseChartSourceTypeAndHeightThroughUi(page: Page): Pro
 }
 
 /** #1450: sourced Charts show an explicit loading state instead of demo labels. */
+const CHART_SURFACE = '.apexcharts-canvas, apx-chart';
+
 export async function assertChartLoadingStateThroughUi(page: Page): Promise<void> {
   await configureChartBaserowTableAndAssertPersistenceThroughUi(page);
   const sourceRequests = await holdSourceRequests(page);
@@ -1667,8 +1669,9 @@ export async function assertChartLoadingStateThroughUi(page: Page): Promise<void
       await expect(loading, 'sourced Chart should display its loading indicator').toBeVisible({ timeout: 30_000 });
       await expect(loading.locator('span'), 'Chart loading indicator should include localized feedback').not.toHaveText(/^\s*$/);
       await expect(chart, 'runtime Chart must not expose editor demo labels while loading').not.toContainText('Label1');
+      // Only the chart elements: the dots of the loading ion-spinner are SVGs too (in its shadow DOM).
       await expect(
-        chart.locator('.apexcharts-canvas, apx-chart, svg'),
+        chart.locator(CHART_SURFACE),
         'Chart surface should stay hidden until sourced data is available',
       ).toHaveCount(0);
     });
@@ -1682,7 +1685,7 @@ export async function assertChartLoadingStateThroughUi(page: Page): Promise<void
       timeout: 45_000,
     });
     await expect(
-      chart.locator('.apexcharts-canvas, apx-chart, svg').first(),
+      chart.locator(CHART_SURFACE).first(),
       'Chart surface should render after the source resolves',
     ).toBeVisible({ timeout: 45_000 });
   });

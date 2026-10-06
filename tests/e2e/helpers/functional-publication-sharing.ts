@@ -1840,8 +1840,15 @@ async function selectEditorCollaboratorByEmail(page: Page, modal: Locator, email
   await expect(option, `collaborator ${email} should be selectable from autocomplete`).toBeVisible({
     timeout: 30_000,
   });
-  await clickAutocompleteOption(option, `collaborator ${email} should be selected from autocomplete`);
-  await expect(modal.locator('ion-item').filter({ hasText: email }).first(), `collaborator ${email} should be listed before saving`).toBeVisible({
+  const listed = modal.locator('ion-item').filter({ hasText: email }).first();
+  // The autocomplete options are ion-items too: the selection shows as an ion-item outside the dropdown panel.
+  const selected = () =>
+    modal
+      .locator('ion-item')
+      .filter({ hasText: email })
+      .evaluateAll((items) => items.some((item) => item.closest('ng-dropdown-panel') == null && item.getClientRects().length > 0));
+  await selectAutocompleteOption(input, email, option, selected, `collaborator ${email} should be selected from autocomplete`);
+  await expect(listed, `collaborator ${email} should be listed before saving`).toBeVisible({
     timeout: 15_000,
   });
 }
@@ -2233,15 +2240,29 @@ async function expectSharedCardAccessIndicatorPositioned(page: Page, title: stri
   }
 }
 
-// The autocomplete list is rendered again while the search results arrive: the click is retried on the current
-// option (a dispatched event would wait without limit for a detached one) until the list closes on the selection.
-async function clickAutocompleteOption(option: Locator, description: string): Promise<void> {
+// The autocomplete list is rendered again while the search results arrive, and may close without a selection: until
+// the selection shows, the search is typed again when the option is gone and the current option is clicked (a
+// dispatched event would wait without limit for a detached one).
+async function selectAutocompleteOption(
+  input: Locator,
+  text: string,
+  option: Locator,
+  selected: () => Promise<boolean>,
+  description: string,
+): Promise<void> {
+  let clicked = false;
   await expect(async () => {
-    if (!(await option.isVisible())) {
+    if (clicked && (await selected())) {
       return;
     }
-    await option.click({ timeout: 5_000 });
-  }, description).toPass({ timeout: 30_000 });
+    if (!(await option.isVisible())) {
+      await input.fill('');
+      await input.fill(text);
+    }
+    await option.click({ timeout: 10_000 });
+    clicked = true;
+    await expect.poll(selected, { timeout: 10_000 }).toBe(true);
+  }, description).toPass({ timeout: 90_000 });
 }
 
 // ion-button moves the aria-* attributes of its host to its inner native button when it loads; Angular may write a
@@ -2271,9 +2292,14 @@ async function selectSelectorUserFilter(page: Page, user: string): Promise<void>
   await input.fill(user);
   const option = page.locator(SEL.collaboratorAutocompleteOption).filter({ hasText: user }).first();
   await expect(option, `selector user ${user} should be selectable from autocomplete`).toBeVisible({ timeout: 30_000 });
-  await clickAutocompleteOption(option, `selector user ${user} should be selected from autocomplete`);
-
   const collaborationsOnly = page.locator('ion-button.class1784723090278:visible').first();
+  await selectAutocompleteOption(
+    input,
+    user,
+    option,
+    () => collaborationsOnly.isVisible(),
+    `selector user ${user} should be selected from autocomplete`,
+  );
   await expect(
     collaborationsOnly,
     'selecting exactly one other user should expose the collaboration-only quick filter',
