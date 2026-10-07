@@ -12,6 +12,11 @@ scriptContent:
         	// handler ends with markForCheck, which schedules the next pass -- a loop at frame rate
         	// that also re-ran the column sizing (hence the repeated AG Grid resetRowHeights warning).
         	private agGridDefaultColDef: any = {autoHeight: true, hide: false, editable: true, sortable: true, resizable: true, filter: true, checkboxSelection: false, singleClickEdit: false};
+        	// Stable [ngStyle] references. Keys contain every resolved Box property consumed by each method.
+        	private gridBoxStyleCacheKey: any[] = null;
+        	private gridBoxStyleCacheValue: any = null;
+        	private gridThemeStyleCacheKey: any[] = null;
+        	private gridThemeStyleCacheValue: any = null;
         	/*End_c8o_CompDeclaration*/
         /*Begin_c8o_CompConstructor*/
         		/*End_c8o_CompConstructor*/
@@ -605,6 +610,144 @@ scriptContent:
             public getGridWrapperClass() {
                 return this.isGridFooterEnabled() ? ''blue-theme'' : ''blue-theme gridFooterHidden'';
             }
+        
+        	private cleanGridThemeCssValue(value: any): string {
+        		if (value == null) {
+        			return "";
+        		}
+        		return ("" + value).replace(/\s*!important\s*/ig, "").trim();
+        	}
+        
+        
+        	private getGridResolvedComponentBoxStyle(): any {
+        		if (this.pageOwner != null && typeof this.pageOwner.getViewerItemPartBoxStyle == "function") {
+        			return this.pageOwner.getViewerItemPartBoxStyle(this.item, "component") || {};
+        		}
+        		// Keep the editor canvas aligned with the other viewer components: Box resolution belongs to the viewer page.
+        		return {};
+        	}
+        
+        	private isSameGridStyleCacheKey(previous: any[], current: any[]): boolean {
+        		if (previous == null || previous.length != current.length) {
+        			return false;
+        		}
+        		for (let index = 0; index < current.length; index++) {
+        			if (previous[index] !== current[index]) {
+        				return false;
+        			}
+        		}
+        		return true;
+        	}
+        
+        	public getGridBoxStyle(): any {
+        		const resolved = this.getGridResolvedComponentBoxStyle();
+        		const margin = resolved["margin"];
+        		const key = [margin == null ? "" : "" + margin];
+        		if (this.isSameGridStyleCacheKey(this.gridBoxStyleCacheKey, key)) {
+        			return this.gridBoxStyleCacheValue;
+        		}
+        		const style: any = {};
+        		if (this.cleanGridThemeCssValue(margin) != "") {
+        			style["margin"] = margin;
+        			style["box-sizing"] = "border-box";
+        			style["width"] = "auto";
+        		}
+        		this.gridBoxStyleCacheKey = key;
+        		this.gridBoxStyleCacheValue = style;
+        		return style;
+        	}
+        
+        	public getGridThemeStyle(): any {
+        		const resolved = this.getGridResolvedComponentBoxStyle();
+        		const backgroundColor = this.cleanGridThemeCssValue(resolved["background-color"]);
+        		const textColor = this.cleanGridThemeCssValue(resolved["--c8o-box-text-color"] || resolved["--ion-text-color"] || resolved["color"]);
+        		const padding = resolved["padding"];
+        		const borderProperties = [
+        			"border", "border-top", "border-right", "border-bottom", "border-left",
+        			"border-width", "border-style", "border-color",
+        			"border-top-width", "border-top-style", "border-top-color",
+        			"border-right-width", "border-right-style", "border-right-color",
+        			"border-bottom-width", "border-bottom-style", "border-bottom-color",
+        			"border-left-width", "border-left-style", "border-left-color"
+        		];
+        		const borderValues = borderProperties.map((property) => resolved[property]);
+        		const borderRadius = resolved["border-radius"];
+        		// Primitive keys avoid identity churn when viewerPage returns a newly allocated resolved-style object.
+        		const key = [
+        			backgroundColor,
+        			textColor,
+        			padding == null ? "" : "" + padding,
+        			borderRadius == null ? "" : "" + borderRadius
+        		].concat(borderValues.map((value) => value == null ? "" : "" + value));
+        		if (this.isSameGridStyleCacheKey(this.gridThemeStyleCacheKey, key)) {
+        			return this.gridThemeStyleCacheValue;
+        		}
+        
+        		const style: any = {};
+        		const hasBackground = backgroundColor != "";
+        		const hasText = textColor != "";
+        		if (hasBackground) {
+        			// Paint the host as well as AG Grid internals so Component padding remains inside the background.
+        			style["background-color"] = backgroundColor;
+        			style["--ag-background-color"] = backgroundColor;
+        			style["--ag-header-background-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 7%)";
+        			style["--ag-header-cell-hover-background-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 12%)";
+        			style["--ag-header-cell-moving-background-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 12%)";
+        			style["--ag-odd-row-background-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 3%)";
+        			style["--ag-row-hover-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 10%)";
+        			style["--ag-selected-row-background-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 18%)";
+        			style["--ag-border-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 18%)";
+        			style["--ag-secondary-border-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 12%)";
+        			style["--ag-row-border-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 10%)";
+        			style["--ag-checkbox-background-color"] = "var(--ag-background-color)";
+        		}
+        		if (hasText) {
+        			style["--ag-foreground-color"] = textColor;
+        			style["--ag-data-color"] = textColor;
+        			style["--ag-header-foreground-color"] = textColor;
+        			style["--ag-secondary-foreground-color"] = "color-mix(in srgb, transparent, var(--ag-foreground-color) 72%)";
+        			style["--ag-active-color"] = textColor;
+        		}
+        		else if (hasBackground) {
+        			style["--ag-active-color"] = "var(--ag-foreground-color)";
+        		}
+        		// Dimension-specific markers preserve the other Container color when only one Component color is configured.
+        		if (hasBackground) {
+        			style["--c8o-grid-component-background"] = "1";
+        		}
+        		if (hasText) {
+        			style["--c8o-grid-component-text"] = "1";
+        		}
+        		if (hasBackground || hasText) {
+        			style["--ag-checkbox-unchecked-color"] = "color-mix(in srgb, var(--ag-background-color), var(--ag-foreground-color) 42%)";
+        			style["--ag-checkbox-indeterminate-color"] = "var(--ag-active-color)";
+        		}
+        		if (this.cleanGridThemeCssValue(padding) != "") {
+        			style["padding"] = padding;
+        			style["box-sizing"] = "border-box";
+        		}
+        		let hasOuterBorder = false;
+        		borderProperties.forEach((property, index) => {
+        			if (this.cleanGridThemeCssValue(borderValues[index]) != "") {
+        				style[property] = borderValues[index];
+        				hasOuterBorder = true;
+        			}
+        		});
+        		if (hasOuterBorder) {
+        			style["box-sizing"] = "border-box";
+        			style["--c8o-ag-root-wrapper-border"] = "none";
+        		}
+        		if (this.cleanGridThemeCssValue(borderRadius) != "") {
+        			style["border-radius"] = borderRadius;
+        			style["--ag-wrapper-border-radius"] = borderRadius;
+        			style["overflow"] = "hidden";
+        		}
+        
+        		this.gridThemeStyleCacheKey = key;
+        		this.gridThemeStyleCacheValue = style;
+        		return style;
+        	}
+        
         	/*End_c8o_CompFunction*/
         '
 ↓item [ngx.components.UICompVariable-1608287349269]: 
@@ -710,12 +853,6 @@ scriptContent:
         ↓Div [ngx.components.UIDynamicElement-1730303411292]: 
           beanData: '{"ionBean":"DivTag"}'
           tagName: div
-          ↓AttrBoxPartStyle [ngx.components.UIAttribute-1782294300009]: 
-            attrName: '[ngStyle]'
-            attrValue: 
-              - xmlizable: 
-                - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
-                - MobileSmartSourceType: 'script:this.pageOwner?.getViewerItemPartBoxStyle != null ? this.pageOwner.getViewerItemPartBoxStyle(this.item, ''component'') : {}'
           ↓Directive [ngx.components.UIControlDirective-1768385124092]: 
             directiveName: If
             directiveSource: 
@@ -1550,6 +1687,18 @@ scriptContent:
                 'script:{
                     menu: `<span class=''ag-icon ag-icon-filter''></span>`
                 }'
+      ↓themeStyle [ngx.components.UIUseVariable-1790090753013]: 
+        comment: Instance-scoped mapping of Box > Component colors to AG Grid theme variables.
+        varValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:this.getGridThemeStyle()
+      ↓boxStyle [ngx.components.UIUseVariable-1790093401276]: 
+        comment: Instance-scoped Box geometry applied to the Grid visual wrapper.
+        varValue: 
+          - xmlizable: 
+            - ↑classname: com.twinsoft.convertigo.beans.ngx.components.MobileSmartSourceType
+            - MobileSmartSourceType: script:this.getGridBoxStyle()
     ↓Attr3 [ngx.components.UIAttribute-1616705808726]: 
       attrName: '*ngIf'
       attrValue: 
