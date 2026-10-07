@@ -68,8 +68,9 @@ comment: |
               - ↑value: ./document/couchdb_output/language/text()
       variableName: language
     ↓response [steps.ElementStep-1542898729639]: 
+      comment: Returns the valid account locale; when supplied, fallbackLanguage is used for an invalid account locale.
       expression: |
-        '(function(candidate) {
+        '(function(accountCandidate, fallbackCandidate) {
             function normalizeBackendLocaleCandidate(value) {
                 if (value == null) {
                     return null;
@@ -80,33 +81,75 @@ comment: |
                     return null;
                 }
                 var primaryLanguage = normalizedLowerValue.split("-")[0];
-                if (primaryLanguage === "fr") {
-                    return "fr";
-                }
-                if (primaryLanguage === "en") {
-                    return "en";
-                }
-                if (primaryLanguage === "es") {
-                    return "es";
-                }
-                if (primaryLanguage === "it") {
-                    return "it";
-                }
-                if (normalizedLowerValue === "zh-cn" || normalizedLowerValue === "zh-sg" || normalizedLowerValue === "zh-hans") {
-                    return "zh-CN";
-                }
+                if (primaryLanguage === "fr") return "fr";
+                if (primaryLanguage === "en") return "en";
+                if (primaryLanguage === "es") return "es";
+                if (primaryLanguage === "it") return "it";
+        		if (
+        		    normalizedLowerValue === "zh" ||
+        		    normalizedLowerValue === "zh-cn" ||
+        		    normalizedLowerValue === "zh-sg" ||
+        		    normalizedLowerValue === "zh-hans" ||
+        		    normalizedLowerValue.indexOf("zh-hans-") === 0
+        		) {
+        		    return "zh-CN";
+        		}
                 return null;
             }
-            var normalizedBackendLanguage = normalizeBackendLocaleCandidate(candidate);
-            return normalizedBackendLanguage != null ? normalizedBackendLanguage : "fr";
-        })(typeof language == "undefined" ? null : language)'
+            var normalizedAccountLanguage = normalizeBackendLocaleCandidate(accountCandidate);
+            if (normalizedAccountLanguage != null) {
+                return normalizedAccountLanguage;
+            }
+            var rawFallbackLanguage = fallbackCandidate == null ? "" : ("" + fallbackCandidate).replace(/^\s+|\s+$/g, "");
+            if (rawFallbackLanguage !== "") {
+                return normalizeBackendLocaleCandidate(rawFallbackLanguage) || "en";
+            }
+            return "fr";
+        })(typeof language == "undefined" ? null : language, typeof fallbackLanguage == "undefined" ? null : fallbackLanguage)'
       nodeName: response
   ↓jElse [steps.ElseStep-1542898160195]: 
-    ↓Element [steps.XMLElementStep-1542898160198]: 
+    ↓ResolvedLanguage [steps.ElementStep-1790331865728]: 
+      comment: Preserves legacy 'ko' when no fallback is supplied; otherwise returns a canonical fallback locale.
+      expression: |
+        '(function(fallbackCandidate) {
+            function normalizeBackendLocaleCandidate(value) {
+                if (value == null) {
+                    return null;
+                }
+                var normalizedValue = ("" + value).replace(/_/g, "-").replace(/^\s+|\s+$/g, "");
+                var normalizedLowerValue = normalizedValue.toLowerCase();
+                if (normalizedValue === "" || normalizedLowerValue === "undefined" || normalizedLowerValue === "null") {
+                    return null;
+                }
+                var primaryLanguage = normalizedLowerValue.split("-")[0];
+                if (primaryLanguage === "fr") return "fr";
+                if (primaryLanguage === "en") return "en";
+                if (primaryLanguage === "es") return "es";
+                if (primaryLanguage === "it") return "it";
+        		if (
+        		    normalizedLowerValue === "zh" ||
+        		    normalizedLowerValue === "zh-cn" ||
+        		    normalizedLowerValue === "zh-sg" ||
+        		    normalizedLowerValue === "zh-hans" ||
+        		    normalizedLowerValue.indexOf("zh-hans-") === 0
+        		) {
+        		    return "zh-CN";
+        		}
+                return null;
+            }
+            var rawFallbackLanguage = fallbackCandidate == null ? "" : ("" + fallbackCandidate).replace(/^\s+|\s+$/g, "");
+            if (rawFallbackLanguage === "") {
+                return "ko";
+            }
+            return normalizeBackendLocaleCandidate(rawFallbackLanguage) || "en";
+        })(typeof fallbackLanguage == "undefined" ? null : fallbackLanguage)'
       nodeName: response
       nodeText: ko
 ↓email [variables.RequestableVariable-1542898061192]: 
   comment: Email address targeted by the sequence.
+↓fallbackLanguage [variables.RequestableVariable-1790331865706]: 
+  comment: Optional caller locale used only when the account locale is missing or invalid.
+  description: Optional fallback language
 ↓Test_Case [core.TestCase]: 
   ↓email [variables.TestCaseVariable-1582211688849]: 
     value: def@convertigo.com
