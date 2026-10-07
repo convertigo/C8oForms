@@ -1332,17 +1332,15 @@ scriptContent:
         		this.local.filteredPaletteComponents = this.searchPalette(this.local.Palette, "");
         		/*End_c8o_PageConstructor*/
         /*Begin_c8o_PageInitialization*/
-        		/*End_c8o_PageInitialization*/
-        /*Begin_c8o_PageAfterViewInit*/
-        		/*End_c8o_PageAfterViewInit*/
-        /*Begin_c8o_PageFinalization*/
-        		this.unbindGlobalDragCleanupListeners();
+        		/*End_c8o_PageInitialization*//*Begin_c8o_PageFinalization*/        		this.unbindGlobalDragCleanupListeners();
         		this.disconnectMainEditorTabsObservers();
         		if (this.windowResizeHandler != null) {
         			window.removeEventListener("resize", this.windowResizeHandler);
         			this.windowResizeHandler = null;
         		}
         		/*End_c8o_PageFinalization*/
+        /*Begin_c8o_PageAfterViewInit*/
+        		/*End_c8o_PageAfterViewInit*/
         /*Begin_c8o_PageFunction*/
         	public debugShouldRenderFlowDropIndicator(flowIndexRendered: number, flowId: any, itemId: any): boolean {
         		const currentIndex = Number(this.local?.currentIndex);
@@ -8334,11 +8332,21 @@ scriptContent:
         	}
         	
         	public searchPalette(array, query) {
-        		const q = (query || "").trim().toLowerCase();
-        		const palette = array || [];
+        		const normalize = (value: any): string => {
+        			return String(value ?? "")
+        				.normalize("NFD")
+        				.replace(/[\u0300-\u036f]/g, "")
+        				.toLocaleLowerCase()
+        				.trim();
+        		};
+        
+        		const q = normalize(query);
+        		const palette = Array.isArray(array) ? array : [];
         
         		const indexedPalette = palette.map((topic, topicOriginalIndex) => {
-        			const sourceObjects = Array.isArray(topic?.objects) ? topic.objects : [];
+        			const sourceObjects = Array.isArray(topic?.objects)
+        				? topic.objects
+        				: [];
         
         			return {
         				...topic,
@@ -8355,21 +8363,86 @@ scriptContent:
         			return indexedPalette;
         		}
         
+        		const getTopicLabel = (topic: any): string => {
+        			try {
+        				return normalize(
+        					this.translate.instant(topic?.name || "")
+        				);
+        			}
+        			catch (e) {
+        				return normalize(topic?.name);
+        			}
+        		};
+        
+        		const getObjectLabel = (object: any): string => {
+        			try {
+        				return normalize(
+        					this.translate.instant(object?.name || "")
+        				);
+        			}
+        			catch (e) {
+        				return normalize(object?.name);
+        			}
+        		};
+        
+        		const getObjectDescription = (object: any): string => {
+        			try {
+        				if (object?.custom) {
+        					return normalize(object?.description);
+        				}
+        
+        				const meta = this.getMetaFromPalette(object?.type);
+        
+        				if (meta?.description) {
+        					return normalize(
+        						this.translate.instant(meta.description)
+        					);
+        				}
+        			}
+        			catch (e) {
+        			}
+        
+        			return "";
+        		};
+        
+        		const hasStrongMatch = indexedPalette.some((topic) => {
+        			if (topic == null) {
+        				return false;
+        			}
+        
+        			if (getTopicLabel(topic).includes(q)) {
+        				return true;
+        			}
+        
+        			const sourceObjects = Array.isArray(topic.objects)
+        				? topic.objects
+        				: [];
+        
+        			return sourceObjects.some((object) => {
+        				const objectLabel = getObjectLabel(object);
+        				const type = normalize(object?.type);
+        
+        				return (
+        					objectLabel.includes(q) ||
+        					type.includes(q)
+        				);
+        			});
+        		});
+        
         		return indexedPalette
         			.map((topic) => {
         				if (topic == null) {
         					return null;
         				}
         
-        				let topicLabel = "";
-        				try {
-        					topicLabel = this.translate.instant(topic.name || "").toLowerCase();
-        				} catch (e) {
-        					topicLabel = (topic?.name || "").toLowerCase();
-        				}
+        				const sourceObjects = Array.isArray(topic.objects)
+        					? topic.objects
+        					: [];
         
-        				const sourceObjects = Array.isArray(topic.objects) ? topic.objects : [];
+        				const topicLabel = getTopicLabel(topic);
         
+        				// Preserve the historical behavior:
+        				// matching a topic returns all components from this topic.
         				if (topicLabel.includes(q)) {
         					return {
         						...topic,
@@ -8378,29 +8451,27 @@ scriptContent:
         				}
         
         				const objects = sourceObjects.filter((object) => {
-        					let objectLabel = "";
-        					let description = "";
-        					const type = (object?.type || "").toLowerCase();
+        					const objectLabel = getObjectLabel(object);
+        					const type = normalize(object?.type);
         
-        					try {
-        						objectLabel = this.translate.instant(object?.name || "").toLowerCase();
-        					} catch (e) {
-        						objectLabel = (object?.name || "").toLowerCase();
+        					const strongMatch =
+        						objectLabel.includes(q) ||
+        						type.includes(q);
+        
+        					if (strongMatch) {
+        						return true;
         					}
         
-        					try {
-        						if (object?.custom) {
-        							description = (object?.description || "").toLowerCase();
-        						} else {
-        							const meta = this.getMetaFromPalette(object?.type);
-        							if (meta?.description) {
-        								description = this.translate.instant(meta.description).toLowerCase();
-        							}
-        						}
-        					} catch (e) {
+        					// Description is a fallback only.
+        					// This avoids noisy matches when a label/type/topic
+        					// already provides a more relevant result.
+        					if (!hasStrongMatch) {
+        						const description = getObjectDescription(object);
+        
+        						return description.includes(q);
         					}
         
-        					return objectLabel.includes(q) || description.includes(q) || type.includes(q);
+        					return false;
         				});
         
         				return objects.length > 0
