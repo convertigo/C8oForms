@@ -3336,6 +3336,16 @@ export async function openPreview(page: Page, waitForSelector = SEL.mapViewer): 
   await page.waitForTimeout(2_000);
 }
 
+export async function returnToEditorFromPreviewThroughUi(page: Page): Promise<void> {
+  await test.step('Leave Preview through its Edit button', async () => {
+    const edit = page.locator('ion-button.class1777890117949, page-viewerpage ion-button:has(ion-icon[name="brush-outline"])').first();
+    await expect(edit, 'Preview should expose its Edit button').toBeVisible({ timeout: 15_000 });
+    await edit.click();
+    await expectRoute(page, ROUTE.editor, 30_000);
+    await page.locator(SEL.pageButtonsBlock).first().waitFor({ state: 'visible', timeout: 30_000 });
+  });
+}
+
 export async function expectViewerPageTitleVisible(page: Page, title: string): Promise<void> {
   await test.step(`Assert viewer page title "${title}" is visible`, async () => {
     await expect(viewerPageTitleHeading(page, title), `viewer page title ${title} should be visible`).toBeVisible({
@@ -3885,6 +3895,44 @@ export async function uploadButtonAdvancedSvgThroughImageDialog(page: Page, svg:
     });
     await dialog.locator('button[data-mce-name="Save"]').click();
     return editor.frameLocator('iframe.tox-edit-area__iframe').locator('body img[src^="data:image/svg+xml"]');
+  });
+}
+
+export async function writeRichTextClipboard(page: Page, content: { text: string; html?: string }): Promise<void> {
+  await test.step('Prepare browser clipboard for rich-text paste', async () => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin });
+    await page.evaluate(async ({ text, html }) => {
+      if (html == null) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        }),
+      ]);
+    }, content);
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), {
+      message: 'browser clipboard should contain the intended text before paste',
+      timeout: 10_000,
+    }).toBe(content.text);
+  });
+}
+
+export async function pasteThroughRichTextEditMenu(page: Page): Promise<Locator> {
+  return test.step('Paste through the HugeRTE Edit menu', async () => {
+    const editor = page.locator('.tox-tinymce:visible, .tox-hugerte:visible').last();
+    await expect(editor, 'a rich-text editor with a menu bar should be visible').toBeVisible({ timeout: 15_000 });
+    const body = editor.frameLocator('iframe.tox-edit-area__iframe').locator('body');
+    await body.click();
+    await editor.locator('.tox-menubar button.tox-mbtn').nth(1).click();
+    const item = page.locator('.tox-menu:visible').last().locator('.tox-collection__item').filter({
+      hasText: /^\s*(Paste|Coller|Pegar|Incolla)(?:\s|$)/i,
+    }).first();
+    await expect(item, 'HugeRTE Edit menu should expose Paste').toBeVisible({ timeout: 10_000 });
+    await item.click();
+    return body;
   });
 }
 
