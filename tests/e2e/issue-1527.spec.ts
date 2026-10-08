@@ -16,6 +16,9 @@ import {
   acceptRgpdIfVisible,
   dragSourcePaletteEntryToTinyMce,
   selectTinyMcePathBadgeTreeValue,
+  openSettings,
+  createMcpTokenThroughSettingsUi,
+  revokeMcpTokenThroughSettingsUi,
 } from './helpers/studio';
 
 /**
@@ -29,7 +32,8 @@ import {
  * whole page. For a component nested in Horizontal layouts, the canvas behind
  * the editor renders a copy of the same badge: that copy was replaced, and the
  * editor kept the bare grid badge. Fix 62a59edd (merged into NGX by 6d82be81)
- * looks the badge up in editor bodies only.
+ * looks the badge up in editor bodies only. QA validated beta372; this spec
+ * passed on test-nocode running 2.2.0-beta372 without deployment in this run.
  */
 const WORKSPACE = 'C8oForms E2E';
 const BASE = 'Regression Fixtures';
@@ -43,18 +47,33 @@ test.describe.configure({ retries: process.env.CI ? 2 : 0 });
 test.setTimeout(300_000);
 
 test('#1527 - grid palette values stay editable in components nested in two Horizontal layouts', async ({ page }) => {
-  await ensureBaserowTable({
-    workspace: WORKSPACE,
-    database: BASE,
-    table: TABLE,
-    primaryField: 'Name',
-    columns: [
-      { name: 'Name', type: 'text' },
-      { name: COLUMN, type: 'text' },
-    ],
-    rows: [{ Name: 'row_1527', [COLUMN]: 'Doe' }],
-    upsertKey: 'Name',
-  });
+  await login(page);
+  const tokenName = `issue-1527-${Date.now()}`;
+  let temporaryToken: string | undefined;
+  try {
+    if (!process.env.C8OFORMS_MCP_TOKEN) {
+      await openSettings(page);
+      temporaryToken = await createMcpTokenThroughSettingsUi(page, tokenName);
+    }
+    await test.step('Ensure the Grid source table exists for this user', async () => {
+      await ensureBaserowTable({
+        workspace: WORKSPACE,
+        database: BASE,
+        table: TABLE,
+        primaryField: 'Name',
+        columns: [
+          { name: 'Name', type: 'text' },
+          { name: COLUMN, type: 'text' },
+        ],
+        rows: [{ Name: 'row_1527', [COLUMN]: 'Doe' }],
+        upsertKey: 'Name',
+      }, temporaryToken);
+    });
+  } finally {
+    if (temporaryToken) {
+      await revokeMcpTokenThroughSettingsUi(page, tokenName);
+    }
+  }
 
   await login(page);
   await createBlankForm(page, `Issue 1527 ${Date.now()}`);
