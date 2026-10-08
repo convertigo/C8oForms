@@ -1699,6 +1699,32 @@ export async function switchSelectorApplicationsView(page: Page, view: 'grid' | 
   });
 }
 
+export async function expectSearchedApplicationTooltipName(
+  page: Page,
+  title: string,
+  query: string,
+  view: 'grid' | 'list',
+): Promise<void> {
+  await test.step(`Assert ${view} search tooltip shows the application name without markup`, async () => {
+    const rendered = await waitForSelectorHighlightedTitleLayout(page, query, query);
+    expect(rendered.text, `${view} search result should render the exact application name`).toBe(title);
+    expect(rendered.highlightedText, `${view} search result should highlight the query`).toBe(query);
+
+    const titleSelector = view === 'grid' ? SEL.selectorCardTitle : SEL.selectorListTitle;
+    const resultTitle = page.locator(titleSelector).filter({ visible: true }).filter({ hasText: query }).first();
+    await expect(resultTitle, `${view} search result should be visible`).toBeVisible({ timeout: 15_000 });
+    await resultTitle.hover();
+
+    const tooltip = page
+      .locator('[role="tooltip"], mat-tooltip-component, .mat-tooltip, .mat-mdc-tooltip')
+      .filter({ visible: true })
+      .last();
+    await expect(tooltip, `${view} application tooltip should open on hover`).toBeVisible({ timeout: 5_000 });
+    await expect(tooltip, `${view} tooltip should not expose search highlighting markup`).toHaveText(title);
+    await expect(tooltip.locator('strong'), `${view} tooltip should contain only the plain application name`).toHaveCount(0);
+  });
+}
+
 export async function selectorApplicationTitleClipping(
   title: Locator,
   view: 'grid' | 'list',
@@ -3824,6 +3850,41 @@ export async function setButtonAdvancedRichLabel(
 
     await typeVisibleTinyMceRichContent(page, editorRoot, content);
     await page.keyboard.press('Tab').catch(() => undefined);
+  });
+}
+
+export async function openButtonAdvancedRichTextEditor(page: Page): Promise<Locator> {
+  return test.step('Open the Button advanced rich-text editor', async () => {
+    await openButtonStyleLabelSection(page);
+    await selectButtonDisplayMode(page, 'advanced');
+    const editorRoot = page.locator(`${SEL.buttonAdvancedTextEditor}:visible`).first();
+    await expect(editorRoot.locator('.tox-tinymce, .tox-hugerte').first(), 'Button advanced editor should be mounted').toBeVisible({
+      timeout: 20_000,
+    });
+    return editorRoot;
+  });
+}
+
+export async function uploadButtonAdvancedSvgThroughImageDialog(page: Page, svg: string): Promise<Locator> {
+  return test.step('Upload an SVG through the Button advanced image dialog', async () => {
+    const editor = await openButtonAdvancedRichTextEditor(page);
+    const menus = editor.locator('.tox-menubar button.tox-mbtn');
+    await expect(menus.nth(3), 'HugeRTE Insert menu should be ready').toBeVisible({ timeout: 15_000 });
+    await menus.nth(3).click();
+    const imageItem = page.locator('.tox-collection__item:visible').first();
+    await expect(imageItem, 'Insert menu should expose the Image action first').toBeVisible({ timeout: 10_000 });
+    await imageItem.click();
+
+    const dialog = page.locator('.tox-dialog:visible').last();
+    await expect(dialog, 'HugeRTE image dialog should open').toBeVisible({ timeout: 10_000 });
+    await dialog.locator('[role="tab"]').nth(2).click();
+    await dialog.locator('input[type="file"]').setInputFiles({
+      name: 'issue-1537.svg',
+      mimeType: 'image/svg+xml',
+      buffer: Buffer.from(svg),
+    });
+    await dialog.locator('button[data-mce-name="Save"]').click();
+    return editor.frameLocator('iframe.tox-edit-area__iframe').locator('body img[src^="data:image/svg+xml"]');
   });
 }
 
@@ -10197,6 +10258,43 @@ export async function typeInRichTextEditor(page: Page, text: string): Promise<vo
     await page.keyboard.insertText(text);
     await page.keyboard.press('Tab');
     await expect(body, 'rich-text editor should keep the entered text').toContainText(text, { timeout: 10_000 });
+  });
+}
+
+export async function authorDescriptionWithArialBoldThroughUi(
+  page: Page,
+  firstParagraph: string,
+  secondParagraph: string,
+): Promise<{ editorBoldFont: string; editorDefaultFont: string }> {
+  return test.step('Format a Description with Arial, a bold first word, and a default-font second paragraph', async () => {
+    await typeInRichTextEditor(page, firstParagraph);
+    const body = page.frameLocator('iframe.tox-edit-area__iframe').locator('body').first();
+    await body.click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.insertText(secondParagraph);
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.press('Shift+End');
+
+    await page.locator('.tox-menubar button.tox-mbtn').nth(4).click();
+    await page.locator('.tox-collection__item:visible').nth(8).hover();
+    await page.locator('.tox-collection__item:visible').filter({ hasText: /^\s*Arial\s*$/ }).first().dispatchEvent(
+      'click',
+      {},
+      { timeout: 5_000 },
+    );
+    await body.click();
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.press('Control+Shift+ArrowRight');
+    await page.keyboard.press('Control+B');
+
+    const bold = body.locator('strong').first();
+    await expect(bold, 'the first Description word should be bold in the editor').toBeVisible({ timeout: 10_000 });
+    await expect(body.locator('p').nth(1), 'the default-font second paragraph should be authored').toContainText(secondParagraph);
+    return {
+      editorBoldFont: await bold.evaluate((el) => getComputedStyle(el).fontFamily),
+      editorDefaultFont: await body.locator('p').nth(1).evaluate((el) => getComputedStyle(el).fontFamily),
+    };
   });
 }
 

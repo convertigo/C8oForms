@@ -16,7 +16,8 @@ import {
 /**
  * Regression test for https://github.com/convertigo/C8oForms/issues/1545
  *
- * Found in 2.2.0-beta342, still present in 2.2.0-beta345.
+ * Found in 2.2.0-beta342, still present in 2.2.0-beta345. Fix 94167d909
+ * was merged by 82b0e6ec0 and first released in 2.2.0-beta346.
  *
  * Root cause: the chooseIcon modal feeds its cdkVirtualFor with
  * filterIconRows(), which rebuilt the rows array on every call. The generated
@@ -34,6 +35,8 @@ import {
  * Button, check that its icon field is read-only, open its icon picker, search,
  * and pick an icon with a single click on its text, then on its image. No form
  * document writes or fixture shortcuts.
+ * This spec passed in Chromium and Firefox on test-nocode running
+ * 2.2.0-beta372, without deployment in the current run.
  */
 
 test.setTimeout(180_000);

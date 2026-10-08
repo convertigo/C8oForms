@@ -971,7 +971,7 @@ export async function holdSourceRequests(page: Page, maxHoldMs = 60_000): Promis
  * #1540: a Data Grid bound to a Baserow source shows its loading overlay in Preview until its rows arrive,
  * without the "an error occured while trying to show an overlay" console error.
  */
-export async function assertGridLoadingOverlayWhileSourceLoadsThroughUi(page: Page): Promise<void> {
+export async function assertGridLoadingOverlayWhileSourceLoadsThroughUi(page: Page, token?: string): Promise<void> {
   await test.step('Ensure the functional Grid Baserow table exists', async () => {
     const catalog = await ensureBaserowTable({
       workspace: FUNCTIONAL_SOURCE_WORKSPACE,
@@ -981,7 +981,7 @@ export async function assertGridLoadingOverlayWhileSourceLoadsThroughUi(page: Pa
       columns: GRID_SOURCE_COLUMNS.map((name) => ({ name, type: 'text' })),
       rows: GRID_SOURCE_ROWS,
       upsertKey: 'Name',
-    });
+    }, token);
     assertGridSourceFixture(catalog);
   });
 
